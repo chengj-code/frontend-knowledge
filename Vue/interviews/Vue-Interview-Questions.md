@@ -60,6 +60,14 @@
    - 按键修饰符：`.enter`、`.esc`
    - v-model 修饰符：`.trim`、`.number`、`.lazy`
 
+### 🔍 追问链
+1. **v-html 有什么安全风险？如何防范 XSS？**
+   → 方向：innerHTML 注入、DOMPurify、v-text 替代方案
+2. **动态参数 `v-bind:[attr]` 有什么限制？**
+   → 方向：不能有空格/引号、必须小写（HTML 约束）、运行时表达式求值开销
+3. **模板编译后生成的渲染函数长什么样？**（进阶）
+   → 方向：_c/_h/_s 等辅助函数、with(this) 包裹、render 函数优化
+
 ---
 
 ## Q02: v-if 和 v-show 有什么区别？在什么场景下选择哪个？
@@ -84,6 +92,14 @@
 4. **注意事项**
    - `v-if` 和 `v-for` 不建议同时使用在同一元素上（Vue2 中 v-for 优先级更高，Vue3 中 v-if 优先级更高）
    - `v-show` 不支持 `<template>` 元素，也不支持 `v-else`
+
+### 🔍 追问链
+1. **v-if 切换时生命周期怎么触发？**
+   → 方向：销毁→重建流程，created/mounted/beforeDestroy/destroyed 全部重新执行
+2. **v-if 和 v-for 同时使用有什么问题？Vue2/Vue3 优先级差异？**
+   → 方向：Vue2 v-for优先导致每次循环都判断v-if（性能浪费），Vue3 v-if优先但需要用template包裹
+3. **如果用 v-show 控制大量节点，有什么优化手段？**
+   → 方向：虚拟滚动、分页渲染、v-memo
 
 ---
 
@@ -114,10 +130,18 @@
    ```html
    <!-- ✅ 推荐 -->
    <div v-for="item in list" :key="item.id">{{ item.name }}</div>
-   
+
    <!-- ❌ 避免（仅在静态列表或无增删操作时可用） -->
    <div v-for="(item, index) in list" :key="index">{{ item.name }}</div>
    ```
+
+### 🔍 追问链
+1. **用 index 做 key 有什么问题？什么时候可以用 index？**
+   → 方向：逆序添加/删除导致错误的复用、列表纯展示无状态时可用index
+2. **key 的 diff 匹配过程是怎样的？（结合双端对比算法）**
+   → 方向：头头、尾尾、头尾、尾头、key map 查找五种策略
+3. **为什么不要用随机数做 key？**
+   → 方向：每次渲染都生成新key→无法复用→全量更新DOM
 
 ---
 
@@ -311,6 +335,14 @@
    - 不要在 `beforeUpdate` 和 `updated` 中修改状态（会导致无限循环）
    - 服务端渲染（SSR）只支持 `beforeCreate` 和 `created`（无 DOM 环境）
 
+### 🔍 追问链
+1. **父子组件的生命周期执行顺序是什么？**
+   → 方向：父beforeCreate→父created→父beforeMount→子beforeCreate...→子mounted→父mounted（外层到内层的"洋葱模型"）
+2. **keep-alive 包裹的组件生命周期有什么变化？**
+   → 方向：新增 activated/deactivated，不再触发 created/mounted/unmounted
+3. **请求应该放在 created 还是 mounted 中？为什么？**
+   → 方向：created 更早（能更快拿到数据）、SSR 场景只能用 created
+
 ---
 
 ## Q08: computed 和 watch 有什么区别？各自的使用场景是什么？
@@ -373,6 +405,14 @@
 5. **watchEffect vs watch**
    - `watchEffect`：自动追踪依赖，无需显式指定源，立即执行一次
    - `watch`：显式指定源，更精确的控制，可访问旧值
+
+### 🔍 追问链
+1. **computed 为什么有缓存而 watch 没有？**
+   → 方向：computed 的 dirty 标志位机制、依赖不变则返回缓存值；watch 每次变化都执行回调
+2. **watch 的 immediate 和 flush 选项分别解决什么问题？**
+   → 方向：immediate 首次执行、flush:'post' 在 DOM 更新后执行（访问更新后的 DOM）
+3. **computed 能否接收参数？如何实现？**
+   → 方向：computed 不能直接传参，但可以返回一个函数（闭包方式）
 
 ---
 
@@ -961,6 +1001,14 @@
    - `markRaw`：标记对象永远不被代理
    - `effectScope`：批量控制副作用
 
+### 🔍 追问链
+1. **Vue 2 为什么不能检测数组下标直接修改和对象属性新增？**
+   → 方向：Object.defineProperty 只能劫持已有属性的 get/set，数组长度的变更无法感知
+2. **Vue 3 的 Proxy 完美解决了所有问题吗？有没有 Proxy 无法代理的情况？**
+   → 方向：Proxy 不支持 IE11、对已有对象整体替换时需 reactive 重新代理
+3. **嵌套对象的响应式是怎么实现的？递归深度有限制吗？**
+   → 方向：Vue2 递归 Observer、Vue3 懒递归（get 时才深层代理）、toRaw 解决循环引用
+
 ---
 
 ## Q17: Vue3 的 Composition API（setup 函数）相比 Options API 有哪些优势？
@@ -1032,6 +1080,633 @@
    - 更简洁的语法，无需 return
    - 自动注册导入的组件和 Composable
    - 更好的 IDE 支持和性能表现
+
+### 深度拓展：手写实现
+
+#### 手写简化版 Vue2 响应式系统（Object.defineProperty）
+
+```javascript
+// =============================================
+// Vue2 响应式系统核心实现（简化版）
+// 核心组件：Dep（依赖收集器）+ Watcher（观察者）+ defineReactive（数据劫持）
+// =============================================
+
+// ---------- 1. Dep 类：依赖收集器 ----------
+// 每个响应式属性都有一个 Dep 实例，用于存储依赖该属性的所有 Watcher
+class Dep {
+  constructor() {
+    // 使用 Set 存储 watcher，自动去重（同一个 watcher 只收集一次）
+    this.subs = new Set()
+  }
+
+  // 收集依赖：将当前活跃的 watcher 添加到 subs 中
+  depend() {
+    // Dep.target 是一个全局变量，指向当前正在执行的 watcher
+    if (Dep.target) {
+      this.subs.add(Dep.target)
+    }
+  }
+
+  // 通知更新：遍历所有 watcher，触发它们的 update 方法
+  notify() {
+    this.subs.forEach(watcher => watcher.update())
+  }
+}
+
+// 静态属性：指向当前正在执行的 Watcher（全局唯一）
+Dep.target = null
+// watcher 栈：处理嵌套 watcher 场景（如 computed 嵌套）
+const targetStack = []
+
+// 将 watcher 入栈，并设置为当前活跃的 watcher
+function pushTarget(watcher) {
+  targetStack.push(watcher)
+  Dep.target = watcher
+}
+
+// 出栈，恢复上一个 watcher 为活跃状态
+function popTarget() {
+  targetStack.pop()
+  Dep.target = targetStack[targetStack.length - 1]
+}
+
+// ---------- 2. Watcher 类：观察者 ----------
+// Watcher 是依赖的具体表现形式，组件渲染函数、computed、watch 都是 watcher
+class Watcher {
+  constructor(vm, expOrFn, cb, options) {
+    this.vm = vm           // 组件实例
+    this.getter = expOrFn  // 获取数据的函数（或表达式解析函数）
+    this.cb = cb           // 回调函数
+    this.value = this.get() // 实例化时立即执行一次 get（触发依赖收集）
+    this.deps = []         // 反向记录该 watcher 依赖了哪些 dep（用于 cleanup）
+  }
+
+  // 核心：执行 getter，触发数据属性的 get 方法，从而收集依赖
+  get() {
+    // 1. 将当前 watcher 设为全局活跃状态
+    pushTarget(this)
+    // 2. 执行 getter 函数（如渲染函数），内部会读取响应式数据
+    //    读取操作会触发 Object.defineProperty 的 get，get 中调用 dep.depend() 收集当前 watcher
+    const value = this.getter.call(this.vm, this.vm)
+    // 3. 恢复之前的 watcher（嵌套场景下恢复父级 watcher）
+    popTarget()
+    return value
+  }
+
+  // 当依赖的数据变化时，由 dep.notify() 调用
+  update() {
+    // 异步批量更新：将 watcher 加入队列，而不是立即重新执行
+    queueWatcher(this)
+  }
+
+  // 真正执行回调
+  run() {
+    const value = this.get()     // 重新获取值（触发依赖收集）
+    const oldValue = this.value  // 上次的值
+    this.value = value
+    // 执行回调，传入新旧值
+    this.cb.call(this.vm, value, oldValue)
+  }
+
+  // 将自身从所有依赖的 dep 中移除（用于组件销毁或 computed 重新求值时的清理）
+  cleanupDeps() {
+    this.deps.forEach(dep => dep.delete(this))
+    this.deps.length = 0
+  }
+
+  // 添加 dep 到依赖列表（反向记录）
+  addDep(dep) {
+    this.deps.push(dep)
+  }
+}
+
+// ---------- 3. defineReactive 函数：数据劫持核心 ----------
+// 使用 Object.defineProperty 劫持对象的属性的读写操作
+function defineReactive(obj, key, val) {
+  // 为每个属性创建一个独立的 dep（依赖收集器）
+  const dep = new Dep()
+
+  // 获取属性当前的描述符（处理属性可能已有 getter/setter 的情况）
+  const property = Object.getOwnPropertyDescriptor(obj, key)
+
+  // 如果属性已有 getter/setter 且不可配置，则无法劫持（直接返回）
+  if (property && property.configurable === false) {
+    return
+  }
+
+  // 兼容已有 getter/setter：保存原始的 getter 和 setter
+  const getter = property && property.get
+  const setter = property && property.set
+
+  // 递归观察子对象（深度响应式：如果 val 是对象/数组，也将其转为响应式）
+  // 注意：这里会导致初始化时就递归遍历所有层级，深层对象有性能问题
+  observe(val)
+
+  // 使用 Object.defineProperty 定义/修改属性
+  Object.defineProperty(obj, key, {
+    enumerable: true,       // 可枚举
+    configurable: true,    // 可配置（可删除、可再次修改特性）
+
+    // ---- get 拦截器：读取属性时触发 ----
+    get: function reactiveGetter() {
+      const value = getter ? getter.call(obj) : val  // 如果有原始 getter 则调用
+      // 【关键】依赖收集：如果当前有活跃的 watcher，将该 watcher 收集到 dep 中
+      if (Dep.target) {
+        dep.depend()              // 属性自身的 dep 收集 watcher
+        Dep.target.addDep(dep)    // watcher 反向记录这个 dep
+      }
+      return value
+    },
+
+    // ---- set 拦截器：修改属性时触发 ----
+    set: function reactiveSetter(newVal) {
+      // 获取旧值（用于对比和新旧值传递）
+      const value = getter ? getter.call(obj) : val
+      // 【优化】如果新值和旧值相同（且不是 NaN），则不触发更新
+      if (newVal === value || (Number.isNaN(newVal) && Number.isNaN(value))) {
+        return
+      }
+      // 如果有原始 setter，则调用它
+      if (setter) {
+        setter.call(obj, newVal)
+      } else {
+        val = newVal  // 否则直接赋值给闭包中的 val
+      }
+      // 【关键】对新值进行响应式处理（新增属性可能是对象）
+      observe(newVal)
+      // 【核心】通知更新：告诉 dep 所有依赖该属性的 watcher 数据变了
+      dep.notify()
+    }
+  })
+}
+
+// ---------- 4. Observer 类：将对象转为响应式 ----------
+// 递归地为对象的所有属性定义响应式
+class Observer {
+  constructor(value) {
+    this.value = value
+    // 给对象添加 __ob__ 属性，标记已经被观测（避免重复观测）
+    def(value, '__ob__', this)
+
+    // 数组特殊处理：需要拦截能改变数组自身的方法（push/pop/shift/unshift/splice/sort/reverse）
+    if (Array.isArray(value)) {
+      // 重写数组的变异方法（此处省略具体实现）
+      protoAugment(value, arrayMethods)
+      // 递归观测数组元素
+      this.observeArray(value)
+    } else {
+      // 对象：遍历所有属性进行 defineReactive
+      this.walk(value)
+    }
+  }
+
+  walk(obj) {
+    const keys = Object.keys(obj)
+    for (let i = 0; i < keys.length; i++) {
+      defineReactive(obj, keys[i], obj[keys[i]])
+    }
+  }
+
+  observeArray(items) {
+    for (let i = 0; i < items.length; i++) {
+      observe(items[i])
+    }
+  }
+}
+
+// 辅助函数：在对象上定义不可枚举的属性
+def(obj, key, val) {
+  Object.defineProperty(obj, key, {
+    value: val,
+    enumerable: false,
+    writable: true,
+    configurable: true
+  })
+}
+
+// 入口函数：将值转为响应式
+function observe(value) {
+  // 只对对象类型进行观测（基本类型无法添加属性）
+  if (!isObject(value)) return
+  let ob
+  // 如果已经有 __ob__ 说明已经观测过，直接返回
+  if (hasOwn(value, '__ob__') && value.__ob__ instanceof Observer) {
+    ob = value.__ob__
+  } else {
+    // 创建新的 Observer 实例
+    ob = new Observer(value)
+  }
+  return ob
+}
+
+// ---------- 5. 简化版异步队列（queueWatcher）----------
+const queue = []          // watcher 队列
+let has = {}             // 去重标记（防止同一个 watcher 多次入队）
+let waiting = false      // 是否正在刷新队列
+let flushing = false     // 是否正在刷新中
+
+// 将 watcher 加入队列
+function queueWatcher(watcher) {
+  const id = watcher.id
+  // 去重：同一个 watcher 只入队一次
+  if (!has[id]) {
+    has[id] = true
+    queue.push(watcher)
+
+    // 如果没有在等待刷新，则安排一次刷新
+    if (!waiting) {
+      waiting = true
+      // 使用 nextTick（微任务/宏任务）异步刷新队列
+      nextTick(flushSchedulerQueue)
+    }
+  }
+}
+
+// 刷新队列：按序执行所有 watcher
+function flushSchedulerQueue() {
+  flushing = true
+  queue.sort((a, b) => a.id - b.id)  // 按 id 排序（确保父组件先于子组件更新）
+
+  for (let i = 0; i < queue.length; i++) {
+    const watcher = queue[i]
+    watcher.run()  // 执行 watcher 的 run 方法（重新渲染或执行回调）
+  }
+
+  // 重置状态
+  queue.length = 0
+  has = {}
+  waiting = false
+  flushing = false
+}
+
+// ---------- 6. 使用示例 ----------
+// 创建一个简单的 Vue 实例模拟
+const data = { message: 'Hello', count: 0 }
+
+// 将 data 对象转为响应式
+observe(data)
+
+// 创建一个 watcher（模拟组件渲染 watcher）
+const vm = {}  // 组件实例占位
+new Watcher(
+  vm,
+  function() {  // getter：渲染函数
+    console.log('渲染:', data.message, 'count:', data.count)
+    // 这里读取了 data.message 和 data.count → 触发这两个属性的 get → 收集依赖
+  },
+  function(newValue, oldValue) {  // cb：更新后的回调
+    console.log('视图更新完成')
+  }
+)
+
+// 修改数据 → 触发 set → dep.notify() → watcher.update() → queueWatcher → flushSchedulerQueue → watcher.run()
+data.message = 'Hi'     // 触发更新！
+data.count++            // 触发更新！（但会被合并到同一次刷新中）
+```
+
+#### 手写简化版 Vue3 响应式系统（Proxy）
+
+```javascript
+// =============================================
+// Vue3 响应式系统核心实现（简化版）
+// 核心组件：reactive + effect + track + trigger
+// 数据结构：WeakMap(target) → Map(key) → Set(effect) 三层嵌套
+// =============================================
+
+// ---------- 1. 全局数据结构：三层嵌套存储依赖关系 ----------
+// targetMap: WeakMap<target, Map<key, Set<effect>>>
+// 第一层 WeakMap：以目标对象为 key（WeakMap 不影响垃圾回收，对象被回收时自动清除）
+// 第二层 Map：以属性名为 key
+// 第三层 Set：存储所有依赖该属性值的 effect 函数
+const targetMap = new WeakMap()
+
+// 当前正在执行的 effect（全局变量，类似 Vue2 的 Dep.target）
+let activeEffect = null
+// effect 执行栈（支持嵌套 effect，如 computed 内部访问其他 computed）
+const effectStack = []
+
+// ---------- 2. track 函数：依赖收集 ----------
+// 在 Proxy get 中调用，建立 target → key → effect 的映射关系
+function track(target, type, key) {
+  // 如果当前没有活跃的 effect，不收集（说明不在 effect 上下文中读取数据）
+  if (!activeEffect) return
+
+  // 【第一层】获取或创建 target 对应的 depsMap（Map<key, Set<effect>>）
+  let depsMap = targetMap.get(target)
+  if (!depsMap) {
+    targetMap.set(target, (depsMap = new Map()))
+  }
+
+  // 【第二层】获取或创建 key 对应的 dep（Set<effect>）
+  let dep = depsMap.get(key)
+  if (!dep) {
+    depsMap.set(key, (dep = new Set()))
+  }
+
+  // 【第三层】收集依赖：将当前 effect 添加到 dep 中
+  // 使用 trackEffects 进行去重处理
+  trackEffects(dep)
+}
+
+// 收集依赖的具体逻辑（带去重）
+function trackEffects(dep) {
+  // 去重：同一个 effect 不重复收集到同一个 dep 中
+  if (!dep.has(activeEffect)) {
+    dep.add(activeEffect)
+    // 反向记录：effect 记录自己属于哪些 dep（用于 cleanup 时使用）
+    activeEffect.deps.push(dep)
+  }
+}
+
+// ---------- 3. trigger 函数：派发更新 ----------
+// 在 Proxy set 中调用，找到依赖该属性变化的所有 effect 并触发
+function trigger(target, type, key, newValue, oldValue) {
+  // 获取 target 对应的 depsMap
+  const depsMap = targetMap.get(target)
+  if (!depsMap) return  // 没有任何依赖，直接返回
+
+  // 收集需要触发的 effects（用 Set 自动去重）
+  const effects = new Set()
+
+  // ① 精确触发：获取特定 key 的依赖
+  if (key !== undefined) {
+    const dep = depsMap.get(key)
+    if (dep) {
+      dep.forEach(effect => effects.add(effect))
+    }
+  }
+
+  // ② ITERATE 触发：当新增/删除属性时，
+  //    需要触发 for...in 或 Object.keys() 等迭代操作的依赖
+  if (type === 'ADD' || type === 'DELETE') {
+    const iterateDep = depsMap.get(Symbol.iterator)  // 迭代 symbol key
+    if (iterateDep) {
+      iterateDep.forEach(effect => effects.add(effect))
+    }
+  }
+
+  // ③ 数组 length 特殊处理：当数组长度变短时，
+  //    需要触发被删除索引对应的依赖
+  if (Array.isArray(target) && key === 'length') {
+    const length = newValue
+    depsMap.forEach((dep, k) => {
+      // 如果是数字索引且 >= 新长度，说明被"删掉"了
+      if (typeof k !== 'symbol' && !Number.isNaN(k) && k >= length) {
+        dep.forEach(effect => effects.add(effect))
+      }
+    })
+  }
+
+  // ④ 执行所有收集到的 effects
+  effects.forEach(effect => {
+    // 避免无限循环：如果 effect 正在执行且不允许递归，则跳过
+    if (effect !== activeEffect || effect.allowRecurse) {
+      // 优先使用 scheduler（调度器），否则直接执行 run
+      if (effect.scheduler) {
+        effect.scheduler(effect.run)
+      } else {
+        effect.run()
+      }
+    }
+  })
+}
+
+// ---------- 4. effect 函数：注册副作用函数 ----------
+// effect 是 Vue3 响应式的核心 API，computed、watch、组件渲染都基于 effect 实现
+function effect(fn, options = {}) {
+  // 创建 effect 函数（实际执行的副作用）
+  const _effect = function ReactiveEffect(...args) {
+    // 如果已经在运行中（非嵌套情况），不重复执行
+    if (!_effect.active) return fn(...args)
+
+    // 清理旧的依赖关系（每次重新执行前先断开旧的连接）
+    if (!effectStack.includes(_effect)) {
+      cleanup(_effect)
+      try {
+        // 【关键】入栈：将当前 effect 设为活跃状态
+        enableTracking()
+        effectStack.push(_effect)
+        activeEffect = _effect
+        // 执行用户传入的函数（fn）
+        // fn 内部读取响应式数据 → 触发 Proxy get → track() → 收集当前 effect
+        return fn.apply(null, args)
+      } finally {
+        // 【关键】出栈：恢复上一个 effect 为活跃状态
+        effectStack.pop()
+        resetTracking()
+        activeEffect = effectStack[effectStack.length - 1]
+      }
+    }
+  }
+
+  // 配置项
+  _effect.id = uid++         // 唯一标识（用于排序）
+  _effect.active = true      // 是否激活
+  _effect.raw = fn           // 原始函数引用
+  _effect.deps = []          // 反向记录依赖的 dep 列表
+  _effect.options = options  // 用户配置
+  _effect.allowRecurse = !!options.allowRecurse  // 是否允许递归
+
+  // scheduler：调度函数（如果不传则同步执行）
+  // computed 会传入 scheduler，实现 lazy + 缓存机制
+  if (options.scheduler) {
+    _effect.scheduler = options.scheduler
+  }
+
+  // lazy: 如果为 true，创建时不立即执行（computed 用到）
+  // 默认立即执行一次（触发初始依赖收集）
+  if (!options.lazy) {
+    _effect()
+  }
+
+  return _effect
+}
+
+let uid = 0  // 全局计数器
+
+// 清理 effect 的所有依赖关系
+function cleanup(effect) {
+  const { deps } = effect
+  if (deps.length) {
+    for (let i = 0; i < deps.length; i++) {
+      deps[i].delete(effect)  // 从每个 dep 中移除该 effect
+    }
+    deps.length = 0
+  }
+}
+
+// 控制是否应该追踪依赖（用于 stop 效果的场景）
+let shouldTrack = true
+function enableTracking() { shouldTrack = true }
+function resetTracking() { shouldTrack = false }
+
+// ---------- 5. reactive 函数：创建响应式代理 ----------
+// 使用 Proxy 创建代理对象，拦截所有操作
+function reactive(target) {
+  // 只对对象类型进行处理
+  if (!isObject(target)) {
+    console.warn(`value cannot be made reactive: ${String(target)}`)
+    return target
+  }
+
+  // 如果已经是代理，直接返回（同一对象只代理一次）
+  if (target[Symbol.for('__v_isReactive')]) {
+    return target
+  }
+
+  // 创建 Proxy 代理
+  const proxy = new Proxy(target, baseHandlers)
+
+  // 标记为响应式（用于后续判断）
+  def(proxy, Symbol.for('__v_isReactive'), true)
+
+  return proxy
+}
+
+// ---------- 6. baseHandlers：Proxy 处理器（mutableHandlers）----------
+const baseHandlers = {
+  // ---- get 拦截器：读取属性时触发 ----
+  get(target, key, receiver) {
+    // 特殊属性拦截：__v_isReactive、__v_raw 等（内部使用的标志位）
+    if (key === Symbol.for('__v_isReactive')) {
+      return true
+    }
+    if (key === Symbol.for('__v_raw')) {
+      return target  // 返回原始对象（绕过代理）
+    }
+
+    // 【核心】依赖收集：追踪谁在读取这个属性
+    track(target, 'GET', key)
+
+    // 使用 Reflect.get 获取值（保证 this 指向正确，receiver 是代理对象）
+    const res = Reflect.get(target, key, receiver)
+
+    // 【惰性代理】如果值是对象，递归转为 reactive
+    // 与 Vue2 不同：Vue3 只在访问时才深层代理（懒代理），提升性能
+    if (isObject(res)) {
+      return reactive(res)
+    }
+
+    return res
+  },
+
+  // ---- set 拦截器：设置属性时触发 ----
+  set(target, key, value, receiver) {
+    // 获取旧值（用于判断是新增还是修改）
+    const oldValue = target[key]
+    // 判断属性是否已存在
+    const hadKey = Object.prototype.hasOwnProperty.call(target, key)
+    // 使用 Reflect.set 设置值（保证原型链上的 setter 正确触发）
+    const result = Reflect.set(target, key, value, receiver)
+
+    // 【关键】判断操作类型并触发更新
+    // 目标对象是原始对象（非 prototype）时才触发（避免原型链设置时重复触发）
+    if (target === toRaw(receiver)) {
+      if (!hadKey) {
+        // 新增属性：trigger 类型为 ADD
+        trigger(target, 'ADD', key, value)
+      } else if (hasChanged(value, oldValue)) {
+        // 修改属性且值确实变了：trigger 类型为 SET
+        trigger(target, 'SET', key, value, oldValue)
+      }
+      // 值没变时不触发（优化：避免不必要的更新）
+    }
+
+    return result
+  },
+
+  // ---- deleteProperty 拦截器：删除属性时触发 ----
+  deleteProperty(target, key) {
+    // 检查属性是否存在
+    const hadKey = Object.prototype.hasOwnProperty.call(target, key)
+    // 执行删除
+    const result = Reflect.deleteProperty(target, key)
+    // 删除成功且属性存在过 → 触发更新
+    if (result && hadKey) {
+      trigger(target, 'DELETE', key, undefined)
+    }
+    return result
+  },
+
+  // ---- has 拦截器：in 操作符时触发 ----
+  has(target, key) {
+    // in 操作也需要追踪依赖（for...in 循环等场景）
+    track(target, 'HAS', key)
+    return Reflect.has(target, key)
+  },
+
+  // ---- ownKeys 拦截器：Object.keys 等操作时触发 ----
+  ownKeys(target) {
+    // 迭代操作追踪（用于 for...in、Object.keys 等）
+    track(target, 'ITERATE')
+    return Reflect.ownKeys(target)
+  }
+}
+
+// 辅助函数：获取原始对象（绕过代理）
+function toRaw(observed) {
+  return observed && observed[Symbol.for('__v_raw')] || observed
+}
+
+// 辅助函数：比较值是否发生变化
+function hasChanged(value, oldValue) {
+  return value !== oldValue && !(Number.isNaN(value) && Number.isNaN(oldValue))
+}
+
+// 辅助函数：定义不可枚举属性
+function def(obj, key, val) {
+  Object.defineProperty(obj, key, {
+    value: val,
+    enumerable: false,
+    writable: true,
+    configurable: true
+  })
+}
+
+// 辅助函数：判断是否为对象
+function isObject(val) {
+  return val !== null && typeof val === 'object'
+}
+
+// ---------- 7. 使用示例 ----------
+
+// 创建响应式对象
+const state = reactive({
+  name: 'Vue3',
+  info: { version: '3.0', author: 'Evan You' },
+  tags: ['reactivity', 'composition-api']
+})
+
+// 注册 effect（副作用函数）：模拟组件渲染
+effect(() => {
+  console.log(`📱 组件渲染: ${state.name} v${state.info.version}`)
+  // 读取 state.name → track(state, 'GET', 'name')
+  // 读取 state.info → track(state, 'GET', 'info') → 返回代理后的 info 对象
+  // 读取 state.info.version → track(info, 'GET', 'version')
+})
+
+// 修改数据 → 触发 set → trigger → 重新执行 effect
+state.name = 'Vue3.4'  // 触发 SET → effect 重新执行 ✅
+state.info.version = '3.4'  // 触发 SET → effect 重新执行 ✅
+
+// Vue3 可以检测到属性的新增和删除（Vue2 做不到）
+state.info.newProp = 'hello'  // 触发 ADD → effect 重新执行 ✅
+delete state.info.newProp     // 触发 DELETE → effect 重新执行 ✅
+
+console.log('✅ Vue3 响应式系统演示完成')
+```
+
+#### Vue2 vs Vue3 响应式核心区别总结
+
+| 特性 | Vue2 (defineProperty) | Vue3 (Proxy) |
+|------|----------------------|--------------|
+| **原理** | 劫持对象单个属性 | 劫持整个对象 |
+| **新增属性** | ❌ 需要 Vue.set | ✅ 自动检测 |
+| **删除属性** | ❌ 需要 Vue.delete | ✅ 自动检测 |
+| **数组索引** | ❌ 无法检测 | ✅ 自动检测 |
+| **性能** | 初始化递归全部转化 | 惰性代理，按需转化 |
+| **内存** | 为每个属性创建 Dep | 三层 Map 结构更节省 |
+| **API 设计** | this.$set / this.$delete | 直接赋值即可 |
 
 ---
 
@@ -1185,6 +1860,532 @@
    - 极端性能场景下（大量节点），可能不如手动优化
    - Vue3 提供 `v-memo` 指令进一步优化特定场景
 
+### 🔍 追问链
+1. **为什么需要虚拟 DOM？直接操作真实 DOM 不行吗？**
+   → 方向：批量更新减少回流重绘、跨平台能力（Weex/UniApp）、声明式编程基础
+2. **diff 算法的时间复杂度是多少？O(n³) 优化到 O(n) 的关键是什么？**
+   → 方向：同层比较策略（只比较同级节点不跨层）、key 优化（避免全量对比）
+3. **Vue 3 的 diff 算法相比 Vue 2 做了哪些优化？**
+   → 方向：最长递增子序列(LIS)算法减少移动次数、静态节点标记跳过、PatchFlag 编译优化
+
+### 深度拓展：手写实现
+
+#### 手写简化版虚拟 DOM 核心（createElement / render / patch）
+
+```javascript
+// =============================================
+// 虚拟 DOM 核心实现（简化版）
+// 核心函数：createElement → h() 创建 VNode
+//           render → 将 VNode 渲染为真实 DOM
+//           patch → 对比新旧 VNode 并更新 DOM
+// =============================================
+
+// ---------- 1. VNode 类：虚拟节点 ----------
+// VNode 是对真实 DOM 节点的 JavaScript 描述
+class VNode {
+  constructor(tag, props, children, key, text, elm) {
+    this.tag = tag          // 标签名，如 'div'、'span'；文本节点为 undefined
+    this.props = props || {} // 属性对象，如 { id: 'app', class: 'container' }
+    this.children = children || []  // 子节点数组
+    this.key = key          // 节点唯一标识（用于 diff 算法的复用判断）
+    this.text = text        // 文本内容（文本节点使用）
+    this.elm = elm          // 对应的真实 DOM 元素引用（初始为 null，render 后赋值）
+  }
+}
+
+// ---------- 2. createElement (h 函数)：创建虚拟节点 ----------
+// 这是用户编写渲染函数时调用的 API，返回一个 VNode 对象
+function createElement(tag, props = {}, children) {
+  let key = null
+  let text = null
+
+  // 如果传入了 key，从 props 中提取（key 不需要渲染到 DOM 上）
+  if (props && props.key !== undefined) {
+    key = props.key
+    delete props.key  // 从属性中移除 key
+  }
+
+  // 规范化 children 参数（支持多种形式）
+  // 形式1：字符串或数字 → 转为文本节点
+  // 形式2：数组 → 子节点数组
+  // 形式3：VNode 对象 → 包裹为数组
+  if (children === undefined) {
+    children = []
+  } else if (typeof children === 'string' || typeof children === 'number') {
+    text = String(children)
+    children = []
+  } else if (!Array.isArray(children)) {
+    children = [children]
+  }
+
+  return new VNode(tag, props, children, key, text, null)
+}
+
+// 简写别名（类似 Vue 的 h 函数）
+const h = createElement
+
+// ---------- 3. render 函数：将 VNode 渲染为真实 DOM ----------
+// 首次渲染时调用，将整棵 VNode 树转换为真实 DOM 树
+function render(vnode, container) {
+  // container 是挂载容器（如 document.getElementById('app')）
+  const elm = createElm(vnode)  // 根据 VNode 创建真实 DOM 元素
+  container.appendChild(elm)    // 将 DOM 插入容器
+}
+
+// 根据 VNode 创建真实的 DOM 元素（递归创建子树）
+function createElm(vnode) {
+  // 【情况1】文本节点：直接创建文本节点
+  if (vnode.text !== null) {
+    vnode.elm = document.createTextNode(vnode.text)
+    return vnode.elm
+  }
+
+  // 【情况2】元素节点：创建对应的 DOM 元素
+  const el = document.createElement(vnode.tag)
+
+  // 设置属性到 DOM 元素上
+  updateProps(el, {}, vnode.props)
+
+  // 【递归】创建子节点并挂载
+  if (vnode.children.length > 0) {
+    vnode.children.forEach(child => {
+      const childElm = createElm(child)  // 递归创建子节点
+      el.appendChild(childElm)
+    })
+  }
+
+  // 将真实 DOM 引用保存回 VNode（后续 patch 时用到）
+  vnode.elm = el
+  return el
+}
+
+// 更新/设置 DOM 属性
+function updateProps(elm, oldProps, newProps) {
+  // 遍历新属性，更新或添加
+  for (let key in newProps) {
+    const newVal = newProps[key]
+    const oldVal = oldProps[key]
+
+    // 特殊处理：事件绑定（以 on 开头的属性）
+    if (key.startsWith('on')) {
+      const eventName = key.slice(2).toLowerCase()  // onClick → click
+      // 移除旧事件监听器（如果存在）
+      if (oldVal) {
+        elm.removeEventListener(eventName, oldVal)
+      }
+      // 绑定新的事件监听器
+      elm.addEventListener(eventName, newVal)
+    }
+    // 特殊处理：style 对象
+    else if (key === 'style') {
+      Object.assign(elm.style, newVal)
+    }
+    // 特殊处理：class
+    else if (key === 'class' || key === 'className') {
+      elm.className = newVal
+    }
+    // 普通属性
+    else {
+      elm.setAttribute(key, newVal)
+    }
+  }
+
+  // 删除旧属性中不存在于新属性的
+  for (let key in oldProps) {
+    if (!(key in newProps)) {
+      if (key.startsWith('on')) {
+        const eventName = key.slice(2).toLowerCase()
+        elm.removeEventListener(eventName, oldProps[key])
+      } else {
+        elm.removeAttribute(key)
+      }
+    }
+  }
+}
+
+// ---------- 4. patch 函数：核心 Diff 算法入口 ----------
+// 对比新旧两个 VNode，将差异应用到真实 DOM 上
+function patch(oldVnode, newVnode) {
+  // 【情况1】新旧节点都是同一个元素的引用（引用相等）
+  // 说明数据没变，直接返回（优化：跳过不必要的比较）
+  if (oldVnode === newVnode) return
+
+  // 【情况2】新旧节点的标签不同 → 直接替换（不深入比较）
+  // 这就是"同层比较"策略的核心：标签不同就整体替换
+  if (oldVnode.tag !== newVnode.tag) {
+    replaceVNode(oldVnode, newVnode)
+    return
+  }
+
+  // 【情况3】都是文本节点 → 更新文本内容
+  if (newVnode.text !== null) {
+    if (oldVnode.text !== newVnode.text) {
+      oldVnode.elm.nodeValue = newVnode.text
+    }
+    // 同步 elm 引用
+    newVnode.elm = oldVnode.elm
+    return
+  }
+
+  // 【情况4】相同标签的元素节点 → 深入比较
+  newVnode.elm = oldVnode.elm  // 复用相同的 DOM 元素
+
+  // ① 更新属性（props）
+  patchProps(oldVnode.elm, oldVnode.props, newVnode.props)
+
+  // ② 更新子节点（children）—— 这是最复杂的部分
+  patchChildren(oldVnode, newVnode)
+}
+
+// 替换节点：销毁旧节点，创建新节点
+function replaceVNode(oldVnode, newVnode) {
+  // 创建新的 DOM 元素
+  const newElm = createElm(newVnode)
+  // 在旧节点的父节点中替换
+  if (oldVnode.elm && oldVnode.elm.parentNode) {
+    oldVnode.elm.parentNode.replaceChild(newElm, oldVnode.elm)
+  }
+}
+```
+
+#### 手写简化版 Diff 算法核心逻辑（同层比较 + Key 对比）
+
+```javascript
+// =============================================
+// Diff 算法核心：子节点对比（patchChildren）
+// 这是 Vue Diff 算法最核心、最复杂的部分
+// =============================================
+
+// ---------- 1. patchChildren：子节点 Diff 入口 ----------
+function patchChildren(oldVnode, newVnode) {
+  const oldCh = oldVnode.children  // 旧子节点数组
+  const newCh = newVnode.children  // 新子节点数组
+  const parentElm = oldVnode.elm   // 父级 DOM 元素
+
+  // 【情况A】旧节点有子节点，新节点没有 → 清空所有子节点
+  if (oldCh.length > 0 && newCh.length === 0) {
+    parentElm.innerHTML = ''
+  }
+  // 【情况B】旧节点没有子节点，新节点有 → 创建所有新子节点
+  else if (oldCh.length === 0 && newCh.length > 0) {
+    newCh.forEach(child => {
+      const childElm = createElm(child)
+      parentElm.appendChild(childElm)
+    })
+  }
+  // 【情况C】新旧都有子节点 → 执行核心 Diff 算法 ⭐⭐⭐
+  else if (oldCh.length > 0 && newCh.length > 0) {
+    updateChildren(parentElm, oldCh, newCh)
+  }
+}
+
+// ---------- 2. updateChildren：核心 Diff 算法（Key 对比）----------
+// 使用双端指针 + Key 映射的方式找出最小变更操作
+function updateChildren(parentElm, oldCh, newCh) {
+  // 四个指针：
+  let oldStartIdx = 0     // 旧列表头指针
+  let oldEndIdx = oldCh.length - 1  // 旧列表尾指针
+  let newStartIdx = 0     // 新列表头指针
+  let newEndIdx = newCh.length - 1  // 新列表尾指针
+
+  // 四个指针对应的 VNode：
+  let oldStartVnode = oldCh[oldStartIdx]  // 旧头节点
+  let oldEndVnode = oldCh[oldEndIdx]      // 旧尾节点
+  let newStartVnode = newCh[newStartIdx]  // 新头节点
+  let newEndVnode = newCh[newEndIdx]      // 新尾节点
+
+  let keyToOldIdxMap   // 旧节点的 key → index 映射表
+  let idxInOld         // 在旧列表中的位置
+
+  // 循环遍历，直到任一方的指针越界
+  while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+
+    // 【前置处理】如果旧节点已经被标记为 undefined（已移动），跳过
+    if (oldStartVnode == null) {
+      oldStartVnode = oldCh[++oldStartIdx]
+      continue
+    }
+    if (oldEndVnode == null) {
+      oldEndVnode = oldCh[--oldEndIdx]
+      continue
+    }
+
+    // ====== 尝试四种匹配方式（Vue2 双端 Diff 策略）======
+
+    // 【匹配1】旧头 vs 新头（同一位置未变）
+    // 场景：列表头部没有变化
+    if (sameVnode(oldStartVnode, newStartVnode)) {
+      // 相同节点，继续深入 patch（递归比较子节点和属性）
+      patch(oldStartVnode, newStartVnode)
+      // 指针向内移动
+      oldStartVnode = oldCh[++oldStartIdx]
+      newStartVnode = newCh[++newStartIdx]
+    }
+
+    // 【匹配2】旧尾 vs 新尾（尾部未变）
+    // 场景：列表尾部没有变化
+    else if (sameVnode(oldEndVnode, newEndVnode)) {
+      patch(oldEndVnode, newEndVnode)
+      // 指针向内移动
+      oldEndVnode = oldCh[--oldEndIdx]
+      newEndVnode = newCh[--newEndIdx]
+    }
+
+    // 【匹配3】旧头 vs 新尾（节点右移了）
+    // 场景：某个节点从头部移动到了尾部
+    else if (sameVnode(oldStartVnode, newEndVnode)) {
+      patch(oldStartVnode, newEndVnode)
+      // 将旧头节点移动到当前旧尾节点的后面（DOM 操作）
+      parentElm.insertBefore(
+        oldStartVnode.elm,
+        oldEndVnode.elm.nextSibling
+      )
+      oldStartVnode = oldCh[++oldStartIdx]
+      newEndVnode = newCh[--newEndIdx]
+    }
+
+    // 【匹配4】旧尾 vs 新头（节点左移了）
+    // 场景：某个节点从尾部移动到了头部
+    else if (sameVnode(oldEndVnode, newStartVnode)) {
+      patch(oldEndVnode, newStartVnode)
+      // 将旧尾节点移动到当前旧头节点的前面（DOM 操作）
+      parentElm.insertBefore(
+        oldEndVnode.elm,
+        oldStartVnode.elm
+      )
+      oldEndVnode = oldCh[--oldEndIdx]
+      newStartVnode = newCh[++newStartIdx]
+    }
+
+    // 【匹配5】以上四种都没命中 → 使用 Key 进行查找（最复杂的情况）
+    else {
+      // 第一次进入时，构建旧节点的 key → index 映射表（只构建一次）
+      if (keyToOldIdxMap === undefined) {
+        keyToOldIdxMap = buildKeyToOldIdxMap(oldCh, oldStartIdx, oldEndIdx)
+      }
+
+      // 在映射表中查找新头节点的 key 对应的旧索引
+      idxInOld = keyToOldIdxMap[newStartVnode.key] !== undefined
+        ? keyToOldIdxMap[newStartVnode.key]
+        : null
+
+      // 【情况5a】key 在旧列表中不存在 → 新增节点
+      if (idxInOld === undefined) {
+        // 创建全新的 DOM 元素并插入到旧头节点前面
+        const newElm = createElm(newStartVnode)
+        parentElm.insertBefore(newElm, oldStartVnode ? oldStartVnode.elm : null)
+        newStartVnode = newCh[++newStartIdx]
+      }
+
+      // 【情况5b】key 存在 → 可能是复用或移动
+      else {
+        // 获取旧列表中对应位置的 VNode
+        const vnodeToMove = oldCh[idxInOld]
+
+        // 【安全检查】虽然 key 相同，但标签不同 → 不能复用，当作新增处理
+        if (vnodeToMove.tag !== newStartVnode.tag) {
+          const newElm = createElm(newStartVnode)
+          parentElm.insertBefore(newElm, oldStartVnode ? oldStartVnode.elm : null)
+        }
+
+        // 【正常情况】key 和 tag 都相同 → 复用节点
+        else {
+          // 深入 patch（比较子节点和属性）
+          patch(vnodeToMove, newStartVnode)
+          // 将该节点移动到旧头节点前面（DOM 移动操作）
+          parentElm.insertBefore(vnodeToMove.elm, oldStartVnode ? oldStartVnode.elm : null)
+          // 将旧列表中的该位置标记为 undefined（表示已被处理/移动）
+          oldCh[idxInOld] = undefined
+        }
+
+        newStartVnode = newCh[++newStartIdx]
+      }
+    }
+  }
+
+  // ====== 循环结束后的收尾工作 ======
+
+  // 【收尾A】新列表还有剩余节点 → 全部是新增的
+  if (newStartIdx <= newEndIdx) {
+    // 计算插入位置：在旧尾节点后面插入（或者如果是全部新增，在旧头前插入）
+    const beforeRef = newEndIdx + 1 < newCh.length
+      ? newCh[newEndIdx + 1].elm
+      : null
+
+    // 批量插入剩余的新节点
+    addVnodes(parentElm, beforeRef, newCh, newStartIdx, newEndIdx)
+  }
+
+  // 【收尾B】旧列表还有剩余节点 → 全部是需要删除的
+  if (oldStartIdx <= oldEndIdx) {
+    // 批量删除多余的旧节点
+    removeVnodes(parentElm, oldCh, oldStartIdx, oldEndIdx)
+  }
+}
+
+// ---------- 3. 辅助函数 ----------
+
+// 判断两个 VNode 是否是"同一个节点"（可复用的前提条件）
+function sameVnode(vnode1, vnode2) {
+  // 必须同时满足：
+  // 1. 标签相同（div 只能和 div 比较）
+  // 2. key 相同（如果有 key 的话）
+  // 注意：这里不做严格相等，允许 key 都为 undefined 的情况
+  return (
+    vnode1.tag === vnode2.tag &&
+    vnode1.key === vnode2.key
+  )
+}
+
+// 构建 key → index 映射表（用于 O(1) 时间复杂度查找）
+// 这是 Diff 算法性能的关键：避免每次都遍历查找
+function buildKeyToOldIdxMap(children, startIdx, endIdx) {
+  const map = {}
+  for (let i = startIdx; i <= endIdx; i++) {
+    const key = children[i].key
+    if (key !== undefined && key !== null) {
+      map[key] = i  // key → 在旧列表中的索引位置
+    }
+  }
+  return map
+}
+
+// 批量新增节点
+function addVnodes(parentElm, beforeRef, vnodes, startIdx, endIdx) {
+  for (; startIdx <= endIdx; ++startIdx) {
+    const elm = createElm(vnodes[startIdx])  // 创建 DOM
+    // 在 beforeRef 节点之前插入（beforeRef 为 null 则追加到末尾）
+    if (beforeRef) {
+      parentElm.insertBefore(elm, beforeRef)
+    } else {
+      parentElm.appendChild(elm)
+    }
+  }
+}
+
+// 批量删除节点
+function removeVnodes(parentElm, vnodes, startIdx, endIdx) {
+  for (; startIdx <= endIdx; ++startIdx) {
+    const ch = vnodes[startIdx]
+    if (ch != null && ch.elm) {
+      parentElm.removeChild(ch.elm)  // 从 DOM 中移除
+    }
+  }
+}
+```
+
+#### Diff 算法执行流程图解
+
+```
+示例：旧列表 [A, B, C, D] → 新列表 [D, A, B, C]
+
+初始状态:
+  旧: [A, B, C, D]          新: [D, A, B, C]
+       ↑   ↑                    ↑   ↑
+   oldStart              newStart
+       ↑   ↑                    ↑   ↑
+   oldEnd                newEnd
+
+步骤1: oldStart(A) vs newStart(D) → 不匹配 ❌
+步骤2: oldEnd(D) vs newEnd(C) → 不匹配 ❌
+步骤3: oldStart(A) vs newEnd(C) → 不匹配 ❌
+步骤4: oldEnd(D) vs newStart(D) → 匹配 ✅！【匹配4：旧尾→新头】
+
+  结果: D 被移动到 A 前面
+  旧: [A, B, C, D(已移)]    新: [(D), A, B, C]
+       ↑   ↑                      ↑   ↑
+   oldStart                  newStart
+       ↑                       ↑
+   oldEnd                    newEnd
+
+步骤5-7: oldStart(A) vs newStart(A) → 匹配 ✅【匹配1：头头】
+         oldStart(B) vs newStart(B) → 匹配 ✅
+         oldStart(C) vs newStart(C) → 匹配 ✅
+
+最终结果: D 被移动了一次，A/B/C 保持不动 ✅
+DOM 操作最少化！
+```
+
+#### Vue3 的优化：最长递增子序列（LIS）
+
+```javascript
+// Vue3 改进了 Diff 算法，使用最长递增子序列（LIS）来减少移动次数
+// 核心思路：先通过 key 建立 Map 映射，然后计算 LIS，只移动不在 LIS 中的节点
+
+function vue3Diff(parentElm, oldCh, newCh) {
+  // 1. 构建 newCh 的 key → index 映射
+  const keyToNewIndexMap = new Map()
+  newCh.forEach((vnode, i) => {
+    if (vnode.key != null) {
+      keyToNewIndexMap.set(vnode.key, i)
+    }
+  })
+
+  // 2. 为每个旧节点计算在新列表中的位置（-1 表示被删除）
+  const newIndexMapping = new Array(oldCh.length).fill(-1)
+  for (let i = 0; i < oldCh.length; i++) {
+    const oldKey = oldCh[i].key
+    if (keyToNewIndexMap.has(oldKey)) {
+      newIndexMapping[i] = keyToNewIndexMap.get(oldKey)
+    }
+  }
+
+  // 3. 计算最长递增子序列（LIS）
+  // LIS 中的节点不需要移动，只需要移动不在 LIS 中的节点
+  const lis = getLongestIncreasingSubsequence(
+    newIndexMapping.filter(idx => idx !== -1)
+  )
+
+  // 4. 从后向前遍历，根据 LIS 决定哪些节点需要移动
+  let lisIdx = lis.length - 1  // LIS 指针（从后往前）
+  for (let j = newCh.length - 1; j >= 0; j--) {
+    // ... 具体的移动/新增/删除逻辑 ...
+  }
+}
+
+// 最长递增子序列算法（O(n log n)）
+function getLongestIncreasingSubsequence(arr) {
+  const piles = []       // 牌堆数组
+  const topOfPiles = []  // 每个牌堆顶部的牌
+  const predecessors = []  // 前驱记录（用于回溯路径）
+
+  for (let i = 0; i < arr.length; i++) {
+    const num = arr[i]
+    // 二分查找：找到第一个 >= num 的牌堆位置
+    let left = 0, right = piles.length
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2)
+      if (topOfPiles[mid] < num) {
+        left = mid + 1
+      } else {
+        right = mid
+      }
+    }
+
+    // 放入牌堆（新建或追加）
+    if (left === piles.length) {
+      piles.push([i])
+      topOfPiles.push(num)
+    } else {
+      piles[left].push(i)
+      topOfPiles[left] = num
+    }
+
+    predecessors[i] = left > 0 ? piles[left - 1][piles[left - 1].length - 1] : -1
+  }
+
+  // 回溯得到最长递增子序列
+  const result = []
+  let curr = piles[piles.length - 1][piles[piles.length - 1].length - 1]
+  while (curr !== -1) {
+    result.push(curr)
+    curr = predecessors[curr]
+  }
+
+  return result.reverse()
+}
+```
+
 ---
 
 ## Q20: 请详细说明 Vue 的 diff 算法原理。
@@ -1318,6 +2519,14 @@
    - 静态网站 / 不想配置服务器 → Hash 模式
    - 生产环境 / 追求用户体验 → History 模式
    - SSR 应用 → History 模式
+
+### 🔍 追问链
+1. **hash 模式和 history 模式的区别？history 模式刷新 404 怎么解决？**
+   → 方向：hash 用 onhashchange（#后面变化不请求服务器）、history 用 pushState（需要服务端 fallback）
+2. **路由守卫的完整执行顺序是什么？导航解析流程？**
+   → 方向：beforeEach → 路由独享beforeEnter → 组件内beforeRouteEnter → beforeResolve → afterEach
+3. **路由懒加载的原理是什么？import() 动态 import？**
+   → 方向：Webpack 的魔法注释、chunk 分割、预加载 prefetch/preload
 
 ---
 
@@ -1494,6 +2703,14 @@
    - Modules → 独立的 Store 文件
    - `mapState` / `mapActions` → `storeToRefs` / 直接解构
 
+### 🔍 追问链
+1. **Pinia 相比 Vuex 3 的核心优势有哪些？**
+   → 方向：更好的 TypeScript 支持、更简洁的 API（去掉了 mutation）、支持 Composition API 风格
+2. **Vuex 为什么要区分 action 和 mutation？Pinia 为什么去掉了 mutation？**
+   → 方向：Vuex 的 mutation 必须同步（devtools 追踪）、action 可异步；Pinia 用 devtools 插件追踪无需区分
+3. **模块化状态下，命名空间 namespace 的作用？**
+   → 方向：防止不同模块的 getter/action/mutation 同名冲突
+
 ---
 
 ## Q24: 请说明 keep-alive 组件的作用和工作原理。
@@ -1608,6 +2825,12 @@
    - `to` 目标必须在挂载时已存在
    - 可以嵌套使用（多层 teleport）
    - 在 SSR 中，teleported 内容会被忽略（或需要特殊处理）
+
+### 🔍 追问链
+1. **Teleport 传送后的组件事件冒泡行为是怎样的？**
+   → 方向：仍然沿着 Vue 组件树冒泡，不是沿 DOM 树冒泡（这是一个常见的坑）
+2. **Teleport 与 Portal（React）有什么异同？**
+   → 方向：概念类似但 API 设计不同、Vue 的 Teleport 支持禁用（:to="undefined"）
 
 ---
 
@@ -2114,6 +3337,377 @@
    - **Q: Vue2 和 Vue3 的 nextTick 有什么区别？**
      - A: 核心逻辑相似，Vue3 使用 Promise.resolve() 替代微任务检测，代码更简洁
 
+### 🔍 追问链
+1. **nextTick 回调是在 DOM 更新之前还是之后执行？**
+   → 方向：之后！DOM 已经更新完成，可以操作最新的 DOM
+2. **同时修改多个数据，nextTick 会执行几次？**
+   → 方向：只执行一次（微任务队列去重），这就是异步批量更新的核心
+3. **为什么不用 setTimeout(fn, 0) 直接替代 nextTick？**
+   → 方向：setTimeout 是宏任务，会在微任务（Promise/MutationObserver）之后执行，时机不够精确
+
+### 深度拓展：手写实现
+
+#### 手写简化版 nextTick 完整实现
+
+```javascript
+// =============================================
+// nextTick 完整实现（Vue3 简化版）
+// 核心机制：异步降级策略 + 回调队列 + 批量刷新
+// =============================================
+
+// ---------- 1. 异步调度器的选择策略（降级策略）----------
+// 为什么需要降级？因为不同环境对异步 API 的支持不同
+// 优先级从高到低：微任务 → 宏任务
+
+// 存储当前使用的异步方法（惰性初始化，只检测一次）
+let useMacroTask = false
+
+// 【优先级1】Promise.then（微任务）
+// - 浏览器原生支持，性能最优
+// - 微任务在当前任务结束后、渲染前执行，能更快响应
+const resolvedPromise = Promise.resolve()
+
+// 【优先级2】MutationObserver（微任务）
+// - IE11+ 支持，作为 Promise 的兼容方案
+// - MutationObserver 是微任务，可以监听 DOM 变化
+let observer = null
+
+// 【优先级3】setImmediate（宏任务）
+// - Node.js 和 IE10+ 支持
+// - 比 setTimeout 更快（不经过最小延迟）
+
+// 【优先级4】setTimeout(fn, 0)（宏任务）
+// - 最终兜底方案，所有环境都支持
+// - 最小延迟约 4ms（浏览器规范限制），性能最差
+
+// ---------- 2. 检测并选择异步调度器 ----------
+function getScheduler() {
+  // 如果已经确定使用宏任务，直接返回 setImmediate 或 setTimeout
+  if (useMacroTask) {
+    // Node.js 环境 → setImmediate（比 setTimeout 快）
+    if (typeof setImmediate !== 'undefined') {
+      return function scheduleMacroTask(fn) {
+        setImmediate(fn)
+      }
+    }
+    // 浏览器兜底 → setTimeout
+    return function scheduleMacroTask(fn) {
+      setTimeout(fn, 0)
+    }
+  }
+
+  // 尝试使用微任务
+  // 【方案A】Promise.then（首选）
+  if (typeof Promise !== 'undefined') {
+    const p = Promise.resolve()
+    return function scheduleMicroTask(fn) {
+      p.then(fn)
+    }
+  }
+
+  // 【方案B】MutationObserver（Promise 不可用时的备选）
+  if (typeof MutationObserver !== 'undefined' &&
+      typeof document !== 'undefined' && document.createElement) {
+    // 创建一个隐藏的文本节点用于触发观察
+    let counter = 1
+    const textNode = document.createTextNode(String(counter))
+    observer = new MutationObserver(function(mutations) {
+      // 文本节点变化时执行回调
+      const callback = pendingCallback
+      pendingCallback = null
+      if (callback) callback()
+    })
+    // 观察文本节点的数据变化
+    observer.observe(textNode, { characterData: true })
+
+    let pendingCallback = null
+    return function scheduleMicroTask(fn) {
+      pendingCallback = fn
+      // 修改文本节点内容，触发 MutationObserver 回调
+      textNode.data = String(++counter)
+    }
+  }
+
+  // 【兜底】如果微任务都不可用，退回到宏任务
+  useMacroTask = true
+  return getScheduler()  // 递归调用，这次会返回宏任务版本
+}
+
+// 获取当前环境的异步调度器（惰性单例）
+const scheduler = getScheduler()
+
+// ---------- 3. 回调队列机制 ----------
+// 核心设计：将多次 nextTick 调用合并为一次异步执行
+
+const callbacks = []   // 回调队列：存储所有待执行的回调函数
+let pending = false    // 锁标记：是否正在等待异步执行（防止重复创建异步任务）
+
+/**
+ * nextTick 主函数
+ * @param {Function} cb - 要在下次 DOM 更新后执行的回调
+ * @param {Object} ctx - 回调的 this 上下文（可选）
+ * @returns {Promise} - 如果不传 cb，则返回一个 Promise（支持 async/await 用法）
+ */
+function nextTick(cb, ctx) {
+  let _resolve
+
+  // 【用法1】传入回调函数：将回调加入队列
+  if (cb) {
+    // 使用包装函数绑定上下文（如果传入了 ctx）
+    callbacks.push(function() {
+      if (cb) {
+        try {
+          cb.call(ctx)  // 在指定上下文中执行回调
+        } catch (e) {
+          // 全局错误处理：防止回调报错导致后续回调无法执行
+          console.error('nextTick callback error:', e)
+        }
+      }
+    })
+  }
+  // 【用法2】不传回调：返回 Promise（支持 await nextTick() 写法）
+  else {
+    // 返回一个新的 Promise，resolve 函数存入 _resolve
+    // 当 flushCallbacks 执行时会调用 _resolve()
+    if (!pending && !useMacroTask) {
+      return resolvedPromise  // 直接复用已 resolve 的 Promise（性能优化）
+    } else {
+      return new Promise(resolve => { _resolve = resolve })
+      // 将 _resolve 加入回调队列
+      callbacks.push(_resolve ? () => _resolve() : undefined)
+    }
+  }
+
+  // 【核心】安排刷新回调队列
+  // 如果当前没有正在等待的异步任务，则创建一个
+  flushCallbacks()
+}
+
+// ---------- 4. flushCallbacks：批量执行回调 ----------
+// 这个函数会在微任务/宏任务的时机被调用
+// 它的作用是：一次性清空整个 callbacks 队列
+
+function flushCallbacks() {
+  // 【锁机制】防止重复创建异步任务
+  // 场景：连续调用 100 次 nextTick，只需要创建 1 个异步任务
+  if (pending) return
+  pending = true  // 上锁：标记"正在等待异步执行"
+
+  // 使用异步调度器安排真正的刷新操作
+  scheduler(doFlushCallbacks)
+}
+
+// 真正的刷新逻辑：按序执行所有回调
+function doFlushCallbacks() {
+  // 【关键】先复制一份队列引用，然后清空原队列
+  // 原因：在执行回调的过程中，可能又有新的 nextTick 调用
+  // 这些新调用应该进入下一轮刷新，而不是当前的刷新中
+  const copies = callbacks.slice(0)
+  callbacks.length = 0  // 清空原队列（新调用会进入新的空队列）
+  pending = false       // 解锁：允许下一轮异步任务
+
+  // 【顺序执行】所有回调按照加入的顺序依次执行
+  for (let i = 0; i < copies.length; i++) {
+    copies[i]()  // 执行每个回调
+  }
+
+  // 【边界情况】如果在执行回调的过程中又产生了新回调
+  // 且这些新回调是在 flushCallbacks 解锁之前加入的
+  // 则需要再次刷新（但这种情况很少见，通常由调度器处理）
+  if (callbacks.length > 0) {
+    // 递归处理剩余的回调
+    flushCallbacks()
+  }
+}
+```
+
+#### nextTick 与调度器（Scheduler）的协作流程
+
+```javascript
+// =============================================
+// nextTick 与 Vue 调度器的完整协作示例
+// 展示：数据修改 → watcher 入队 → nextTick 刷新 → DOM 更新 → 用户回调执行
+// =============================================
+
+// ---------- 1. 调度器中的 nextTick 应用 ----------
+
+// 任务队列（存储需要异步执行的 watcher/job）
+const queue = []
+let isFlushing = false     // 是否正在刷新队列
+let isFlushPending = false // 是否已经安排了刷新（防止重复安排）
+
+/**
+ * 将 job（通常是 watcher）加入队列
+ * 这是响应式系统修改数据后的入口
+ */
+function queueJob(job) {
+  // 【去重】同一个 job 只加入一次
+  // 场景：同一个组件的多个属性同时变化，只需更新一次
+  if (!queue.includes(job)) {
+    queue.push(job)
+
+    // 安排刷新队列的操作
+    queueFlush()
+  }
+}
+
+/**
+ * 安排队列刷新（使用 nextTick）
+ * 这就是为什么 Vue 的 DOM 更新是异步的原因！
+ */
+function queueFlush() {
+  // 如果没有正在刷新、且没有正在等待刷新，才安排
+  if (!isFlushing && !isFlushPending) {
+    isFlushPending = true  // 标记为"等待刷新"
+    // 【关键】使用 nextTick 安排实际的刷新操作
+    // nextTick 会将 flushJobs 放入微任务队列
+    // 当前同步代码继续执行，等同步代码全部完成后才执行 flushJobs
+    nextTick(flushJobs)
+  }
+}
+
+/**
+ * 刷新队列：按优先级依次执行所有 job
+ */
+function flushJobs() {
+  isFlushing = true
+  isFlushPending = false
+
+  // 【排序】按 id 排序（确保父组件先于子组件更新、渲染 watcher 优先于 watch 回调）
+  queue.sort((a, b) => a.id - b.id)
+
+  try {
+    // 依次执行每个 job
+    for (let i = 0; i < queue.length; i++) {
+      const job = queue[i]
+      if (job) {
+        // 执行 job（可能是组件重新渲染或用户 watch 回调）
+        job()
+      }
+    }
+  } finally {
+    // 重置状态
+    queue.length = 0
+    isFlushing = false
+
+    // 如果刷新过程中产生了新的 job（如 watch 回调触发了新的数据修改）
+    // 继续刷新直到队列为空
+    if (queue.length > 0) {
+      flushJobs()
+    }
+  }
+}
+
+// ---------- 2. 完整执行时序图解 ----------
+
+/*
+用户代码执行：
+┌─────────────────────────────────────────────────────────────┐
+│ 同步代码执行阶段                                              │
+│                                                              │
+│  state.count++         ← 触发 setter                         │
+│    └→ trigger()        ← 找到依赖该属性的 effect              │
+│       └→ scheduler(effect.run)                               │
+│          └→ queueJob(watcher)  ← watcher 入队                │
+│             └→ queueFlush()                                  │
+│                └→ nextTick(flushJobs)                        │
+│                   ├→ callbacks.push(flushJobs)               │
+│                   └→ flushCallbacks()                        │
+│                      └→ scheduler(doFlushCallbacks)           │
+│                         └── 创建微任务（Promise/MutationObs） │
+│                                                              │
+│  state.name = 'new'    ← 又触发了一次 setter                 │
+│    └→ ...同上...                                            │
+│    └→ 但 flushJobs 已经在队列中了（isFlushPending=true）      │
+│       所以不会重复创建微任务 ✅                                │
+│                                                              │
+│  nextTick(() => {                                           │
+│    console.log(div.textContent)  ← 用户的回调也入队            │
+│  })                                                          │
+│    └→ callbacks.push(userCallback)                           │
+│    └→ flushCallbacks()                                      │
+│       └→ 但 pending=true，不会重复创建微任务 ✅                │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+                              ↓ （同步代码结束）
+┌─────────────────────────────────────────────────────────────┐
+│ 微任务执行阶段                                                │
+│                                                              │
+│  doFlushCallbacks() 执行：                                    │
+│    ① flushJobs()                                             │
+│       ├→ 排序队列                                             │
+│       ├→ 执行 watcher.run() → 组件重新渲染 → DOM 更新完成 ✅  │
+│       └→ 清空队列                                             │
+│    ② userCallback() 执行                                     │
+│       └→ 此时 DOM 已经更新完毕！可以安全读取最新状态 ✅          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+*/
+```
+
+#### 使用示例与常见陷阱
+
+```javascript
+// =============================================
+// nextTick 使用示例
+// =============================================
+
+// 示例1：基本用法 —— 获取更新后的 DOM
+import { ref, nextTick } from 'vue'
+
+const count = ref(0)
+const divRef = ref(null)
+
+function increment() {
+  count.value++
+
+  // ❌ 错误：此时 DOM 还没更新！
+  console.log(divRef.value?.textContent)  // 输出旧值（如 '0'）
+
+  // ✅ 正确：使用 nextTick 等待 DOM 更新完成
+  nextTick(() => {
+    console.log(divRef.value?.textContent)  // 输出新值（'1'）✅
+  })
+}
+
+// 示例2：async/await 用法（推荐）
+async function incrementAsync() {
+  count.value++
+  await nextTick()  // 等待 DOM 更新
+  console.log(divRef.value?.textContent)  // 输出新值 ✅
+}
+
+// 示例3：批量更新 —— 多次修改只触发一次渲染
+function batchUpdate() {
+  // 连续修改 100 次
+  for (let i = 0; i < 100; i++) {
+    count.value++
+  }
+  // 这 100 次修改只会触发 1 次 DOM 更新！（批处理优化）
+  nextTick(() => {
+    console.log(count.value)  // 100（最终值）
+    console.log(divRef.value?.textContent)  // '100'
+  })
+}
+
+// 示例4：嵌套 nextTick —— 二次更新场景
+function nestedUpdate() {
+  count.value++
+
+  nextTick(() => {
+    console.log('第一次 nextTick:', count.value)  // 1
+
+    // 在 nextTick 回调中再次修改数据
+    count.value++
+
+    // 需要再等一轮 nextTick 才能看到第二次更新的结果
+    nextTick(() => {
+      console.log('第二次 nextTick:', count.value)  // 2
+    })
+  })
+}
+```
+
 ---
 
 ## Q32: 请深入分析 Vue3 的异步更新队列（调度器 Scheduler）的实现。
@@ -2548,6 +4142,14 @@
    - **嵌套 effect 栈**：正确处理 computed 嵌套、watch 嵌套
    - **无限循环保护**：trigger 时跳过正在运行的 effect
 
+### 🔍 追问链
+1. **模板编译的三个阶段各自做了什么？AST 是什么样的结构？**
+   → 方向：parse（模板→AST）、optimize（标记静态节点）、generate（AST→渲染函数字符串）
+2. **静态提升（HoistStatic）是什么？为什么要做？**
+   → 方向：将静态节点/变量提升到渲染函数外部，避免每次重新创建
+3. **PatchFlags 是什么？编译时的优化提示如何在运行时加速 diff？**
+   → 方向：编译时标注节点变化的类型（TEXT/PROPS/CLASS等），运行时只检查对应标志位
+
 ---
 
 ## Q35: Vue3 的 computed 是如何实现的？请分析其缓存和依赖追踪机制。
@@ -2670,6 +4272,435 @@
    
    double.value = 10  // 触发 setter → count.value = 5
    ```
+
+### 深度拓展：手写实现
+
+#### 手写简化版 KeepAlive 组件（LRU 缓存策略）
+
+```javascript
+// =============================================
+// KeepAlive 组件核心实现（Vue3 简化版）
+// 核心机制：LRU 缓存 + 缓存命中/未命中判断 + 生命周期管理
+// =============================================
+
+// ---------- 1. KeepAlive 组件定义 ----------
+// 这是一个内置组件，它不会渲染真实的 DOM 节点
+// 而是作为抽象组件存在，负责缓存和管理子组件实例
+
+const KeepAlive = {
+  name: 'KeepAlive',
+
+  // 抽象组件标记：Vue 渲染器会特殊处理抽象组件（不创建真实 DOM）
+  abstract: true,
+
+  // 组件 props 定义
+  props: {
+    // include：只缓存匹配的组件（支持字符串、正则、数组）
+    // 示例：include="ComponentA" 或 :include="[/A$/]" 或 :include="['A', 'B']"
+    include: [String, RegExp, Array],
+
+    // exclude：不缓存匹配的组件（优先级高于 include）
+    // 示例：exclude="ComponentB"
+    exclude: [String, RegExp, Array],
+
+    // max：最大缓存数量（超出时使用 LRU 淘汰最早未使用的）
+    max: [Number, String]
+  },
+
+  // ---------- 2. 核心数据结构 ----------
+  setup(props, { slots }) {
+    // 【核心】cache 对象：存储缓存的 VNode 实例
+    // key → VNode 的映射关系
+    // key 的生成规则：
+    // - 如果子组件有 props.key，使用 key
+    // - 否则使用组件的构造函数/组件选项对象（componentOptions.Ctor）
+    const cache = new Map()
+
+    // keys 数组：记录所有缓存 key 的顺序（用于 LRU 算法）
+    // 数组的末尾是最近使用的，开头是最早使用的
+    // 当超过 max 时，移除 keys[0] 对应的缓存（LRU 淘汰）
+    const keys = []
+
+    // 当前活跃的 key（正在显示的组件的 key）
+    let current = null
+
+    // ---------- 3. LRU 缓存操作函数 ----------
+
+    /**
+     * pruneCacheEntry：淘汰单个缓存条目
+     * @param {*} cachedVnode - 要淘汰的缓存的 VNode
+     */
+    function pruneCacheEntry(cachedVnode) {
+      if (!cachedVnode) return
+
+      // 获取缓存的组件实例
+      const instance = cachedVnode.component
+
+      if (instance) {
+        // 重置实例引用（帮助 GC 回收）
+        cachedVnode.component = null
+
+        // 【关键】调用组件的 deactivate 钩子
+        // 这会触发 onDeactivated 生命周期钩子
+        if (instance.type.deactivated) {
+          instance.type.deactivated(instance)
+        }
+
+        // 停止当前实例的所有 effect（停止响应式追踪，避免内存泄漏）
+        if (instance.effect) {
+          instance.effect.stop()
+        }
+
+        // 清理组件内的 effect scope（如 computed、watch 等）
+        if (instance.scope) {
+          instance.scope.stop()
+          // 从父级 effect scope 中移除
+          if (instance.scope.parent) {
+            const parentEffects = instance.scope.parent.effects
+            const idx = parentEffects.indexOf(instance.scope)
+            if (idx > -1) parentEffects.splice(idx, 1)
+          }
+        }
+      }
+
+      // 从 cache 中删除
+      if (cachedVnode.key != null) {
+        cache.delete(cachedVnode.key)
+      }
+    }
+
+    /**
+     * pruneCache：根据条件清理缓存
+     * 用于 include/exclude 变化时重新过滤缓存
+     * @param {Function} filter - 过滤函数，返回 true 表示保留
+     */
+    function pruneCache(filter) {
+      cache.forEach((vnode, key) => {
+        // 获取组件名称（用于匹配 include/exclude）
+        const name = getComponentName(vnode.type)
+
+        // 如果不满足过滤条件，则淘汰该缓存
+        if (name && !filter(name)) {
+          pruneCacheEntry(cache.get(key))
+          cache.delete(key)
+          // 从 keys 数组中移除
+          const idx = keys.indexOf(key)
+          if (idx > -1) keys.splice(idx, 1)
+        }
+      })
+    }
+
+    // ---------- 4. include/exclude 匹配逻辑 ----------
+
+    /**
+     * matches：检查组件名是否匹配 pattern
+     * @param {string} name - 组件名称
+     * @param {String|RegExp|Array} pattern - 匹配模式
+     */
+    function matches(pattern, name) {
+      if (Array.isArray(pattern)) {
+        // 数组形式：任意一个元素匹配即通过
+        return pattern.some(p => p === name)
+      } else if (typeof pattern === 'string') {
+        // 字符串形式：逗号分隔的多个组件名
+        return pattern.split(',').map(s => s.trim()).includes(name)
+      } else if (pattern instanceof RegExp) {
+        // 正则形式：正则测试
+        return pattern.test(name)
+      }
+      return false
+    }
+
+    /**
+     * getComponentName：获取组件的名称
+     * 优先级：组件 options.name > 文件名（__file） > 匿名
+     */
+    function getComponentName(component) {
+      return component.name || component.__name || null
+    }
+
+    // ---------- 5. render 函数：KeepAlive 的核心逻辑 ----------
+    // 这是 KeepAlive 最关键的部分：决定是否从缓存中取用或创建新实例
+
+    render() {
+      // 获取默认插槽内容（KeepAlive 只能有一个子元素）
+      const slot = slots.default()
+      if (!slot || !slot.length) return null
+
+      // 获取第一个子节点（KeepAlive 要求只有一个直接子节点）
+      const rawVnode = slot[0]
+
+      // 如果不是组件类型的 VNode（如纯文本、普通元素），无法缓存，直接返回
+      if (!isVNode(rawVnode) || !(rawVnode.shapeFlag & ShapeFlags.COMPONENT)) {
+        return rawVnode
+      }
+
+      // 获取组件名称和 key
+      const name = getComponentName(rawVnode.type)
+      const key = rawVnode.key == null
+        ? rawVnode.type  // 无 key 时使用组件构造函数作为标识
+        : rawVnode.key
+
+      // 【检查 include/exclude】决定是否应该缓存该组件
+      const { include, exclude, max } = props
+
+      if (
+        // 如果配置了 exclude 且组件名匹配 → 不缓存
+        (exclude && (!name || matches(exclude, name))) ||
+        // 如果配置了 include 且组件名不匹配 → 不缓存
+        (include && (!name || !matches(include, name)))
+      ) {
+        // 不缓存的情况：直接渲染原始 VNode（不走缓存逻辑）
+        current = rawVnode
+        return rawVnode
+      }
+
+      // ========== 缓存命中 / 未命中的核心逻辑 ==========
+
+      // 【情况A】缓存命中：该组件之前被缓存过
+      const cachedVnode = cache.get(key)
+      if (cachedVnode) {
+        console.log(`🎯 缓存命中: ${name || key}`)
+
+        // 复用缓存的 VNode
+        rawVnode.component = cachedVnode.component
+        rawVnode.elm = cachedVnode.elm  // 复用真实 DOM 元素！
+
+        // 【LRU 更新】将该 key 移到 keys 数组末尾（标记为最近使用）
+        // 这样可以确保 keys[0] 总是最久未使用的
+        const idx = keys.indexOf(key)
+        if (idx > -1) {
+          keys.splice(idx, 1)  // 先从原位置移除
+        }
+        keys.push(key)         // 追加到末尾
+
+        // 【关键】将 VNode 标记为"已缓存"，这样 patch 时不会销毁它
+        rawVnode.shapeFlag |= ShapeFlags.COMPONENT_KEPT_ALIVE
+      }
+      // 【情况B】缓存未命中：首次渲染该组件
+      else {
+        console.log(`✨ 首次渲染/缓存未命中: ${name || key}`)
+
+        // 将 key 加入 keys 数组
+        keys.push(key)
+
+        // 【LRU 淘汰检查】如果设置了 max 且缓存数量超限
+        // 淘汰最早未使用的缓存（keys[0] 对应的就是最久没用的）
+        if (max && keys.length > Number(max)) {
+          // 取出最久未使用的 key
+          const oldestKey = keys.shift()  // 移除并返回第一个元素
+          console.log(`🗑️ LRU 淘汰: ${oldestKey}（缓存已满 ${max}）`)
+          // 淘汰对应的缓存条目
+          pruneCacheEntry(cache.get(oldestKey))
+          cache.delete(oldestKey)
+        }
+
+        // 将当前 VNode 存入 cache
+        cache.set(key, rawVnode)
+
+        // 标记为需要缓存（patch 后会将 component 实例保存回 cache）
+        rawVnode.shapeFlag |= ShapeFlags.COMPONENT_SHOULD_KEEP_ALIVE
+      }
+
+      // 记录当前活跃的 key
+      current = key
+
+      // 【关键】避免 KeepAlive 本身成为真实 DOM 节点
+      // 将子节点的父组件引用指向 KeepAlive 的父组件
+      // 这样子组件在生命周期中访问到的 $parent 是正确的
+      rawVnode.keepAlive = true
+
+      // 返回处理后的子节点（可能是复用的缓存，也可能是新创建的）
+      return rawVnode
+    },
+
+    // ---------- 6. 生命周期钩子 ----------
+
+    // activated：当缓存的组件被激活（从缓存恢复显示）时触发
+    onActivated() {
+      // 可以在这里做一些恢复操作，如重新请求数据等
+    },
+
+    // deactivated：当组件被停用（进入缓存）时触发
+    onDeactivated() {
+      // 可以在这里做一些暂停操作，如清除定时器等
+    },
+
+    // ---------- 7. 监听 include/exclude/max 变化 ----------
+    // 当这些 prop 变化时，可能需要重新过滤缓存
+    watch(
+      () => [props.include, props.exclude, props.max],
+      ([newInclude, newExclude, newMax]) => {
+        // 重新过滤缓存：只保留符合新规则的
+        pruneCache((name) => {
+          // 保留的条件：不在排除列表中，且在包含列表中（如果配置了包含）
+          if (newExclude && name && matches(newExclude, name)) {
+            return false
+          }
+          if (newInclude && name && !matches(newInclude, name)) {
+            return false
+          }
+          return true
+        })
+
+        // 如果新的 max 比当前的缓存数量少，需要额外淘汰
+        if (newMax && keys.length > Number(newMax)) {
+          // 淘汰多余的缓存
+          for (let i = 0; i < keys.length - Number(newMax); i++) {
+            const key = keys[i]
+            pruneCacheEntry(cache.get(key))
+            cache.delete(key)
+          }
+          // 更新 keys 数组
+          keys.splice(0, keys.length - Number(newMax))
+        }
+      },
+      { flush: 'post' }  // 在 DOM 更新后执行
+    )
+
+    // 暴露给模板的方法（可选，用于调试或手动控制缓存）
+    return {
+      cache,
+      keys,
+      current,
+      // 手动清除指定缓存
+      invalidateCache(key) {
+        if (key != null && cache.has(key)) {
+          pruneCacheEntry(cache.get(key))
+          cache.delete(key)
+          const idx = keys.indexOf(key)
+          if (idx > -1) keys.splice(idx, 1)
+        }
+      },
+      // 清空所有缓存
+      clearCache() {
+        cache.forEach((vnode, key) => {
+          pruneCacheEntry(vnode)
+        })
+        cache.clear()
+        keys.length = 0
+      }
+    }
+  }
+}
+
+// ---------- 8. 辅助常量和函数 ----------
+
+// ShapeFlags：VNode 类型标志位（用于位运算优化性能）
+const ShapeFlags = {
+  ELEMENT: 1,           // 普通 HTML 元素
+  COMPONENT: 4,         // Vue 组件
+  COMPONENT_SHOULD_KEEP_ALIVE: 256,  // 应该被 KeepAlive 缓存
+  COMPONENT_KEEP_ALIVE: 512       // 已被 KeepAlive 缓存（复用）
+}
+
+// 判断是否为有效的 VNode
+function isVnode(value) {
+  return value ? value.__v_isVnode === true : false
+}
+```
+
+#### LRU 缓存策略执行流程图解
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    KeepAlive 工作流程                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  用户切换组件 A → B                                          │
+│                                                              │
+│  ┌──────────┐                                               │
+│  │ 组件 A    │                                               │
+│  │ 正在显示  │                                               │
+│  └─────┬────┘                                               │
+│        │ 切换事件                                            │
+│        ▼                                                     │
+│  ┌──────────────────────────────────────┐                   │
+│  │ 1. 检查 include/exclude              │                   │
+│  │    → A 是否允许缓存？                 │                   │
+│  └──────────────┬───────────────────────┘                   │
+│                 │ 允许缓存                                      │
+│                 ▼                                             │
+│  ┌──────────────────────────────────────┐                   │
+│  │ 2. 缓存组件 A                         │                   │
+│  │    cache.set('A_key', vnodeA)        │                   │
+│  │    keys.push('A_key')                │                   │
+│  │    → 触发 deactivated 生命周期        │                   │
+│  │    → 不执行 unmounted！               │                   │
+│  └──────────────┬───────────────────────┘                   │
+│                 │                                              │
+│                 ▼                                             │
+│  ┌──────────────────────────────────────┐                   │
+│  │ 3. 检查组件 B 是否在缓存中             │                   │
+│  │    cache.get('B_key')?                │                   │
+│  └──────┬────────────────────┬──────────┘                   │
+│         │ 命中                │ 未命中                          │
+│         ▼                    ▼                                │
+│  ┌──────────────┐  ┌──────────────────────┐                  │
+│  │ ✅ 复用缓存   │  │ 🆕 创建新实例         │                  │
+│  │ 复用 vnodeB   │  │ cache.set('B_key')  │                  │
+│  │ 复用 DOM 元素 │  │ keys.push('B_key')  │                  │
+│  │ LRU: B→末尾   │  │ 检查 LRU 淘汰       │                  │
+│  │ 触发 activated│  │ 触发 mounted        │                  │
+│  └──────────────┘  └──────────────────────┘                  │
+│                                                              │
+├─────────────────────────────────────────────────────────────┤
+│                    LRU 淘汰示例                               │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  max = 3，依次切换 A → B → C → D                             │
+│                                                              │
+│  切换到 A: cache={A}, keys=[A]                              │
+│  切换到 B: cache={A,B}, keys=[A,B]                           │
+│  切换到 C: cache={A,B,C}, keys=[A,B,C]                       │
+│  切换到 D:                                                    │
+│    cache 已满(3)，keys=[A,B,C]                               │
+│    LRU 淘汰 keys[0]=A（最久未使用）                            │
+│    cache={B,C,D}, keys=[B,C,D]                              │
+│                                                              │
+│  再次切回 A:                                                 │
+│    A 不在 cache 中 → 重新创建                                 │
+│    淘汰 keys[0]=B                                            │
+│    cache={C,D,A}, keys=[C,D,A]                              │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 使用示例与最佳实践
+
+```javascript
+// =============================================
+// KeepAlive 使用示例
+// =============================================
+
+<template>
+  <keep-alive :include="['HomeView', 'UserList']" :exclude="['DetailView']" :max="10">
+    <!-- 动态组件 -->
+    <router-view v-slot="{ Component }">
+      <component :is="Component" />
+    </router-view>
+  </keep-alive>
+</template>
+
+<script setup>
+import { ref, onActivated, onDeactivated } from 'vue'
+
+const scrollPosition = ref(0)
+
+// 在被缓存的组件中使用生命周期钩子
+onActivated(() => {
+  console.log('🔄 组件被激活（从缓存恢复）')
+  // 恢复滚动位置
+  window.scrollTo(0, scrollPosition.value)
+})
+
+onDeactivated(() => {
+  console.log('💤 组件被停用（进入缓存）')
+  // 保存滚动位置
+  scrollPosition.value = window.scrollY
+})
+</script>
+```
 
 ---
 
@@ -3273,6 +5304,14 @@
    - [ ] API 请求/响应有类型定义
    - [ ] 避免使用 `as any`（必要时用 `unknown` + 类型守卫）
    - [ ] 启用 strict 模式
+
+### 🔍 追问链
+1. **defineProps 和 defineEmits 的返回值类型是怎么推断出来的？**
+   → 方向：编译器宏、泛型语法 `<script setup lang="ts" generic="T">`、运行时不存在
+2. **如何给 ref 定义复杂的泛型类型？Ref<T> 的使用场景？**
+   → 方向：`ref<T>(initial)` 泛型约束、`Ref<T>` 类型导入、shallowRef vs Ref 区别
+3. **组件 emit 事件的类型安全如何保证？**
+   → 方向：defineEmits 的类型定义格式、事件参数的类型推导
 
 ---
 

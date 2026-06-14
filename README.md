@@ -10,7 +10,7 @@
 |------|:--------:|:------:|:----:|:----:|:--------:|
 | **TypeScript** | ✅ 13章+3附录 | ✅ 43题 | ⭐ **9.5** | 🟢 已优化 | 2026-06-14 |
 | **Vue** | ✅ 13章+3附录 | ✅ 45题 | ⭐ **9.0** | 🟢 已优化 | 2026-06-14 |
-| **JavaScript** | ✅ 17章 | ✅ 50题 | — | 🔵 初稿完成 | 2026-06-14 |
+| **JavaScript** | ✅ 17章+附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
 | **HTML-CSS** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **React** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **Node.js** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
@@ -99,14 +99,14 @@ frontend-knowledge/
 
 **核心覆盖**：模板语法、响应式系统、Composition API、组件通信、Vue Router、Pinia、过渡动画、Vue 3 新特性、性能优化
 
-### JavaScript 🔵 初稿
+### JavaScript ⭐ 9.0+ 分
 
-| 文档 | 规模 | 状态 |
-|------|------|------|
-| [基础知识指南](JavaScript/basics/JavaScript-Basics-Guide.md) | ~1850 行 | 17 章（变量类型/函数进阶/原型链/闭包/异步编程/DOM-BOM/数组方法/V8引擎/ES2020-2024） |
-| [面试题库](JavaScript/interviews/JavaScript-Interview-Questions.md) | ~7260 行 | 50 题（基础16 + 进阶19 + 专家15），含 Promise/并发调度器/虚拟滚动等手写实现 |
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](JavaScript/basics/JavaScript-Basics-Guide.md) | ~4700 行 | 17 章 + 附录（异步工具函数库实战案例 10 模块）+ 6 组流程图 |
+| [面试题库](JavaScript/interviews/JavaScript-Interview-Questions.md) | ~10900 行 | 50 题 / 17 题追问链 / 7 道手写源码实现（EventLoop/new/deepClone/V8/虚拟滚动等） |
 
-> 状态：初始生成完成，待执行 Phase 2 质量评审与优化
+**核心覆盖**：变量类型、函数进阶（this/call/bind）、闭包原理与应用、原型链与继承、ES6+ 类、作用域链、Event Loop 完整模拟、Promise 手写实现、async/await、DOM 事件机制、数组方法大全、正则表达式、V8 引擎/GC 机制、性能优化、XSS/CSRF 安全
 
 ---
 

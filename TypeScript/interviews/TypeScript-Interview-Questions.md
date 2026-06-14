@@ -48,6 +48,14 @@ function throwError(msg: string): never {
 }
 ```
 
+### 🔍 追问链
+1. **unknown 类型安全怎么体现？实际项目中如何逐步替换 any？**
+   → 方向：unknown 使用前必须类型收窄（typeof/instanceof/自定义守卫）；迁移策略：先 any→unknown，再逐步加守卫
+2. **never 在 switch 语句的 default 分支中有什么作用？**
+   → 方向：穷尽性检查（exhaustiveness check），确保所有分支都处理了；配合 never 赋值检测遗漏分支
+3. **unknown 和 object 有什么区别？什么时候用哪个？**
+   → 方向：object 是所有非原始类型的父类（但不能直接访问属性）；unknown 是所有类型的父类（需要收窄后使用）
+
 ---
 
 #### 题 2：以下关于接口（Interface）和类型别名（Type Alias）的说法，**错误**的是？ `⭐ 难度：★☆☆（初级）`
@@ -84,6 +92,14 @@ interface User {
 type ID = string | number;
 type Combined = { a: number } & { b: string };
 ```
+
+### 🔍 追问链
+1. **声明合并在实际项目中有什么应用场景？**
+   → 方向：为第三方库扩展类型声明（declare module + interface 合并）、monorepo 中跨包类型扩展
+2. **type 的交叉类型 `A & B` 和 interface 的 extends 有什么区别？**
+   → 方向：extends 检查子类型关系（可赋值性），& 只是简单合并属性（不检查冲突）
+3. **什么情况下只能用 type 不能用 interface？**
+   → 方向：联合类型 `type ID = string | number`、元组 `type Tuple = [string, number]、条件类型、模板字面量、原始类型别名
 
 ---
 
@@ -298,6 +314,14 @@ el.click(); // ✅ 不需要 el?.click()
 
 **参考来源**：[类型断言](https://juejin.cn/post/7530179511728930856)
 
+### 🔍 追问链
+1. **as const 和 readonly 有什么区别？**
+   → 方向：as const 是编译时断言（让字面量不拓宽），readonly 是类型修饰符（运行时也不可修改）；as const 可以递归深化
+2. **const 声明的对象和 as const 的区别？**
+   → 方向：`const obj = { x: 1 }` 推断为 `{ x: number }`；`obj as const` 推断为 `{ x: 1 }`（值也变为字面量）
+3. **satisfies 操作符和 as 有什么区别？（TS 4.9+）**
+   → 方向：satisfies 验证类型但不拓宽（保持精确推断）；as 强制断言可能绕过检查
+
 ---
 
 #### 题 10：如何定义一个函数的类型？请写出函数重载的完整示例。 `⭐ 难度：★★☆（初级+）`
@@ -333,6 +357,14 @@ format(true);      // 返回 string
 ```
 
 **关键点**：重载签名只用于类型检查，不包含实现体；实现签名对外不可见。
+
+### 🔍 追问链
+1. **函数重载在哪些场景下特别有用？**
+   → 方向：根据不同参数类型返回不同类型（如 fetchAPI 根据配置返回不同响应）、构造函数模式
+2. **重载签名和实现签名的区别？为什么实现签名不对外暴露？**
+   → 方向：重载签名定义公共 API（更严格），实现签名必须兼容所有重载（通常更宽松），外部调用看不到实现签名
+3. **泛型能否替代函数重载？什么情况选哪个？**
+   → 方向：泛型适用于"输入输出类型有规律关联"；重载适用于"不同参数组合对应完全不同的行为"
 
 ---
 
@@ -616,6 +648,14 @@ function play(pet: Pet) {
 }
 ```
 
+### 🔍 追问链
+1. **extends 关键字在不同上下文中的含义有哪些？**
+   → 方向：泛型约束 `<T extends U>`、条件类型 `T extends U ? A : B`、类继承 `class A extends B`、接口继承 `interface I extends J`、类型推断位置 infer
+2. **多重约束怎么写？**
+   → 方向：`<T extends U & V>` 用交叉类型实现多个约束
+3. **默认类型参数和约束可以同时使用吗？**
+   → 方向：可以，`<T = string extends Serializable ? string : never>` 约束和默认值结合
+
 ---
 
 #### 题 18：以下联合类型与交叉类型的代码，运行结果正确的是？ `⭐ 难度：★★☆（中级）`
@@ -707,6 +747,14 @@ function handle(result: Success | Error) {
 
 **参考来源**：[四种类型守卫详解](https://blog.csdn.net/qq_17859117/article/details/161644680)
 
+### 🔍 追问链
+1. **typeof 能判断 null 吗？为什么不行？**
+   → 方向：`typeof null === 'object'`（JS 历史遗留 bug），所以 typeof 无法区分 null 和普通对象
+2. **自定义 is 谓词函数的原理是什么？TypeScript 如何知道返回 true 后类型收窄？**
+   → 方向：is 是 TS 特殊的类型谓词标记，编译器识别 `(x): x is T` 这种返回值标注后自动做类型断言
+3. **discriminated union（可辨识联合）相比 if-else + typeof 有什么优势？**
+   → 方向： exhaustive check（switch + never 确保穷尽）、代码自文档化（type 字段明确语义）、IDE 跳转支持更好
+
 ---
 
 #### 题 20：什么是泛型？请列举泛型的三种主要应用场景（函数、接口、类），并说明泛型约束的作用。 `⭐ 难度：★★☆（中级）`
@@ -771,6 +819,14 @@ function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
 
 **参考来源**：[泛型详解](https://juejin.cn/post/7523878122645520384)
 
+### 🔍 追问链
+1. **泛型接口和泛型类的区别？选择依据是什么？**
+   → 方向：接口用于"数据形状描述"，类用于"包含逻辑的容器"；接口可以被 implements，类可以被 extends
+2. **泛型函数的类型推断是怎么工作的？**
+   → 方向：从实参类型推导类型参数（如 `identity("hello")` 自动推断 T=string），也可以显式指定覆盖推断
+3. **什么是高阶泛型？`<T>() => <U>(x: U) => [T, U]` 这种写法？**
+   → 方向：返回泛型函数的泛型函数（泛型工厂），用于构建灵活的 API 封装
+
 ---
 
 #### 题 21：请解释 TypeScript 内置工具类型 `Partial<T>`、`Required<T>`、`Pick<T, K>`、`Omit<T, K>` 的作用及实现原理。 `⭐ 难度：★★★（中级偏难）`
@@ -819,6 +875,14 @@ type UserWithoutEmail = Omit<User, 'email'>;
 - `Parameters<T>`：获取函数参数类型元组
 
 **参考来源**：[工具类型精讲](https://blog.csdn.net/weixin_60526471/article/details/153528752)
+
+### 🔍 追问链
+1. **Partial<T> 的底层原理是什么？映射类型 `[P in keyof T]?: T[P]` 怎么理解？**
+   → 方向：keyof T 取出所有属性名 → in 遍历每个属性名 → `?` 变为可选 → `T[P]` 取出原类型
+2. **Pick 和 Omit 的关系？Omit 能否用 Pick 实现？**
+   → 方向：`Omit<T, K> = Pick<T, Exclude<keyof T, K>>`，Omit 就是 Pick + Exclude 的组合
+3. **如何手写一个 `RequiredDeep<T>` 让嵌套对象的所有层都变成 required？**
+   → 方向：递归映射类型 + 条件类型判断是否为 object
 
 ---
 
@@ -869,6 +933,14 @@ Geometry.distance(p1, { x: 3, y: 4 }); // 5
 | 推荐度 | ✅ 首选 | 仅限特定场景 |
 
 **参考来源**：[模块与命名空间](https://blog.csdn.net/qq_41221596/article/details/132632184)
+
+### 🔍 追问链
+1. **什么情况下还需要用 Namespace？**
+   → 方向：遗留代码维护、全局变量组织（如 jQuery 插件）、声明合并扩展第三方库、D.ts 中的形状描述
+2. **Namespace 和 Module 混合使用的注意事项？**
+   → 方向：Namespace 不能用在模块文件中导出（会被视为模块内部作用域）；只在 .d.ts 中用于全局声明
+3. **import type 和 import 的区别？什么时候用 import type？**
+   → 方向：import type 只导入类型信息，编译后完全消除（减小打包体积）；纯类型导入时推荐使用
 
 ---
 
@@ -931,6 +1003,425 @@ Album.MAX_TRACKS;            // ✅
 **注意**：`type` 别名不支持声明合并，重复定义会报错。
 
 **参考来源**：[声明合并](https://juejin.cn/post/7523878122645520384)
+
+### 深度拓展：手写模拟合并过程
+
+#### 1. 伪代码：接口声明合并策略
+
+```typescript
+/**
+ * 【伪代码】模拟 TypeScript 编译器的接口合并算法
+ *
+ * 编译器在遇到多个同名 interface 时，会执行以下合并流程：
+ */
+
+// ===== 合并引擎（简化版）=====
+
+interface DeclarationMerger {
+  /**
+   * 合并两个同名接口的成员
+   * @param original 原始声明（先出现的）
+   * @param extension 扩展声明（后出现的）
+   */
+  mergeInterfaces(
+    original: InterfaceDeclaration,
+    extension: InterfaceDeclaration
+  ): MergedInterface {
+    const result: MergedInterface = {
+      name: original.name,  // 名称相同
+      members: new Map<string, MemberInfo>(),
+      typeParameters: [...original.typeParameters],
+      heritageClauses: [...original.heritageClauses],
+    };
+
+    // 步骤 1: 先将原始声明的所有成员加入结果
+    for (const [key, member] of original.members) {
+      result.members.set(key, { ...member });
+    }
+
+    // 步骤 2: 遍历扩展声明的每个成员，逐个处理冲突
+    for (const [key, extMember] of extension.members) {
+      const existing = result.members.get(key);
+
+      if (!existing) {
+        // 情况 A: 新属性 → 直接添加
+        result.members.set(key, { ...extMember });
+      } else if (isFunctionMember(existing) && isFunctionMember(extMember)) {
+        // 情况 B: 函数成员 → 重载合并（不是覆盖！）
+        result.members.set(key, mergeFunctionOverloads(existing, extMember));
+      } else if (isPropertyMember(existing) && isPropertyMember(extMember)) {
+        // 情况 C: 非函数属性 → 类型必须兼容，后者覆盖前者
+        if (!isTypeCompatible(extMember.type, existing.type)) {
+          throw new Error(
+            `Subsequent property declaration must have the same type. ` +
+            `Property '${key}' must be of type '${existing.type}', ` +
+            `but here has type '${extMember.type}'.`
+          );
+        }
+        // 类型相同或后者是前者的子类型 → 允许覆盖
+        result.members.set(key, { ...extMember });  // 后者胜出
+      } else {
+        // 情况 D: 属性类型冲突（一个是函数一个不是）
+        throw new Error(
+          `Member '${key}' inconsistently declared as property and function`
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 【关键】函数重载合并规则
+   *
+   * 当两个声明都有同名函数时：
+   * - 所有函数签名被收集为重载列表
+   * - 原始声明的重载排在前面
+   * - 扩展声明的重载追加在后面
+   * - 实现签名（如果有）必须是最后一个
+   */
+  mergeFunctionOverloads(
+    original: FunctionMember,
+    extension: FunctionMember
+  ): FunctionMember {
+    return {
+      kind: 'function',
+      // 原始的重载在前，扩展的重载在后
+      overloads: [
+        ...original.overloads,
+        ...extension.overloads,
+      ],
+      implementation: extension.implementation || original.implementation,
+    };
+  }
+}
+
+// ========== 完整示例演示 ==========
+
+// 声明 1：原始接口
+interface User {
+  id: number;
+  name: string;
+  greet(greeting: string): string;  // 函数重载 #1
+}
+
+// 声明 2：扩展接口
+interface User {
+  email?: string;                    // 新增可选属性
+  age: number;                       // 新增必填属性
+  greet(name: string): string;       // 函数重载 #2（追加）
+  getFullName(): string;             // 新增方法
+}
+
+/**
+ * 【编译器合并后的结果】等价于：
+ *
+ * interface User {
+ *   id: number;                      // 来自声明 1
+ *   name: string;                    // 来自声明 1
+ *   email?: string;                  // 来自声明 2（新增）
+ *   age: number;                     // 来自声明 2（新增）
+ *
+ *   // 函数重载列表（按声明顺序排列）
+ *   greet(greeting: string): string; // 来自声明 1（优先匹配）
+ *   greet(name: string): string;     // 来自声明 2（次级匹配）
+ *
+ *   getFullName(): string;           // 来自声明 2（新增）
+ * }
+ */
+
+// 使用示例
+const user: User = {
+  id:1,
+  name: 'Alice',
+  age: 30,
+  // email 是可选的，可以不提供
+
+  // greet 有两种调用方式（重载）
+  greet: (arg: string) => {
+    // 根据参数类型/数量自动选择正确的重载
+    return `Hello, ${arg}!`;
+  },
+
+  getFullName: () => 'Alice',
+};
+
+user.greet('Hi');      // ✅ 匹配重载 #1: (greeting: string) => string
+user.greet('Alice');   // ✅ 匹配重载 #2: (name: string) => string
+```
+
+#### 2. 命名空间与类的声明合并
+
+```typescript
+/**
+ * 【命名空间 + 类】声明合并
+ *
+ * 场景：为类添加静态成员（静态属性、工厂方法、工具函数）
+ * 这是 jQuery、axios 等库常用的模式
+ *
+ * 【合并规则】
+ * - 类定义实例成员（prototype 上的属性和方法）
+ * - 同名命名空间定义静态成员（构造函数本身的属性）
+ * - 两者合并后，类既有实例方法又有静态方法
+ */
+
+// ===== 手写模拟 =====
+
+class Validator {
+  /** 实例方法：验证单个值 */
+  validate(value: any): boolean {
+    return value !== null && value !== undefined;
+  }
+}
+
+// 命名空间与类合并！为 Validator 类添加静态成员
+namespace Validator {
+  /** 静态属性：内置规则集合 */
+  export const rules: Record<string, RegExp> = {
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    phone: /^1[3-9]\d{9}$/,
+  };
+
+  /** 静态方法：快速创建预配置的验证器 */
+  static create(ruleName: string): Validator {
+    const validator = new Validator();
+    (validator as any).rule = rules[ruleName];
+    return validator;
+  }
+
+  /** 静态工具方法：邮箱格式检查 */
+  static isEmail(value: string): boolean {
+    return rules.email.test(value);
+  }
+}
+
+// ===== 使用效果 =====
+
+const v = new Validator();
+v.validate('test');              // ✅ 实例方法
+
+Validator.isEmail('a@b.com');    // ✅ 静态方法（来自命名空间）
+Validator.rules.email;           // ✅ 静态属性（来自命名空间）
+
+const emailValidator = Validator.create('email');
+// ✅ 静态工厂方法（来自命名空间），返回类实例
+
+/**
+ * 【实际应用场景】
+ * 这种模式常见于：
+ * 1. 类库的核心类设计（如 axios 的 Axios 类 + 静态工具方法）
+ * 2. 为现有类补充静态工具函数而不修改原始类定义
+ * 3. 声明文件中为 JavaScript 库补充类型信息
+ */
+```
+
+#### 3. 命名空间与枚举的声明合并
+
+```typescript
+/**
+ * 【命名空间 + 枚举】声明合并
+ *
+ * 场景：为枚举添加相关的方法和常量
+ * 使枚举不仅是值集合，还携带行为
+ *
+ * 【典型用例】
+ * - 枚举值的反向映射增强
+ * - 枚举相关的工具函数
+ * - 枚举的类型守卫
+ */
+
+// ===== 基础枚举定义 =====
+enum HttpMethod {
+  GET = 'GET',
+  POST = 'POST',
+  PUT = 'PUT',
+  DELETE = 'DELETE',
+  PATCH = 'PATCH',
+}
+
+// 命名空间与枚举合并！为 HttpMethod 添加功能
+namespace HttpMethod {
+  /** 判断是否是"安全"方法（不修改服务端数据） */
+  export function isSafe(method: HttpMethod): boolean {
+    return method === GET;  // 只有 GET 是安全的
+  }
+
+  /** 判断是否需要请求体 */
+  export function requiresBody(method: HttpMethod): boolean {
+    return method === POST || method === PUT || method === PATCH;
+  }
+
+  /** 获取所有允许的方法列表 */
+  export function getAll(): HttpMethod[] {
+    return Object.values(HttpMethod) as HttpMethod[];
+  }
+
+  /** 类型守卫：检查值是否是合法的 HttpMethod */
+  export function isHttpMethod(value: string): value is HttpMethod {
+    return Object.values(HttpMethod).includes(value as HttpMethod);
+  }
+}
+
+// ===== 使用效果 =====
+
+const method = HttpMethod.POST;
+
+HttpMethod.isSafe(method);         // false
+HttpMethod.requiresBody(method);   // true
+
+const allMethods = HttpMethod.getAll();
+// ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+
+// 类型守卫使用
+function makeRequest(url: string, method: string) {
+  if (HttpMethod.isHttpMethod(method)) {
+    // method 在此块内被收窄为 HttpMethod 类型
+    console.log(`${method} requires body:`, HttpMethod.requiresBody(method));
+  } else {
+    throw new Error(`Invalid HTTP method: ${method}`);
+  }
+}
+```
+
+#### 4. 命名空间与函数的声明合并
+
+```typescript
+/**
+ * 【命名空间 + 函数】声明合并
+ *
+ * 场景：为函数添加属性（使其成为"可调用的对象"）
+ * 这是最灵活的合并形式，函数既可调用又可访问属性
+ *
+ * 【经典案例】
+ * - jQuery: $('selector') 同时有 $.ajax, $.fn 等属性
+ * - lodash: _.map() 同时有 _.version 等属性
+ */
+
+// ===== 基础函数定义 =====
+function createRouter(basePath: string) {
+  let currentPath = basePath;
+
+  return {
+    navigate(path: string) {
+      currentPath = `${basePath}/${path}`;
+      console.log(`Navigated to: ${currentPath}`);
+      return currentPath;
+    },
+    getCurrentPath() {
+      return currentPath;
+    },
+  };
+}
+
+// 命名空间与函数合并！为 createRouter 添加静态能力
+namespace createRouter {
+  /** 全局路由实例缓存 */
+  export const cache = new Map<string, ReturnType<typeof createRouter>>();
+
+  /** 预设的路由配置 */
+  export const presets = {
+    api: '/api/v1',
+    admin: '/admin',
+    user: '/user',
+  } as const;
+
+  /** 工厂快捷方式：使用预设创建路由器 */
+  export function fromPreset(preset: keyof typeof presets) {
+    const cached = cache.get(preset);
+    if (cached) return cached;
+
+    const router = createRouter(presets[preset]);
+    cache.set(preset, router);
+    return router;
+  }
+
+  /** 清除所有缓存的实例 */
+  export function clearCache() {
+    cache.clear();
+  }
+}
+
+// ===== 使用效果 =====
+
+// 方式 1: 直接调用（作为普通函数）
+const apiRouter = createRouter('/api/v1');
+apiRouter.navigate('/users');
+
+// 方式 2: 使用预设（通过合并的命名空间属性）
+const adminRouter = createRouter.fromPreset('admin');
+adminRouter.navigate('/dashboard');
+
+// 访问合并的静态属性
+console.log(createRouter.presets.api);    // '/api/v1'
+createRouter.clearCache();                 // 清除缓存
+
+/**
+ * 【为什么这种模式有用？】
+ *
+ * 1. 组织性：将相关的功能聚合在一个标识符下
+ * 2. 可发现性：createRouter. 可以触发 IDE 自动补全，展示所有可用选项
+ * 3. 向后兼容：不破坏原有的函数调用方式，同时增加新能力
+ * 4. 类型安全：所有新增属性都有完整的类型信息
+ */
+```
+
+#### 5. 声明合并完整流程图解
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              TypeScript 声明合并工作流                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  输入源码:                                                      │
+│  ┌─────────────────┐  ┌─────────────────┐                      │
+│  │ 文件 A.ts        │  │ 文件 B.ts        │                      │
+│  │                 │  │                 │                      │
+│  │ interface Foo { │  │ interface Foo { │                      │
+│  │   a: number;   │  │   b: string;   │                      │
+│  │   bar(): void; │  │   bar(x: number):│                      │
+│  │ }               │  │   void;         │                      │
+│  └─────────────────┘  └─────────────────┘                      │
+│                                                                 │
+│                          ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 编译器合并引擎                                            │   │
+│  │                                                          │   │
+│  │  1. 收集所有名为 "Foo" 的接口声明                           │   │
+│  │  2. 按出现顺序排序                                        │   │
+│  │  3. 逐个成员合并:                                         │   │
+│  │     ├─ a: number → 直接加入                              │   │
+│  │     ├─ b: string → 直接加入                              │   │
+│  │     └─ bar: 函数 → 重载合并!                             │   │
+│  │        ├─ bar(): void           (来自文件 A)             │   │
+│  │        └─ bar(x: number): void   (来自文件 B)             │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          ↓                                      │
+│  输出结果:                                                      │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ interface Foo {                                         │   │
+│  │   a: number;                                           │   │
+│  │   b: string;                                           │   │
+│  │   bar(): void;          // 重载 1（优先匹配）            │   │
+│  │   bar(x: number): void;  // 重载 2                      │   │
+│  │ }                                                       │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  【支持的合并组合】                                              │
+│  ┌──────────────┬──────────────┬────────────────────────────┐   │
+│  │ 类型 A        │ 类型 B        │ 合并结果                   │   │
+│  ├──────────────┼──────────────┼────────────────────────────┤   │
+│  │ Interface     │ Interface     │ 成员合并（函数重载）        │   │
+│  │ Namespace     │ Namespace     │ 成员合并                   │   │
+│  │ Class         │ Namespace     │ 静态成员附加到类           │   │
+│  │ Enum          │ Namespace     │ 方法/属性附加到枚举        │   │
+│  │ Function      │ Namespace     │ 属性附加到函数             │   │
+│  │ Enum          │ Enum          │ ❌ 不支持（会报错）        │   │
+│  │ Class         │ Class         │ ❌ 不支持（会报错）        │   │
+│  │ Type Alias    │ Type Alias    │ ❌ 不支持（重复定义错误）   │   │
+│  └──────────────┴──────────────┴────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -1067,6 +1558,321 @@ dogs = animals;   // ④
 
 **参考来源**：[协变与逆变](https://blog.51cto.com/u_17171324/14506902)
 
+### 深度拓展：手写模拟 TypeScript 类型检查器
+
+#### 1. 伪代码：协变/逆变判断逻辑
+
+```typescript
+/**
+ * 【伪代码】模拟 TypeScript 编译器的类型兼容性检查
+ * 这段代码展示编译器内部如何判断两个类型是否可以互相赋值
+ *
+ * 核心原则：类型安全优先
+ * - 如果赋值可能导致运行时错误，则不允许
+ */
+
+// ===== 类型层次定义 =====
+// 继承链: Dog → Animal (Dog 是 Animal 的子类)
+class Animal { name: string = 'animal'; }
+class Dog extends Animal { breed: string = 'golden'; }
+class Cat extends Animal { color: string = 'white'; }
+
+/**
+ * 模拟编译器的子类型检查函数
+ * @param source 源类型（被赋值的类型）
+ * @param target 目标类型（要赋值给的目标）
+ */
+function isSubtype(source: Type, target: Type): boolean {
+  // 规则 1: 同一类型总是兼容
+  if (source === target) return true;
+
+  // 规则 2: 类的继承关系（Dog 是 Animal 的子类）
+  if (source instanceof ClassType && target instanceof ClassType) {
+    return source.extends(target); // Dog extends Animal → true
+  }
+
+  // 规则 3: 数组类型的协变检查
+  if (source instanceof ArrayType && target instanceof ArrayType) {
+    return isSubtype(source.elementType, target.elementType);
+    // Dog[] → Animal[] ✅ 因为 Dog 是 Animal 子类型（协变）
+    // Animal[] → Dog[] ❌ 因为 Animal 不是 Dog 子类型
+  }
+
+  // 规则 4: 函数类型的特殊检查（关键！）
+  if (source instanceof FunctionType && target instanceof FunctionType) {
+    return checkFunctionCompatibility(source, target);
+  }
+
+  return false;
+}
+
+/**
+ * 函数类型兼容性检查（核心！）
+ *
+ * 【双变性规则】
+ * - 参数位置：逆变（Contravariant）— 需要更宽泛的参数类型
+ * - 返回值位置：协变（Covariant）— 可以返回更具体的类型
+ */
+function checkFunctionCompatibility(
+  source: FunctionType,  // 源函数（被赋值的函数）
+  target: FunctionType   // 目标函数（期望的类型）
+): boolean {
+
+  // 步骤 1: 检查参数数量（源函数参数可以少于目标，但不能多）
+  if (source.params.length > target.params.length) return false;
+
+  // 步骤 2: 检查每个参数的类型（⚠️ 逆变规则）
+  for (let i = 0; i < target.params.length; i++) {
+    const srcParam = source.params[i] ?? target.params[i]; // 缺失参数使用目标参数
+    const tgtParam = target.params[i];
+
+    /**
+     * 【逆变的直觉解释】
+     *
+     * 假设目标函数签名是 handleDog(dog: Dog)
+     * 源函数签名是 handleAnimal(animal: Animal)
+     *
+     * 当调用 handleDog 时，传入的一定是 Dog 实例
+     * handleAnimal 能处理 Animal，而 Dog 是 Animal 的子类
+     * 所以 handleAnimal 完全可以安全地处理 Dog → 赋值合法！✅
+     *
+     * 反过来：
+     * 目标函数签名是 handleAnimal(animal: Animal)
+     * 源函数签名是 handleDog(dog: Dog)
+     *
+     * 当调用 handleAnimal 时，可能传入 Cat（也是 Animal）
+     * 但 handleDog 内部访问 dog.breed 会崩溃（Cat 没有 breed）
+     * 所以这种赋值不安全 → 不允许！❌
+     */
+    if (!isSubtype(tgtParam, srcParam)) {  // 注意顺序反转了！
+      return false; // 目标参数必须是源参数的子类型
+    }
+  }
+
+  // 步骤 3: 检查返回值类型（协变规则）
+  /**
+   * 【协变的直觉解释】
+   *
+   * 目标期望返回 Animal
+   * 源函数实际返回 Dog
+   *
+   * 返回 Dog 是安全的，因为 Dog 包含 Animal 的所有属性
+   * 使用方按 Animal 接口访问，完全没问题 → 合法！✅
+   */
+  if (!isSubtype(source.returnType, target.returnType)) {
+    return false; // 源返回值必须是目标返回值的子类型
+  }
+
+  return true;
+}
+
+// ===== 具体例子验证 =====
+
+// 例 1: 函数参数逆变
+type AnimalHandler = (a: Animal) => void;
+type DogHandler = (d: Dog) => void;
+
+// isSubtype(AnimalHandler, DogHandler)?
+// 检查参数: isSubtype(Dog, Animal)? → true (Dog 是 Animal 子类)
+//           注意: 这里是 tgtParam(Dog) vs srcParam(Animal)，所以是逆序
+// 检查返回: isSubtype(void, void)? → true
+// 结果: ✅ handleDog = handleAnimal 合法
+
+// 例 2: 数组协变
+// isSubtype(Dog[], Animal[])?
+// 等价于: isSubtype(Dog, Animal)? → true
+// 结果: ✅ animals = dogs 合法
+```
+
+#### 2. 为什么数组是协变的？
+
+```typescript
+/**
+ * 【数组协变的原理】
+ *
+ * 从数学角度理解：
+ * - 如果 A <: B（A 是 B 的子类型）
+ * - 那么 Array<A> <: Array<B>（A数组 是 B数组的子类型）
+ *
+ * 这符合直觉：
+ * - Dog[] 数组中的每个元素都是 Dog
+ * - Dog 也是 Animal
+ * - 所以 Dog[] 数组中的每个元素都可以当作 Animal 用
+ * - 因此 Dog[] 可以赋给 Animal[]
+ *
+ * 【为什么这是安全的？】
+ * 只读操作时完全安全：
+ */
+function printNames(animals: Animal[]): void {
+  animals.forEach(a => console.log(a.name));  // 只读取 name 属性
+}
+
+const dogs: Dog[] = [new Dog(), new Dog()];
+printNames(dogs);  // ✅ 安全！Dog 有 name 属性
+
+/**
+ * ⚠️ 但写入操作时有潜在风险（变异问题 Mutation）
+ * 这就是为什么 Java 泛型是不变（invariant）的原因
+ */
+function addCat(animals: Animal[]): void {
+  animals.push(new Cat());  // 如果 dogs 被传入这里...
+}
+
+const myDogs: Dog[] = [new Dog()];
+// addCat(myDogs);  // TS 报错阻止了这个危险操作
+// 如果允许，myDogs[0] 现在是 Cat，但类型系统认为是 Dog！
+```
+
+#### 3. strictFunctionTypes 开启前后的差异
+
+```typescript
+/**
+ * 【strictFunctionTypes 配置的影响】
+ *
+ * strictFunctionTypes: false（默认关闭，为了向后兼容）
+ * - 对象属性中的函数：双变（bivariant），参数既协变又逆变
+ * - 更宽松，但不安全
+ *
+ * strictFunctionTypes: true（推荐开启）
+ * - 所有函数：参数严格逆变
+ * - 更安全，能捕获更多潜在 bug
+ */
+
+// ===== 场景演示 =====
+
+interface EventHandlers {
+  // 对象属性中的函数
+  onClick: (event: MouseEvent) => void;
+  onInput: (event: KeyboardEvent) => void;
+}
+
+const handlers: EventHandlers = {
+  // strictFunctionTypes: false 时这段代码通过（不安全！）
+  onClick: (e: Event) => {  // Event 比 MouseEvent 更宽泛
+    // e.clientX;  // ❌ Event 上不存在 clientX！运行时可能出错
+    console.log('clicked');
+  },
+
+  // strictFunctionTypes: true 时上面会报错：
+  // Type '(e: Event) => void' is not assignable to type '(event: MouseEvent) => void'
+};
+
+/**
+ * 【为什么默认是双变？】
+ * 历史原因：早期 TypeScript 为了与 JavaScript 的宽松特性保持一致
+ * 很多现有代码依赖这种行为
+ *
+ * 【建议】始终开启 strictFunctionTypes: true
+ * 它能在编译期发现潜在的运行时错误
+ */
+
+// 另一个对比示例
+type NumberToString = (n: number) => string;
+type AnyToString = (a: any) => string;
+
+let numToStr: NumberToString = n => n.toFixed(2);
+let anyToStr: AnyToString = a => String(a);
+
+// strictFunctionTypes: false
+anyToStr = numToStr;  // ✅ 双变允许
+numToStr = anyToStr;  // ✅ 双变允许（不安全！）
+
+// strictFunctionTypes: true
+anyToStr = numToStr;  // ✅ 逆变：number 是 any 的子类型，所以合法
+// numToStr = anyToStr;  // ❌ 逆变不满足：any 不是 number 的子类型
+```
+
+#### 4. 里氏替换原则（LSP）与逆变的联系
+
+```typescript
+/**
+ * 【里氏替换原则 Liskov Substitution Principle】
+ * "所有引用基类的地方必须能透明地使用其子类对象"
+ *
+ * 在函数参数上的体现：
+ * - 如果一个函数能处理 Animal
+ * - 那么它一定也能处理 Dog（因为 Dog 是一种 Animal）
+ * - 所以接受 Animal 参数的函数，可以用在接受 Dog 参数的地方
+ *
+ * 这就是"逆变"的数学基础！
+ */
+
+// ===== 直观类比 =====
+
+/**
+ * 【现实世界类比：宠物护理服务】
+ *
+ * 假设有一个"狗美容师"服务，只接收狗
+ * 和一个"动物医生"服务，接收任何动物
+ *
+ * 问：能否让动物医生去当狗美容师？
+ * 答：可以！因为动物医生能处理任何动物，当然也能处理狗 ✅
+ *       （这就是 handleDog = handleAnimal 合法的原因）
+ *
+ * 问：能否让狗美容师去当动物医生？
+ * 答：不行！如果送来一只猫，狗美容师不知道怎么处理 ❌
+ *       （这就是 handleAnimal = handleDog 非法的原因）
+ */
+
+// ===== 代码化的 LSP 示例 =====
+
+abstract class AnimalCare {
+  abstract careFor(animal: Animal): void;
+}
+
+class Veterinarian extends AnimalCare {
+  // 兽医可以照顾任何动物
+  careFor(animal: Animal): void {
+    console.log(`检查 ${animal.name} 的健康状况`);
+  }
+}
+
+class DogGroomer extends AnimalCare {
+  // 狗美容师只能照顾狗
+  careFor(animal: Animal): void {  // LSP 要求参数至少是 Animal
+    // 但实际上我们只处理 Dog
+    const dog = animal as Dog;
+    console.log(`给 ${dog.name} (${dog.breed}) 做美容`);
+  }
+}
+
+// LSP 允许用 Veterinarian 替代 DogGroomer 的位置吗？
+// 从类型系统的角度：是的（因为参数逆变）
+// 从业务逻辑的角度：需要具体分析
+
+// ===== 协变/逆变速查表 =====
+
+/**
+ * ┌─────────────────┬──────────────────┬────────────────────┐
+ * │ 位置             │ 方向              │ 记忆方式            │
+ * ├─────────────────┼──────────────────┼────────────────────┤
+ * │ 函数参数         │ 逆变 Contravariant│ In → Inverted      │
+ * │ 函数返回值       │ 协变 Covariant   │ Out → Ordinary     │
+ * │ 普通对象属性     │ 协变 Covariant   │ 与继承方向一致      │
+ * │ 数组元素        │ 协变 Covariant   │ Dog[] <: Animal[]  │
+ * │ 泛型接口(只读)   │ 协变 Covariant   │ ReadonlyArray      │
+ * │ 泛型接口(读写)   │ 不变 Invariant   │ 不能随便赋值        │
+ * └─────────────────┴──────────────────┴────────────────────┘
+ *
+ * 【不变的场景】为什么有些情况下既不协变也不逆变？
+ * 当一个泛型类型同时用于输入和输出时，必须保证精确匹配
+ *
+ * interface Box<T> {
+ *   get(): T;      // T 用于输出 → 希望协变
+ *   set(value: T): void;  // T 用于输入 → 希望逆变
+ * }
+ * 两者冲突 → 只能不变（invariant）
+ */
+```
+
+### 🔍 追问链
+1. **这个事件系统的类型安全是如何保证的？回调参数类型是怎么自动推导出来的？**
+   → 方向：通过 Map 映射事件名到参数元组类型，on/emit 通过泛型约束从 Map 中取出对应的参数类型
+2. **如果事件需要支持异步回调（返回 Promise），类型定义要怎么改？**
+   → 方向：将回调类型改为 `(args) => Promise<void>` 或 `(args) => void | Promise<void>`
+3. **如何支持一次性事件（once）并自动取消订阅？**
+   → 方向：once 方法注册后首次触发时自动 off，类型与 on 一致
+
 ---
 
 ### 四、编程实践题（3道）
@@ -1115,6 +1921,14 @@ console.log(cloned.meta.created instanceof Date); // true
 ```
 
 **考察点**：泛型保留、递归类型处理、Date/Array 等内置对象处理
+
+### 🔍 追问链
+1. **Date 对象为什么要特殊处理？JSON.parse(JSON.stringify(date)) 会丢失什么？**
+   → 方向：Date 序列化后变成字符串，反序列化后是字符串不是 Date 对象；还会丢失 undefined、function、Symbol、循环引用
+2. **深拷贝中如何处理循环引用？**
+   → 方向：使用 WeakMap<object, object> 缓存已复制对象，每次复制前检查缓存避免无限递归
+3. **结构化克隆（structuredClone）API 和手写深拷贝的区别？**
+   → 方向：structuredClone 浏览器原生支持，能处理更多类型（RegExp、ArrayBuffer、Map/Set 等），但不能处理 function/class 实例
 
 ---
 
@@ -1292,6 +2106,135 @@ type NonDistributed<T> = [T] extends [any] ? T[] : never;
 type Result = NonDistributed<string | number>; // (string | number)[] — 不再分布式
 ```
 
+### 深度拓展：手写实现
+
+#### 手写实现 MyExclude 和 MyExtract
+
+```typescript
+/**
+ * MyExclude<T, U>: 从联合类型 T 中排除可分配给 U 的类型成员
+ * 核心原理：利用分布式条件类型的分发特性 + never 吸收律
+ *
+ * 【关键机制】当 T 是裸类型参数（如 A | B | C）时：
+ * T extends U ? X : Y 会被展开为：
+ * (A extends U ? X : Y) | (B extends U ? X : Y) | (C extends U ? X : Y)
+ *
+ * 【never 吸收律】A | never = A（never 在联合类型中被吸收）
+ * 这使得"被排除的成员"自动消失，只保留目标成员
+ */
+type MyExclude<T, U> = T extends U ? never : T;
+
+/**
+ * MyExtract<T, U>: 从联合类型 T 中提取可分配给 U 的类型成员
+ * 与 Exclude 相反的逻辑：保留匹配的，丢弃不匹配的（返回 never）
+ */
+type MyExtract<T, U> = T extends U ? T : never;
+
+// ========== 使用示例 ==========
+type Status = 'pending' | 'success' | 'error' | 'loading';
+
+// 示例 1: 排除特定状态
+type NonErrorStatus = MyExclude<Status, 'error'>;
+// 推导过程：
+// MyExclude<'pending' | 'success' | 'error' | 'loading', 'error'>
+// ≡ ('pending' extends 'error' ? never : 'pending')    → 'pending'
+//   | ('success' extends 'error' ? never : 'success')   → 'success'
+//   | ('error' extends 'error' ? never : 'error')       → never ❗
+//   | ('loading' extends 'error' ? never : 'loading')   → 'loading'
+// = 'pending' | 'success' | never | 'loading'
+// 应用 never 吸收律：= 'pending' | 'success' | 'loading'
+
+// 示例 2: 提取字符串类型成员
+type Mixed = string | number | boolean | (() => void);
+type OnlyStringOrNumber = MyExtract<Mixed, string | number>;
+// = string | number （boolean 和函数类型被排除为 never 后吸收）
+
+// 示例 3: 实际应用 - 过滤函数参数的可选性
+type RequiredKeys<T> = MyExclude<
+  { [K in keyof T]-?: {} extends Pick<T, K> ? K : never }[keyof T],
+  undefined
+>;
+
+interface UserInfo {
+  id: number;           // 必填
+  name?: string;        // 可选
+  email?: string;       // 可选
+  age: number;          // 必填
+}
+type ReqKeys = RequiredKeys<UserInfo>; // 'id' | 'age'
+```
+
+#### 完整推导过程图解
+
+```
+输入: MyExclude<string | number | boolean, number>
+
+步骤 1: 检测到 T 是联合类型（裸类型参数），触发分布式条件类型
+
+步骤 2: 分发展开（Distribute）
+┌─────────────────────────────────────────────────────────────┐
+│  T extends U ? never : T                                    │
+│                                                             │
+│  ↓ 分发为每个成员独立判断                                     │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ ① string extends number ? never : string             │   │
+│  │   └─→ string 不能赋给 number                         │   │
+│  │       └─→ 取假值: string                             │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ ② number extends number ? never : number             │   │
+│  │   └─→ number 可以赋给 number ✅                       │   │
+│  │       └─→ 取真值: never                              │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ ③ boolean extends number ? never : boolean           │   │
+│  │   └─→ boolean 不能赋给 number                        │   │
+│  │       └─→ 取假值: boolean                            │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  结果: string | never | boolean                              │
+└─────────────────────────────────────────────────────────────┘
+
+步骤 3: 应用 never 吸收律（Absorption Law）
+┌─────────────────────────────────────────────────────────────┐
+│  联合类型中的 never 会被"吸收"（消失）                        │
+│                                                             │
+│  A | never = A     （never 是空集合，并集不影响）             │
+│  A | never | B = A | B                                      │
+│                                                             │
+│  string | never | boolean                                   │
+│       ↓                                                      │
+│  string | boolean  ← 最终结果                                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 为什么包装后就不分发？
+
+```typescript
+/**
+ * 【核心区别】裸类型参数 vs 包装后的类型参数
+ *
+ * "裸类型参数"指：T 直接出现在 extends 左侧，没有被元组/数组/Promise 等包装
+ * 一旦包装成 [T]、T[]、Promise<T> 等，就不再是"裸"的，不会触发分发
+ */
+
+type Distributive<T> = T extends any ? [T] : never;
+// T 是裸的 → 触发分发
+
+type R1 = Distributive<string | number>;
+// = [string] | [number]  ← 分发了！
+
+type NonDistributive<T> = [T] extends [any] ? T : never;
+// T 被 [ ] 包装 → 不触发分发，整体判断
+
+type R2 = NonDistributive<string | number>;
+// = string | number  ← 整体作为 [string|number] 判断，不分发
+
+/** 应用场景：对联合类型整体做操作而非逐个处理 */
+type UnionToIntersection<U> =
+  (U extends any ? (arg: U) => void : never) extends (arg: infer I) => void ? I : never;
+// 利用函数参数逆变性将联合转为交叉：A | B → A & B
+```
+
 ---
 
 #### 题 31：TypeScript 5.x 中装饰器的执行顺序是什么？ `⭐ 难度：★★☆（高级入门）`
@@ -1386,6 +2329,259 @@ type UnwrapPromise<T> = T extends Promise<infer U> ? U : T;
 
 **参考来源**：[条件类型与 infer](https://blog.csdn.net/weixin_60526471/article/details/153528752)
 
+### 深度拓展：手写实现
+
+#### 1. MyReturnType<T> — 从函数类型中提取返回值类型
+
+```typescript
+/**
+ * MyReturnType<T>: 提取函数 T 的返回值类型
+ *
+ * 【语法拆解】
+ * - T extends (...args: any[]) => any  → 约束 T 必须是函数类型
+ * - extends (...args: any[]) => infer R  → 匹配任意函数签名，用 infer R 推断返回值类型
+ * - ? R : never  → 匹配成功返回 R，否则返回 never
+ *
+ * 【infer 的作用】
+ * infer 是"推断声明"关键字，只能在 extends 条件类型的子句中使用
+ * 它告诉 TypeScript 编译器："在这里捕获一个类型变量，具体是什么类型由实际传入的类型决定"
+ */
+type MyReturnType<T extends (...args: any[]) => any> =
+  T extends (...args: any[]) => infer R
+    ? R   // ✅ 匹配成功：R 被推断为函数的实际返回值类型
+    : never; // ❌ 不匹配（理论上不会触发，因为有约束）
+
+// ========== 使用示例 ==========
+function greet(name: string): string {
+  return `Hello, ${name}`;
+}
+async function fetchData(url: string): Promise<{ data: string }> {
+  return { data: 'result' };
+}
+function getNumbers(): number[] {
+  return [1, 2, 3];
+}
+
+type GreetReturn = MyReturnType<typeof greet>;           // string
+type DataReturn = MyReturnType<typeof fetchData>;        // Promise<{ data: string }>
+type NumArrReturn = MyReturnType<typeof getNumbers>;     // number[]
+
+// 实际应用：获取 API 函数的返回类型用于类型注解
+const result: MyReturnType<typeof fetchData> = await fetchData('/api');
+// result 类型自动推断为 Promise<{ data: string }>
+```
+
+#### 2. MyParameters<T> — 从函数类型中提取参数元组类型
+
+```typescript
+/**
+ * MyParameters<T>: 提取函数 T 的参数类型，以元组形式返回
+ *
+ * 【关键点】
+ * - infer P 出现在参数位置 (...args: infer P)
+ * - P 会自动被推断为一个元组类型，包含所有参数的类型信息
+ * - 可选参数和剩余参数也会保留在元组中
+ *
+ * 【为什么用 ...args?】
+ * 因为要匹配任意数量、任意类型的参数列表
+ * ...args 表示这是一个参数元组展开
+ */
+type MyParameters<T extends (...args: any[]) => any> =
+  T extends (...args: infer P) => any
+    ? P    // ✅ 返回推断出的参数元组类型
+    : never;
+
+// ========== 使用示例 ==========
+function createUser(
+  name: string,
+  age: number,
+  active?: boolean,
+  ...tags: string[]
+): { id: number } {
+  return { id: 1 };
+}
+
+type CreateUserParams = MyParameters<typeof createUser>;
+// = [name: string, age: number, (active?: boolean | undefined), ...tags: string[]]
+
+// 解构使用（自动获得正确的类型）
+function wrapper(...args: MyParameters<typeof createUser>) {
+  // args[0] 的类型是 string
+  // args[1] 的类型是 number
+  // args[2] 的类型是 boolean | undefined
+  // args[3...] 的类型是 string[]
+  return createUser(...args);
+}
+
+// 实际应用：高阶函数包装器
+function withLogging<T extends (...args: any[]) => any>(
+  fn: T,
+  logName: string
+): (...args: MyParameters<T>) => MyReturnType<T> {
+  return (...args) => {
+    console.log(`[${logName}] called with`, args);
+    const result = fn(...args);
+    console.log(`[${logName}] returned`, result);
+    return result;
+  };
+}
+
+const loggedCreateUser = withLogging(createUser, 'createUser');
+// loggedCreateUser 的签名与 createUser 完全一致！
+```
+
+#### 3. MyAwaited<T> — 递归解包 Promise
+
+```typescript
+/**
+ * MyAwaited<T>: 递归解包嵌套的 Promise 类型
+ *
+ * 【递归逻辑】
+ * - 检查 T 是否是 Promise<某个类型 U>
+ * - 如果是，对 U 继续调用 MyAwaited（递归）
+ * - 如果不是 Promise 了，直接返回 T（到达底层类型）
+ *
+ * 【为什么需要递归？】
+ * 因为实际代码中经常出现 Promise 嵌套：
+ * async function foo(): Promise<string> { ... }
+ * async function bar(): Promise<Promise<string>> { return foo(); }
+ * 我们希望 Awaited<Promise<Promise<string>>> 直接得到 string
+ */
+type MyAwaited<T> =
+  // 第一步：检查 T 是否是 Promise-like 类型
+  T extends null | undefined
+    ? T  // null 和 undefined 直接返回，不处理
+    : T extends Promise<infer U>
+      ? MyAwaited<U>  // ✅ 是 Promise：解包 U 并继续递归检查
+      : T extends object  // 处理 thenable 对象（有 .then 方法的非标准 Promise）
+        ? T extends { then(onfulfilled: infer F): any }
+          ? F extends (value: infer V) => any
+            ? MyAwaited<V>  // 从 then 方法推断成功回调的参数类型
+            : T
+          : T
+        : T;  // 不是 Promise，直接返回
+
+// 简化版（适用于大多数场景）
+type SimpleAwaited<T> = T extends Promise<infer U> ? SimpleAwaited<U> : T;
+
+// ========== 使用示例 ==========
+async function fetchUser(): Promise<{ name: string }> {
+  return { name: 'Alice' };
+}
+async function doubleWrap(): Promise<Promise<number>> {
+  return Promise.resolve(42);
+}
+
+type UserName = MyAwaited<ReturnType<typeof fetchUser>>;     // { name: string }
+type UnwrappedNum = MyAwaited<ReturnType<typeof doubleWrap>>; // number
+
+// 实际应用：async 函数的返回值提取
+async function apiCall() {
+  const response = await fetch('/api/users');
+  const json = await response.json();
+  return json as Array<{ id: number; name: string }>;
+}
+
+type ApiResult = MyAwaited<ReturnType<typeof apiCall>>;
+// = Array<{ id: number; name: string }>  ← 自动解包 Promise
+```
+
+#### 4. MyConstructorParameters<T> — 从构造函数提取参数类型
+
+```typescript
+/**
+ * MyConstructorParameters<T>: 提取构造函数（类）的参数类型
+ *
+ * 【与 Parameters 的区别】
+ * - Parameters 针对普通函数：(arg1, arg2) => ReturnType
+ * - ConstructorParameters 针对构造函数：new (arg1, arg2) => InstanceType
+ *
+ * 【关键差异】多了 new 关键字】
+ * 构造函数的类型签名需要 new 前缀来标识它是构造器
+ */
+type MyConstructorParameters<T extends abstract new (...args: any[]) => any> =
+  T extends abstract new (...args: infer P) => any
+    ? P    // ✅ 返回构造函数参数元组
+    : never;
+
+// ========== 使用示例 ==========
+class Person {
+  constructor(
+    public name: string,
+    public age: number,
+    private email?: string
+  ) {}
+}
+
+class HttpClient {
+  constructor(baseURL: string, timeout?: number, headers?: Record<string, string>) {}
+}
+
+type PersonCtorParams = MyConstructorParameters<typeof Person>;
+// = [name: string, age: number, (email?: string | undefined)]
+
+type HttpCtorParams = MyConstructorParameters<typeof HttpClient>;
+// = [baseURL: string, (timeout?: number | undefined), (headers?: Record<string, string> | undefined)]
+
+// 实例应用：通用工厂函数
+function createInstance<
+  Ctor extends abstract new (...args: any[]) => any,
+  Args extends MyConstructorParameters<Ctor>
+>(
+  ctor: Ctor,
+  ...args: Args
+): InstanceType<Ctor> {
+  return new ctor(...args);
+}
+
+const person = createInstance(Person, 'Bob', 25);
+// person 类型: Person
+// 参数类型完全由构造函数决定，且受类型约束保护！
+
+const http = createInstance(HttpClient, '/api', 5000);
+// http 类型: HttpClient
+```
+
+#### infer 工作原理总结图
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    infer 工作流程                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  输入: type R = MyReturnType<(x: string) => number>              │
+│                                                                 │
+│  步骤 1: 约束检查                                               │
+│  ┌──────────────────────────────────────┐                       │
+│  │ (x: string) => number extends       │                       │
+│  │ (...args: any[]) => any ?           │                       │
+│  │ ✓ 函数类型满足约束                   │                       │
+│  └──────────────────────────────────────┘                       │
+│                                                                 │
+│  步骤 2: 条件匹配 + infer 推断                                  │
+│  ┌──────────────────────────────────────┐                       │
+│  │ (x: string) => number extends       │                       │
+│  │ (...args: any[]) => infer R ?       │                       │
+│  │                                     │                       │
+│  │ 编译器模式匹配:                      │                       │
+│  │ • ...args 匹配 (x: string)          │                       │
+│  │ • infer R 匹配 number  ← R 被推断!  │                       │
+│  └──────────────────────────────────────┘                       │
+│                                                                 │
+│  步骤 3: 返回推断结果                                           │
+│  ┌──────────────────────────────────────┐                       │
+│  │ R = number                          │                       │
+│  │ 最终结果: number                     │                       │
+│  └──────────────────────────────────────┘                       │
+│                                                                 │
+│  【infer 使用限制】                                              │
+│  ⚠️ 只能在 extends 右侧的条件表达式中使用                         │
+│  ⚠️ 同一个条件分支可以出现多个 infer                              │
+│  ⚠️ infer 声明的变量只能在真值分支中使用                           │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 #### 题 33：请解释映射类型（Mapped Types）的语法，并实现以下高级映射类型：
@@ -1443,6 +2639,330 @@ type Renamed = RenameKey<Original, 'userName', 'name'>;
 **as 键重映射**（TS 4.1+）：`[P in K as NewKey]` 可以在遍历时修改键名
 
 **参考来源**：[映射类型与键重映射](https://blog.51cto.com/u_17171324/14506902)
+
+### 深度拓展：手写实现
+
+#### 1. DeepPartial<T> — 递归将所有属性变为可选
+
+```typescript
+/**
+ * DeepPartial<T>: 递归地将 T 的所有层级（包括嵌套对象）的属性变为可选
+ *
+ * 【与内置 Partial 的区别】
+ * - Partial<T> 只处理第一层：{ a: { b: string } } → { a?: { b: string } }
+ * - DeepPartial<T> 递归处理所有层：{ a?: { b?: string | undefined } }
+ *
+ * 【核心逻辑】
+ * - 遍历 T 的每个键 P
+ * - 如果 T[P] 是对象类型（非数组、非函数、非 null），则递归调用 DeepPartial
+ * - 否则直接加 ? 变为可选
+ */
+type DeepPartial<T> = {
+  // 遍历 T 的所有键，对每个键做如下转换
+  [P in keyof T]?:  // ? 将当前层属性变为可选
+    // 检查属性值是否是可递归的对象类型
+    T[P] extends object
+      ? T[P] extends Array<any>
+        ? T[P]  // 数组保持不变（不递归进数组元素）
+        : T[P] extends Function
+          ? T[P]  // 函数保持不变
+          : DeepPartial<T[P]>  // ✅ 普通对象：递归深入下一层
+      : T[P];  // 基本类型（string/number/boolean）直接返回
+};
+
+// ========== 使用示例 ==========
+interface UserProfile {
+  id: number;
+  name: string;
+  contact: {
+    email: string;
+    phone: string;
+    address: {
+      city: string;
+      street: string;
+      zipCode: number;
+    };
+  };
+  preferences: {
+    theme: 'light' | 'dark';
+    notifications: boolean;
+  };
+  tags: string[];
+}
+
+type PartialUser = DeepPartial<UserProfile>;
+// 等价于：
+// {
+//   id?: number | undefined;
+//   name?: string | undefined;
+//   contact?: {
+//     email?: string | undefined;
+//     phone?: string | undefined;
+//     address?: {
+//       city?: string | undefined;
+//       street?: string | undefined;
+//       zipCode?: number | undefined;
+//     } | undefined;
+//   } | undefined;
+//   preferences?: {
+//     theme?: ('light' | 'dark') | undefined;
+//     notifications?: boolean | undefined;
+//   } | undefined;
+//   tags?: string[];  // 数组不被拆开
+// }
+
+// 实际应用：部分更新 API 的参数类型
+function updateUser(
+  userId: number,
+  updates: DeepPartial<UserProfile>
+): Promise<UserProfile> {
+  // 只传需要更新的字段，其他字段自动合并
+  return fetch(`/api/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  }).then(r => r.json());
+}
+
+// 调用时可以只更新深层嵌套的字段
+updateUser(1, {
+  contact: {
+    address: {
+      city: 'Beijing',  // ✅ 只更新 city
+      // street 和 zipCode 不需要提供
+    },
+  },
+});
+```
+
+#### 2. DeepRequired<T> — 递归将所有属性变为必填
+
+```typescript
+/**
+ * DeepRequired<T>: 递归地将 T 的所有层级的可选属性变为必填
+ *
+ * 【与内置 Required 的区别】
+ * - Required<T> 只处理第一层：{ a?: { b?: string } } → { a: { b?: string } }
+ * - DeepRequired<T> 递归处理所有层：{ a: { b: string } }
+ *
+ * 【关键语法：-?】
+ * -? 是移除可选修饰符的操作符
+ * 与 +?（或简写 ?）添加可选修饰符相对
+ */
+type DeepRequired<T> = {
+  // 遍历 T 的所有键，-? 移除可选修饰符使其变为必填
+  [P in keyof T]-?:  // -? 关键！移除 ? 可选标记
+    T[P] extends object
+      ? T[P] extends Array<any>
+        ? DeepRequired<T[P]>  // 数组也递归处理其结构
+        : T[P] extends Function
+          ? T[P]
+          : DeepRequired<T[P]>  // ✅ 对象递归
+      : NonNullable<T[P]>;  // 基本类型同时移除可能的 undefined
+};
+
+// ========== 使用示例 ==========
+interface Config {
+  database?: {
+    host?: string;
+    port?: number;
+    credentials?: {
+      username?: string;
+      password?: string;
+    };
+  };
+  features?: {
+    cache?: boolean;
+    logging?: {
+      level?: 'info' | 'warn' | 'error';
+      enabled?: boolean;
+    };
+  };
+}
+
+type FullConfig = DeepRequired<Config>;
+// 所有层级的 ? 都被移除：
+// {
+//   database: {
+//     host: string;
+//     port: number;
+//     credentials: {
+//       username: string;
+//       password: string;
+//     };
+//   };
+//   features: {
+//     cache: boolean;
+//     logging: {
+//       level: 'info' | 'warn' | 'error';
+//       enabled: boolean;
+//     };
+//   };
+// }
+
+// 实际应用：确保配置完整性检查
+function validateConfig(config: Config): config is DeepRequired<Config> {
+  // 运行时验证所有字段都存在
+  return !!(
+    config.database?.host &&
+    config.database?.port !== undefined &&
+    config.database?.credentials?.username &&
+    config.features?.logging?.level
+  );
+}
+```
+
+#### 3. PickByValue<T, V> — 按值类型选取属性
+
+```typescript
+/**
+ * PickByValue<T, V>: 从 T 中选取值类型为 V（或可分配给 V）的属性
+ *
+ * 【工作原理】
+ * 1. 先遍历所有键，用条件类型筛选出值类型匹配 V 的键
+ * 2. 用 Pick 提取这些键对应的属性
+ *
+ * 【两步走的原因】
+ * 不能在映射类型中直接条件性地"跳过"某个键，
+ * 所以先用条件类型生成 { match: K; noMatch: never } 结构，
+ * 再通过 keyof 取出所有非 never 的键名组成联合类型
+ */
+type PickByValue<T, V> = Pick<
+  T,
+  // 筛选步骤：遍历每个键，如果值类型匹配 V 则保留键名，否则返回 never
+  {
+    [P in keyof T]: T[P] extends V ? P : never
+  }[keyof T]  // 取出所有值（never 会被联合类型吸收）
+>;
+
+// ========== 进阶变体 ==========
+
+/** PickByValueExact: 精确匹配值类型（不使用子类型兼容） */
+type PickByValueExact<T, V> = Pick<
+  T,
+  {
+    [P in keyof T]: [T[P]] extends [V]
+      ? [V] extends [T[P]]
+        ? P
+        : never
+      : never
+  }[keyof T]
+>;
+
+/** OmitByValue: 排除特定值类型的属性 */
+type OmitByValue<T, V> = Pick<
+  T,
+  {
+    [P in keyof T]: T[P] extends V ? never : P
+  }[keyof T]
+>;
+
+// ========== 使用示例 ==========
+interface ApiResponse {
+  id: number;
+  name: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  metadata: Record<string, any>;
+  tags: string[];
+}
+
+// 选取所有字符串类型的属性
+type StringFields = PickByValue<ApiResponse, string>;
+// = { name: string }
+
+// 选取所有日期类型的属性
+type DateFields = PickByValue<ApiResponse, Date>;
+// = { createdAt: Date; updatedAt: Date }
+
+// 排除所有函数类型的属性
+type NonFunctionFields = OmitByValue<ApiResponse, Function>;
+// = { id: number; name: string; isActive: boolean; ... }
+
+// 实际应用：表单数据提取
+interface UserForm {
+  name: string;
+  email: string;
+  age: number;
+  avatar: File;
+  onSubmit: () => void;  // 不应提交到服务器
+  onReset: () => void;
+}
+
+// 自动提取可序列化的字段（排除函数和 File）
+type SubmittableData = OmitByValue<OmitByValue<UserForm, Function>, File>;
+// = { name: string; email: string; age: number }
+```
+
+#### 映射类型底层原理图解
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              映射类型底层原理：[P in K]: Type                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  输入接口:                                                       │
+│  interface Person {                                             │
+│    readonly name: string;                                       │
+│    age?: number;                                                │
+│    email: string;                                               │
+│  }                                                              │
+│                                                                 │
+│  映射类型定义:                                                   │
+│  type MutablePartial<T> = {                                     │
+│    -readonly [P in keyof T]?: T[P];                             │
+│  };                                                             │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 执行过程（编译器视角）：                                   │   │
+│  │                                                          │   │
+│  │  步骤 1: 计算 keyof T                                    │   │
+│  │  ┌────────────────────────────────────┐                  │   │
+│  │  │ keyof Person = 'name' | 'age' | 'email'             │   │
+│  │  └────────────────────────────────────┘                  │   │
+│  │                                                          │   │
+│  │  步骤 2: 遍历键集合 K（类似 for...in 循环）               │   │
+│  │  ┌──────────────────────────────────────────────────┐    │   │
+│  │  │ P = 'name'                                      │    │   │
+│  │  │   → -readonly 移除 readonly                      │    │   │
+│  │  │   → ? 添加可选标记                               │    │   │
+│  │  │   → T['name'] = string                          │    │   │
+│  │  │   → 结果: name?: string                          │    │   │
+│  │  ├──────────────────────────────────────────────────┤    │   │
+│  │  │ P = 'age'                                        │    │   │
+│  │  │   → -readonly (无效果，本身不是 readonly)         │    │   │
+│  │  │   → ? (已有 ?，无变化)                           │    │   │
+│  │  │   → T['age'] = number                            │    │   │
+│  │  │   → 结果: age?: number                           │    │   │
+│  │  ├──────────────────────────────────────────────────┤    │   │
+│  │  │ P = 'email'                                      │    │   │
+│  │  │   → -readonly (无效果)                           │    │   │
+│  │  │   → ? 添加可选标记                               │    │   │
+│  │  │   → T['email'] = string                         │    │   │
+│  │  │   → 结果: email?: string                         │    │   │
+│  │  └──────────────────────────────────────────────────┘    │   │
+│  │                                                          │   │
+│  │  最终结果:                                                │   │
+│  │  {                                                        │   │
+│  │    name?: string;                                         │   │
+│  │    age?: number;                                          │   │
+│  │    email?: string;                                        │   │
+│  │  }                                                        │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  【修饰符速查表】                                                │
+│  ┌────────────┬──────────┬────────────────────────────────┐    │
+│  │  修饰符     │  操作    │  示例                          │    │
+│  ├────────────┼──────────┼────────────────────────────────┤    │
+│  │  ?         │  添加可选 │  [P in K]: T → key?: Type      │    │
+│  │  -?        │  移除可选 │  [P in K]-?: T → key: Type     │    │
+│  │  readonly  │  添加只读 │  readonly [P]: T → readonly key│    │
+│  │  -readonly │  移除只读 │  -readonly [P]: T → key        │    │
+│  │  as NewKey │  键重映射 │  [P in K as `get_${string & P}`]│   │
+│  └────────────┴──────────┴────────────────────────────────┘    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -1527,6 +3047,14 @@ class ApiService {
 ```
 
 **参考来源**：[TS 5.0 装饰器](https://blog.csdn.net/weixin_60526471/article/details/153528752)
+
+### 🔍 追问链
+1. **装饰器的执行顺序是怎样的？多个装饰器叠加时的顺序？**
+   → 方向：工厂函数从外到内执行（求值阶段），装饰器函数从内到外执行（应用阶段）
+2. **auto-accessor 装饰器（TS 5.2+）解决了什么问题？**
+   → 方向：简化 getter/setter 模式，自动生成 get/set 并允许装饰器拦截读写操作
+3. **装饰器和 mixin/HOC（高阶组件）的关系？各自适用场景？**
+   → 方向：装饰器用于方法/属性的横切关注点（日志/缓存/验证）；mixin 用于复用类级别逻辑；HOC 用于 React 组件增强
 
 ---
 
@@ -1687,6 +3215,511 @@ navigate('/users/:id/posts/:postId', {                     // ✅
 
 **参考来源**：[tsconfig 最佳实践](https://juejin.cn/post/7512277099413012514)
 
+### 深度拓展：手写模拟 tsc 编译器配置加载流程
+
+#### 1. 伪代码：tsc 配置解析流程
+
+```typescript
+/**
+ * 【伪代码】模拟 TypeScript 编译器（tsc）读取和合并 tsconfig 的完整流程
+ *
+ * 当你在终端运行 `tsc` 时，编译器会按以下顺序解析配置：
+ */
+
+// ===== 配置解析引擎 =====
+
+interface TSConfigResolver {
+  /**
+   * 解析 tsconfig 配置的完整流程
+   * @param projectPath 项目根目录路径
+   * @param commandLineOptions 命令行传入的选项
+   */
+  resolveConfig(
+    projectPath: string,
+    commandLineOptions: CommandLineOptions = {}
+  ): ResolvedConfig {
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 步骤 1: 定位 tsconfig.json 文件
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const configPath = this.locateConfigFile(projectPath);
+    // 查找逻辑：
+    // 1. 如果命令行指定了 --project 或 -p，使用该路径
+    // 2. 否则从当前目录向上查找，直到找到 tsconfig.json
+    // 3. 如果都没找到，使用默认配置（不处理任何文件）
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 步骤 2: 解析 JSON 并加载基础配置
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const rawConfig = this.readConfigFile(configPath);
+    let parsedConfig: ParsedTSConfig = this.parseJSON(rawConfig);
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 步骤 3: 处理 extends 继承链（递归）
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (parsedConfig.extends) {
+      const baseConfigs = Array.isArray(parsedConfig.extends)
+        ? parsedConfig.extends
+        : [parsedConfig.extends];
+
+      let mergedBase: CompilerOptions = {};
+
+      for (const baseRef of baseConfigs) {
+        // 解析相对路径（相对于当前配置文件所在目录）
+        const basePath = this.resolvePath(configPath, baseRef);
+        const baseConfig = this.resolveConfig(basePath);  // 递归调用！
+
+        // 合并规则：
+        // - 对象类型：深度合并（如 compilerOptions）
+        // - 数组类型：后者追加（如 include, plugins）
+        // - 基本类型：后者覆盖前者
+        mergedBase = this.deepMerge(mergedBase, baseConfig.compilerOptions);
+      }
+
+      // 将继承的基配置与当前配置合并
+      // 当前配置优先级更高（覆盖基配置的同名字段）
+      parsedConfig.compilerOptions = {
+        ...mergedBase,
+        ...parsedConfig.compilerOptions,
+      };
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 步骤 4: 应用命令行覆盖
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 命令行参数拥有最高优先级！
+    // 例如: tsc --strict --target ES2020
+    const finalConfig: ResolvedConfig = {
+      ...parsedConfig.compilerOptions,
+      ...commandLineOptions,  // 命令行覆盖所有其他来源
+    };
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 步骤 5: 解析文件通配符（include/exclude/files）
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    finalConfig.files = this.resolveFilePatterns({
+      include: parsedConfig.include || ['**/*'],
+      exclude: [
+        'node_modules',
+        'dist',
+        'bower_components',
+        'jspm_packages',
+        ...(parsedConfig.exclude || []),
+      ],
+      files: parsedConfig.files,  // files 显式指定时忽略 include
+    }, configPath);
+
+    return finalConfig;
+  }
+}
+
+// ========== 优先级总结 ==========
+/**
+ * 配置优先级（从低到高）：
+ *
+ * 1. TypeScript 内置默认值
+ *    ↓ 被 extends 的最顶层基配置覆盖
+ * 2. tsconfig.base.json（基础配置）
+ *    ↓ 被中间层配置覆盖
+ * 3. 中间层 extends 链（按继承顺序）
+ *    ↓ 被最终配置覆盖
+ * 4. tsconfig.json（项目根配置）的 compilerOptions
+ *    ↓ 被命令行覆盖
+ * 5. 命令行参数（--xxx 形式）【最高优先级】
+ */
+```
+
+#### 2. extends 继承链示例
+
+```typescript
+/**
+ * 【实际案例】企业级 monorepo 的三层继承链
+ *
+ * 目录结构:
+ * my-monorepo/
+ * ├── tsconfig.json              # 根配置（Web 应用）
+ * ├── tsconfig.node.json         # Node 工具配置
+ * ├── tsconfig.build.json        # 生产构建配置
+ * ├── packages/
+ * │   ├── shared/
+ * │   │   └── tsconfig.json      # 共享包配置
+ * │   └── web/
+ * │       └── tsconfig.json      # Web 包配置
+ * └── tsconfig.base.json         # ⭐ 基础配置（所有配置的起点）
+ */
+
+// ===== 第 1 层：tsconfig.base.json（基础配置）=====
+
+/**
+ * 设计思路：
+ * - 只包含所有子项目共享的基础设置
+ * - 不包含任何业务相关的特定配置
+ * - 类似于 "抽象基类"，不会被直接用于编译
+ */
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Base Config",
+  "compilerOptions": {
+    // === 语言目标 ===
+    "target": "ES2022",                    // 现代浏览器/Node 都支持
+    "module": "ESNext",                    // 使用原生 ESM
+    "moduleResolution": "bundler",          // Vite/Rspack 等打包工具模式
+
+    // === 类型严格性（所有子项目统一标准）===
+    "strict": true,                        // 开启所有严格检查
+    "noUncheckedIndexedAccess": true,      // 数组索引不再隐含 undefined
+    "exactOptionalPropertyTypes": true,    // 可选属性不能显式赋 undefined
+    "noImplicitOverride": true,            // override 必须显式标注
+    "noFallthroughCasesInSwitch": true,    // switch 必须 break/return
+    "forceConsistentCasingInFileNames": true,
+
+    // === 互操作 ===
+    "esModuleInterop": true,               // 兼容 CJS/ESM 混用
+    "resolveJsonModule": true,             // 允许 import json
+    "isolatedModules": true,               // 确保每个文件可被转译（Vite 要求）
+
+    // === 性能优化 ===
+    "skipLibCheck": true,                  // 跳过 .d.ts 类型检查
+    "incremental": true,                   // 增量编译
+  },
+  "exclude": ["node_modules", "dist"]
+}
+
+// ===== 第 2 层：tsconfig.json（Web 应用主配置）=====
+
+/**
+ * 继承自 base，添加 Web 应用特有配置
+ * 用于开发时的类型检查（tsc --noEmit）
+ */
+{
+  "extends": "./tsconfig.base.json",       // ← 继承基础配置
+  "compilerOptions": {
+    // Web 特有
+    "jsx": "react-jsx",                    // React 17+ 自动运行时 JSX
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],              // Vite 提供的类型声明
+
+    // 开发体验优化
+    "declaration": true,                   // 生成 .d.ts（供库消费者使用）
+    "sourceMap": true,                     // 生成 sourcemap
+    "declarationMap": true,                // 声明文件的 sourcemap
+  },
+  "include": ["src", "env.d.ts"],          // Web 源码 + 环境变量声明
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "scripts"]
+}
+
+// ===== 第 2 层变体：tsconfig.node.json（Node 工具配置）=====
+
+/**
+ * 同样继承自 base，但针对 Node.js 环境
+ * 用于构建脚本、server 等
+ */
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // Node 特有
+    "module": "NodeNext",                  // 使用 Node.js 原生 ESM
+    "target": "ES2022",
+    "outDir": "./dist-node",               // 输出到独立目录
+    "types": ["node"],                     // 只包含 Node 类型（不含 DOM）
+
+    // Node 工具通常不需要生成声明文件
+    "declaration": false,
+  },
+  "include": ["scripts", "vite.config.ts", "tailwind.config.ts"],
+  "references": [                          // ← Project References!
+    { "path": "./tsconfig.json" }          // 引用 Web 项目（可选）
+  ]
+}
+
+// ===== 第 3 层：tsconfig.build.json（生产构建专用）=====
+
+/**
+ * 继承自主配置，仅用于 CI/CD 构建
+ * 开启代码输出，关闭开发辅助功能
+ */
+{
+  "extends": "./tsconfig.json",            // ← 继承 Web 配置
+  "compilerOptions": {
+    "noEmit": false,                       // 构建时输出 JS 文件
+    "rootDir": "./src",                    // 明确源码根目录
+    "sourceMap": false,                    // 生产环境可关闭 sourcemap（减小体积）
+    "declarationMap": false,
+
+    // 构建优化
+    "removeComments": true,                // 移除注释
+    "importHelpers": true,                 // 从 tslib 导入辅助函数（减小代码体积）
+  },
+  "include": ["src"]
+}
+```
+
+#### 3. Project References 工作原理
+
+```typescript
+/**
+ * 【Project References】项目引用机制
+ *
+ * 解决的问题：
+ * 大型 monorepo 中，每次 tsc 都要重新分析所有依赖的 .d.ts，
+ * 即使依赖没有变化。这导致大型项目编译很慢。
+ *
+ * 解决方案：
+ * 将项目拆分为多个独立的"子项目"，每个子项目预先编译为 .d.ts 声明文件。
+ * 子项目之间通过 references 建立依赖关系。
+ * 当某个子项目的源码没变化时，可以直接使用缓存的 .d.ts，跳过类型检查。
+ */
+
+// ===== 伪代码：增量编译决策算法 =====
+
+interface ProjectReferenceManager {
+  /**
+   * 判断是否需要重新编译某个引用项目
+   */
+  needsRebuild(project: ProjectConfig): boolean {
+    // 检查 1: 源文件是否有变化
+    if (this.hasSourceChanges(project)) return true;
+
+    // 检查 2: 依赖的项目是否已更新
+    for (const ref of project.references) {
+      const depProject = this.loadProject(ref.path);
+      if (this.needsRebuild(depProject)) {
+        // 依赖更新了 → 需要重新编译（因为 .d.ts 可能变了）
+        return true;
+      }
+    }
+
+    // 检查 3: 输出的 .d.ts 是否存在且是最新的
+    const outputTimestamp = this.getOutputTimestamp(project);
+    const sourceMaxTimestamp = this.getMaxSourceTimestamp(project);
+
+    return outputTimestamp < sourceMaxTimestamp;
+  }
+
+  /**
+   * 执行增量编译
+   */
+  incrementalBuild(rootProject: string): BuildResult {
+    const buildOrder = this.topologicalSort(rootProject);
+    // 拓扑排序确保先编译被依赖的项目
+
+    const results: Map<string, BuildStatus> = new Map();
+
+    for (const project of buildOrder) {
+      if (!this.needsRebuild(project)) {
+        results.set(project, 'cached');     // 使用缓存 ✅
+        continue;
+      }
+
+      try {
+        // 只编译本项目（假设依赖的 .d.ts 已就绪）
+        this.tscBuild(project, {
+          // --build 模式下的特殊行为：
+          composite: true,           // 强制生成 .d.ts 和 .d.ts.map
+          declaration: true,
+          declarationMap: true,
+          noEmit: false,
+          // 不做类型检查依赖项目（信任它们的 .d.ts）
+          skipDefaultLibCheck: true,
+        });
+        results.set(project, 'built');
+      } catch (error) {
+        results.set(project, 'failed');
+        throw new Error(`Build failed for ${project}: ${error}`);
+      }
+    }
+
+    return { results, status: 'success' };
+  }
+}
+
+// ===== 实际配置示例 =====
+
+/**
+ * packages/shared/tsconfig.json（共享库）
+ * 作为被依赖方，需要开启 composite 以生成 .d.ts
+ */
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,                     // ⭐ 关键！启用项目引用模式
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+  },
+  "include": ["src"]
+}
+
+/**
+ * packages/web/tsconfig.json（Web 应用）
+ * 引用 shared 库，利用其预编译的 .d.ts
+ */
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "rootDir": "src",
+    "outDir": "dist",
+  },
+  "references": [                          // ⭐ 声明对 shared 的依赖
+    { "path": "../shared", "prepend": false }
+    // prepend: false 表示不在输出中包含 shared 的代码
+    // （shared 会作为独立包被 import）
+  ],
+  "include": ["src"]
+}
+```
+
+#### 4. 企业级 Monorepo 完整方案
+
+```typescript
+/**
+ * 【企业级 Monorepo 推荐架构】
+ *
+ * 典型场景：中大型前端团队（5-20 人），多应用 + 共享组件库
+ * 技术栈：pnpm workspace + TypeScript + Vite + React
+ */
+
+// ===== 目录结构设计 =====
+/**
+ * enterprise-app/
+ * ├── tsconfig.base.json              # L1: 全局基础配置
+ * ├── tsconfig.json                   # L2: 主应用（Web）
+ * ├── tsconfig.node.json              # L2: Node 工具
+ * ├── tsconfig.build.json             # L3: 生产构建
+ * ├── tsconfig.test.json              # L3: 测试环境
+ * │
+ * ├── packages/
+ * │   ├── ui/                         # UI 组件库
+ * │   │   ├── tsconfig.json           # (composite)
+ * │   │   └── src/
+ * │   ├── utils/                      # 工具函数库
+ * │   │   ├── tsconfig.json           # (composite)
+ * │   │   └── src/
+ * │   └── types/                      # 共享类型定义
+ * │       ├── tsconfig.json           # (composite)
+ * │       └── src/
+ * │
+ * ├── apps/
+ * │   ├── web/                        # 主 Web 应用
+ * │   │   └── tsconfig.json           # 引用 ui, utils, types
+ * │   └── admin/                      # 管理后台
+ * │       └── tsconfig.json           # 引用 ui, utils, types
+ * │
+ * └── scripts/                        # 构建/部署脚本
+ *     └── tsconfig.json               # Node 环境
+ */
+
+// ===== 各层配置要点速查表 =====
+
+/**
+ * ┌─────────────────────┬────────────────────────────────────────┐
+ * │ 配置文件              │ 核心职责                              │
+ * ├─────────────────────┼────────────────────────────────────────┤
+ * │ tsconfig.base.json   │ strict、module、target、通用插件        │
+ * ├─────────────────────┼────────────────────────────────────────┤
+ * │ apps/*/tsconfig.json │ jsx/lib/types/references(引用packages) │
+ * ├─────────────────────┼────────────────────────────────────────┤
+ * │ packages/*/tsconfig   │ composite:true、declaration、rootDir   │
+ * ├─────────────────────┼────────────────────────────────────────┤
+ * │ tsconfig.build.json   │ noEmit:false、removeComments、optimize │
+ * ├─────────────────────┼────────────────────────────────────────┤
+ * │ tsconfig.test.json    │ types:["jest"/"vitest"]、isolatedModules│
+ * └─────────────────────┴────────────────────────────────────────┘
+ */
+
+// ===== 常见问题排查指南 =====
+
+/**
+ * Q1: extends 后某些配置项不生效？
+ * A: 检查拼写错误；注意 null/undefined 不会覆盖基配置；
+ *    某些数组字段是替换而非合并（如 lib、types）
+ *
+ * Q2: Project References 报循环依赖？
+ * A: 使用 tsc --showConfig 查看实际的引用图；
+ *    确保 references 方向与 import 方向一致
+ *
+ * Q3: 增量编译后类型信息过期？
+ * A: 运行 tsc -b --clean 清理缓存后重新构建；
+ *    检查 .tsbuildinfo 文件的时间戳
+ *
+ * Q4: 不同 IDE 打开不同目录时行为不一致？
+ * A: VS Code 使用工作区打开的根目录的 tsconfig；
+ *    可在 .vscode/settings.json 中指定 tsconfig 路径
+ */
+```
+
+#### 5. 配置加载流程图解
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│           tsc 配置解析完整流程                                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  用户执行: tsc --strict --project ./tsconfig.web.json           │
+│                                                                 │
+│                          ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 1. 定位配置文件                                           │   │
+│  │    → --project 指定了 ./tsconfig.web.json                 │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 2. 解析 extends 链                                       │   │
+│  │                                                          │   │
+│  │  tsconfig.web.json                                      │   │
+│  │    └─ extends: ../tsconfig.base.json                    │   │
+│  │          └─ (无更多 extends)                             │   │
+│  │                                                          │   │
+│  │  加载顺序:                                               │   │
+│  │  ① tsconfig.base.json  → { strict: true, target: ... }  │   │
+│  │  ② tsconfig.web.json   → { jsx: 'react-jsx', ... }     │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 3. 合并 compilerOptions                                  │   │
+│  │                                                          │   │
+│  │  结果 = {                                                │   │
+│  │    ...base 配置,                                         │   │
+│  │    ...web 配置（覆盖 base 的同名字段）,                    │   │
+│  │  }                                                       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 4. 应用命令行覆盖                                        │   │
+│  │                                                          │   │
+│  │  --strict → strict: true（即使配置里是 false 也被覆盖）    │   │
+│  │  命令行始终拥有最高优先级！                                │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 5. 解析文件范围                                          │   │
+│  │                                                          │   │
+│  │  根据 include/exclude/files 确定要编译的文件列表          │   │
+│  │  处理 **/*.ts, *.tsx 等通配符                            │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 6. 开始类型检查 / 编译                                   │   │
+│  │                                                          │   │
+│  │  如有 references → 先构建依赖项目（增量）                  │   │
+│  │  无 references → 直接编译当前项目                          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 🔍 追问链
+1. **模板字面量类型的底层原理是什么？它是怎么做到字符串拼接后仍保留类型信息的？**
+   → 方向：编译时字符串字面量运算，类似 C++ 的 constexpr；`${infer Prefix}_${infer Suffix}` 利用 infer 从固定模式中提取子串
+2. **模板字面量类型和 Uppercase/Lowercase/Capitalize/Uncapitalize 内置类型怎么配合使用？**
+   → 方向：`Uppercase<'hello'>` → `'HELLO'`，常用于 CSS-in-JS 的属性名转换（camelCase → kebab-case）
+3. **如何用模板字面量实现一个类型安全的 CSS 属性名系统？**
+   → 方向：`type CssProperty = \`margin${'Top' | 'Bottom' | 'Left' | 'Right'}\`` → margin | marginTop | marginBottom ...
+
 ---
 
 ### 三、代码分析题（4道）
@@ -1736,6 +3769,14 @@ type O = OptionalKeys<ComplexType>;   // 结果？
 
 **考察点**：条件类型的高级用法、可选属性的类型检测技巧
 
+### 🔍 追问链
+1. **这个技巧利用了什么 TypeScript 行为来实现可选属性的提取？**
+   → 方向：利用 `undefined` 可以赋值给可选属性但不能赋值给必填属性的特性，通过 `{}` 包裹后筛选
+2. **RequiredKeys 必填属性提取怎么做？思路是否对称？**
+   → 方向：不完全对称。可以用 `T[P] extends Required<T>[P] ? P : never` 或利用 `Exclude<keyof T, OptionalKeys<T>>`
+3. **这个技巧在工程中有哪些实际用途？**
+   → 方向：表单校验（区分必填/可选字段）、API 参数文档生成、ORM schema 推导
+
 ---
 
 #### 题 38：以下代码利用了互斥联合类型（Exclusive Union）来防止非法 Props 组合，请分析其工作原理。 `⭐ 难度：★★★（高级）`
@@ -1772,6 +3813,14 @@ const d: ButtonProps = { size: 'md', href: '/', onClick: () => {}, children: 'X'
 - 通过将对方属性设为 `never` 来实现互斥——如果同时传两个，其中一个必然是 `never` 类型导致赋值失败
 
 **这是 React 组件类型设计的经典模式**，确保按钮要么是链接（href），要么是可点击的（onClick），不能两者兼有。
+
+### 🔍 追问链
+1. **互斥联合和 Discriminated Union（可辨识联合）的区别？**
+   → 方向：Discriminated Union 通过共享字段区分变体；Exclusive Union 确保两个属性不会同时存在（xor 关系）
+2. **如何在运行时校验互斥约束？**
+   → 方向：编写运行时类型守卫或使用 zod/io-ts 等验证库配合类型
+3. **这种模式在表单设计中有何优势？**
+   → 方向：确保用户不会同时提交矛盾的字段组合（如同时传 userId 和 email）
 
 ---
 
@@ -1886,6 +3935,14 @@ const s3 = s2.transition('idle');      // ✅ success → idle 合法
 
 **扩展方向**：加入转移时的 Payload 类型、并行状态、嵌套状态机等。
 
+### 🔍 追问链
+1. **const 类型参数和 as const 的区别？**
+   → 方向：as const 作用于表达式（让整个表达式的结果不变宽）；const 类型参数作用于泛型（让传入的字面量参数不变宽）
+2. **const 类型参数对于 API 设计有什么意义？**
+   → 方向：让库的使用者获得更精确的类型推断（如路由路径、CSS 类名、事件名称等字符串字面量不再被拓宽为 string）
+3. **const 类型参数会有什么性能影响吗？**
+   → 方向：无运行时影响（纯编译时特性）；但可能导致类型计算复杂度增加（大量字面量联合时）
+
 ---
 
 ### 四、编程实践题（3道）
@@ -1985,6 +4042,14 @@ unsub(); // 取消订阅
 ```
 
 **考察点**：泛型约束事件映射、索引类型访问、回调类型推断、类型安全的发布-订阅模式
+
+### 🔍 追问链
+1. **如何防止内存泄漏？off 的正确使用方式？**
+   → 方向：组件卸载时调用 off 移除所有监听器；或使用 WeakRef 存储回调引用
+2. **如何支持通配符事件监听（如 `'*'` 监听所有事件）？**
+   → 方向：增加特殊处理分支，匹配 '*' 时触发所有事件的回调
+3. **EventBus 和 Observable（观察者模式）的区别？选型建议？**
+   → 方向：EventBus 是发布-订阅（一对多，解耦通信）；Observable 是数据流管道（支持操作符 map/filter 等）。组件间通信用 EventBus，异步数据流用 Observable
 
 ---
 
@@ -2106,6 +4171,14 @@ const result = query
 ```
 
 **考察点**：从 Schema 推导类型、条件类型、映射类型、泛型链式调用、Pick 工具类型
+
+### 🔍 追问链
+1. **查询构建器的类型安全是如何逐级传递的？**
+   → 方向：每个 .where()/.select()/.orderBy() 方法返回新的类型化 Builder 实例，泛型参数随操作逐步收窄
+2. **如何支持 JOIN 查询后的类型推导？**
+   → 方向：JOIN 时将多个 Schema 的 Row 类型做交叉类型合并
+3. **这种模式和 Prisma / Drizzle ORM 的类型系统有何异同？**
+   → 方向：Prisma 用代码生成（schema.prisma → 生成 TS 类型）；Drizzle 用类型推导（纯 TS 表达式）；本题更接近 Drizzle 的思路
 
 ---
 

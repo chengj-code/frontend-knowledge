@@ -12,7 +12,7 @@
 | **Vue** | ✅ 13章+3附录 | ✅ 45题 | ⭐ **9.0** | 🟢 已优化 | 2026-06-14 |
 | **JavaScript** | ✅ 17章+附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
 | **HTML-CSS** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
-| **React** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
+| **React** | ✅ 15章+附录 | ✅ 53题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
 | **Node.js** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **工程化** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **性能优化** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
@@ -52,9 +52,11 @@ frontend-knowledge/
 │   ├── basics/.gitkeep
 │   └── interviews/.gitkeep
 │
-├── React/                   # React 框架与生态             📋 待生成
-│   ├── basics/.gitkeep
-│   └── interviews/.gitkeep
+├── React/                   # React 框架与生态                ⭐9.0+
+│   ├── basics/
+│   │   └── React-Basics-Guide.md              # ~3800行 (15章+附录)
+│   └── interviews/
+│       └── React-Interview-Questions.md      # ~11900行 (53题)
 │
 ├── Nodejs/                  # Node.js 后端开发            📋 待生成
 │   ├── basics/.gitkeep

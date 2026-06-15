@@ -14,7 +14,7 @@
 | **HTML-CSS** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **React** | ✅ 15章+附录 | ✅ 53题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
 | **Node.js** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
-| **工程化** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
+| **工程化** | ✅ 15章+2附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-15 |
 | **性能优化** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **网络** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **浏览器** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
@@ -62,9 +62,11 @@ frontend-knowledge/
 │   ├── basics/.gitkeep
 │   └── interviews/.gitkeep
 │
-├── 工程化/                   # 构建工具、包管理、CI/CD     📋 待生成
-│   ├── basics/.gitkeep
-│   └── interviews/.gitkeep
+├── 工程化/                   # 构建工具、包管理、CI/CD     ⭐9.0+
+│   ├── basics/
+│   │   └── 工程化-Basics-Guide.md            # ~3108行 (15章+2附录)
+│   └── interviews/
+│       └── 工程化-Interview-Questions.md     # ~4569行 (50题)
 │
 ├── 性能优化/                 # 前端性能优化策略与实践       📋 待生成
 │   ├── basics/.gitkeep
@@ -109,6 +111,15 @@ frontend-knowledge/
 | [面试题库](JavaScript/interviews/JavaScript-Interview-Questions.md) | ~10900 行 | 50 题 / 17 题追问链 / 7 道手写源码实现（EventLoop/new/deepClone/V8/虚拟滚动等） |
 
 **核心覆盖**：变量类型、函数进阶（this/call/bind）、闭包原理与应用、原型链与继承、ES6+ 类、作用域链、Event Loop 完整模拟、Promise 手写实现、async/await、DOM 事件机制、数组方法大全、正则表达式、V8 引擎/GC 机制、性能优化、XSS/CSRF 安全
+
+### 工程化 ⭐ 9.0+ 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](工程化/basics/工程化-Basics-Guide.md) | ~3108 行 | 15 章 + 附录 A（常用配置速查表）+ 附录 B（Vue3+TS 工程化项目搭建实战） |
+| [面试题库](工程化/interviews/工程化-Interview-Questions.md) | ~4569 行 | 50 题 / 三级难度分层 / 追问链设计 / 手写实现题（打包器/HMR/脚手架/Git Hook 等） |
+
+**核心覆盖**：模块化规范（CJS/ESM/AMD/UMD）、包管理器（npm/yarn/pnpm）、Webpack 基础与高级特性、Vite 原理与实战、esbuild/Rspack/Turbopack 新一代构建工具、代码规范工具链（ESLint/Prettier/Husky）、CSS 工程化方案、Git 工作流与协作规范、CI/CD 持续集成与部署、Monorepo 工程实践、性能监控与错误追踪
 
 ---
 

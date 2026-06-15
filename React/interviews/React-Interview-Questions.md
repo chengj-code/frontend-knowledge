@@ -130,6 +130,12 @@
    - 有助于理解虚拟 DOM 的创建过程
    - 在某些场景下可以直接写 `React.createElement`（如动态组件）
 
+### 🔍 追问链
+1. **JSX 编译后为什么需要 import React？React 17 之后为什么不需要了？**
+   → 方向：React 17 之前 JSX 编译为 React.createElement()，所以需要 import；17+ 自动引入 jsx-runtime，编译为 _jsx() 不再依赖全局 React
+2. **Babel 的 @babel/plugin-transform-react-jsx 插件做了哪些转换？**
+   → 方向：JSX → createElement 调用；Fragment 处理；开发模式下的额外检查；displayName 注入
+
 ---
 
 ## Q02: 请详细说明 React.createElement 的参数含义及其返回值结构。
@@ -547,6 +553,14 @@
 
 5. **React 官方立场**
    > "没有计划移除类组件，但未来的新特性会优先支持函数组件（Hooks）。"
+
+### 🔍 追问链
+1. **类组件会被淘汰吗？什么时候还需要用类组件？**
+   → 方向：Error Boundary 必须是类组件；需要 getSnapshotBeforeUpdate 时；维护遗留代码时
+2. **函数组件能模拟所有类组件的特性吗？useRef 能替代实例变量吗？**
+   → 方向：基本可以；但 forceUpdate 无法直接实现（可用一个自增的 state hack）；getDerivedStateFromError 需要 Error Boundary
+3. **React.memo 对应类组件中的什么？PureComponent 和它的区别？**
+   → 方向：React.memo 是 HOC 版本的 PureComponent；PureComponent 做 props 浅比较，React.memo 默认也是浅比较但可自定义比较函数
 
 ---
 
@@ -1187,6 +1201,14 @@
    - 效率高：最小化 DOM 操作
    - 正确性：保持组件状态（如表单输入值）
    ```
+
+### 🔍 追问链
+1. **用 index 作为 key 在什么场景下会出问题？什么场景下可以用？**
+   → 方向：列表有增删/排序操作时会出问题（状态错位/性能浪费）；纯静态展示无状态列表可以用 index
+2. **key 相同但位置不同的元素，React 是移动 DOM 还是删除重建？**
+   → 方向：移动！React 通过 key 匹配识别出是同一个组件，只做 DOM 移动操作，保留内部状态
+3. **如果生成的列表没有唯一稳定的 id，如何生成合适的 key？**
+   → 方向：nanoid/uuid 库生成唯一 ID；使用数据的组合字段 hash；使用 contenthash（如 JSON.stringify(item)）
 
 ---
 
@@ -2148,6 +2170,14 @@
    }
    ```
 
+### 🔍 追问链
+1. **自定义 Hook 中调用其他 Hook 也必须遵守规则吗？**
+   → 方向：是的！自定义 Hook 本质就是复用 Hooks 逻辑的函数，内部同样按顺序执行
+2. **React 如何在运行时检测到 Hooks 规则被违反？**
+   → 方向：渲染前后 hooks 数量不一致时报 "Rendered more/fewer hooks than expected"
+3. **eslint-plugin-react-hooks 插件是如何检测违规的？AST 层面怎么做的？**
+   → 方向：静态分析 AST，检查 useEffect/useMemo 等调用是否在条件语句/循环/嵌套函数内部
+
 ---
 
 ## Q19: React 16 和 React 18 中 useState 的批量更新机制有什么区别？
@@ -2277,6 +2307,536 @@
    - 如有必要，使用 flushSync 或 useEffect 替代
    - 测试异步场景下的状态更新行为
    ```
+
+### 深度拓展：手写实现
+
+#### React 16/17 的 Batch Update 实现（基于 isBatchingUpdates）
+
+```javascript
+// ==================== React 16/17 批量更新实现 ====================
+/**
+ * React 16 和 17 使用 isBatchingUpdates 标志位来控制批量更新
+ *
+ * 核心原理：
+ * 1. 在事件处理函数开始时设置 isBatchingUpdates = true
+ * 2. 在此期间的所有 setState 都不会立即触发重新渲染
+ * 3. 而是将更新放入 dirtyComponents 队列
+ * 4. 事件处理结束后（finally 块中）统一执行 flushDirtyComponents
+ */
+
+// ════════════════════════════════════════════════════════
+// 第一部分：核心变量和队列
+// ════════════════════════════════════════════════════════
+
+// 全局标志：是否处于批量更新模式
+let isBatchingUpdates = false;
+
+// 脏组件队列：存放所有需要重新渲染的组件实例
+const dirtyComponents = [];
+
+// 更新队列：存放每个组件的所有 setState 更新
+const updateQueue = new Map();  // componentInstance → [update1, update2, ...]
+
+console.log('✅ React 16/17 批量更新系统初始化完成');
+
+/**
+ * batchedUpdates - 批量更新包装器
+ *
+ * 这是 React 内部在调用事件处理函数时使用的包装器
+ * 所有合成事件（onClick、onChange 等）都会通过此函数执行
+ */
+function batchedUpdates(fn, a, b) {
+  // 保存之前的批量状态（支持嵌套）
+  const previousIsBatchingUpdates = isBatchingUpdates;
+
+  // 🎯 进入批量模式
+  isBatchingUpdates = true;
+
+  try {
+    // 执行用户的事件处理函数
+    // 在这个函数中调用的所有 setState 都会被批处理
+    return fn(a, b);
+  } finally {
+    // ⚠️ 关键：无论 fn 是否抛出异常，都要退出批量模式
+    isBatchingUpdates = previousIsBatchingUpdates;
+
+    // 如果退出了最外层的批量模式，执行刷新
+    if (!isBatchingUpdates) {
+      flushDirtyComponents();
+    }
+  }
+}
+
+/**
+ * enqueueSetState - 将 setState 加入队列（不立即渲染）
+ *
+ * 当用户调用 this.setState({ count: 1 }) 时，
+ * 实际执行的是这个函数
+ */
+function enqueueSetState(publicInstance, partialState) {
+  // 1️⃣ 获取内部实例（组件实例）
+  const internalInstance = publicInstance._reactInternalFiber;
+
+  // 2️⃣ 创建更新对象
+  const update = {
+    partialState: partialState,
+    callback: null,           // setState 的第二个参数回调
+    isReplace: false,         // 是否是 replaceState
+    isForced: false,          // 是否是 forceUpdate
+    capturedValue: null,       // 错误边界捕获的错误
+  };
+
+  console.log(`📦 enqueueSetState: 添加更新`, partialState);
+
+  // 3️⃣ 检查是否处于批量模式
+  if (isBatchingUpdates) {
+    // ✅ 批量模式：只入队，不渲染
+    if (updateQueue.has(internalInstance)) {
+      updateQueue.get(internalInstance).push(update);
+    } else {
+      updateQueue.set(internalInstance, [update]);
+      dirtyComponents.push(internalInstance);  // 加入脏组件列表
+    }
+
+    console.log('  → 批量模式：延迟渲染');
+  } else {
+    // ❌ 非批量模式：立即渲染（如 setTimeout、Promise 回调中）
+    console.log('  → 非批量模式：立即渲染');
+    performUpdate(internalInstance, [update]);
+  }
+}
+
+/**
+ * flushDirtyComponents - 刷新所有脏组件
+ *
+ * 这个函数在事件处理结束后被调用
+ * 它会遍历 dirtyComponents 数组，依次执行每个组件的更新
+ */
+function flushDirtyComponents() {
+  console.log('\n🔄 开始 flushDirtyComponents...');
+  console.log(`  待刷新的脏组件数量: ${dirtyComponents.length}`);
+
+  // 如果没有脏组件，直接返回
+  if (dirtyComponents.length === 0) {
+    return;
+  }
+
+  // 排序：确保父组件先于子组件更新（从根到叶）
+  sortTreeRange(dirtyComponents);
+
+  // 遍历并执行每个脏组件的更新
+  for (let i = 0; i < dirtyComponents.length; i++) {
+    const component = dirtyComponents[i];
+    const updates = updateQueue.get(component);
+
+    if (updates && updates.length > 0) {
+      console.log(`  🎬 刷新组件 #${i + 1}: ${component.type?.name || 'Anonymous'}`);
+      performUpdate(component, updates);
+    }
+
+    // 清理已处理的组件
+    updateQueue.delete(component);
+  }
+
+  // 清空脏组件数组
+  dirtyComponents.length = 0;
+
+  console.log('✅ flushDirtyComponents 完成\n');
+}
+
+/**
+ * performUpdate - 执行单个组件的更新
+ */
+function performUpdate(component, updates) {
+  // 合并所有的 state 更新
+  let newState = { ...component.memoizedState };
+
+  for (const update of updates) {
+    if (typeof update.partialState === 'function') {
+      // 函数式更新：setState(prev => ({...prev, count: prev.count + 1}))
+      newState = { ...newState, ...update.partialState(newState) };
+    } else {
+      // 对象式更新：setState({ count: 1 })
+      newState = { ...newState, ...update.partialState };
+    }
+
+    // 执行 callback（如果有）
+    if (update.callback) {
+      update.callback.call(component);
+    }
+  }
+
+  // 更新 memoizedState
+  component.memoizedState = newState;
+
+  // 重新渲染组件（简化版）
+  console.log(`    新状态:`, newState);
+}
+```
+
+#### React 18 Automatic Batching 实现（createRoot + Lane 模型）
+
+```javascript
+// ==================== React 18 自动批处理实现 ====================
+/**
+ * React 18 使用 createRoot API 替代 ReactDOM.render
+ * 默认开启自动批处理（Automatic Batching）
+ *
+ * 核心变化：
+ * 1. 不再依赖 isBatchingUpdates 标志位
+ * 2. 使用 Scheduler 调度器统一管理所有更新
+ * 3. 所有 setState（无论在哪里调用）默认都是批量的
+ * 4. 只有 flushSync 可以打破批处理
+ */
+
+// ════════════════════════════════════════════════════════
+// 第二部分：React 18 的调度系统
+// ════════════════════════════════════════════════════════
+
+/**
+ * createRoot - React 18 的根节点创建 API
+ *
+ * 替代了旧的 ReactDOM.render(element, container)
+ * 开启并发特性和自动批处理
+ */
+function createRoot(container, options) {
+  console.log('\n🚀 创建 React 18 Root（启用自动批处理）\n');
+
+  // 创建 FiberRootNode
+  const root = new FiberRootNode(container, options);
+
+  // 创建 ConcurrentRoot（并发模式的根 Fiber）
+  const uninitializedFiber = createHostRootFiber(
+    ConcurrentRoot,  // 标记为并发模式
+    undefined,
+  );
+
+  root.current = uninitializedFiber;
+  uninitializedFiber.stateNode = root;
+
+  // 初始化更新队列
+  initializeUpdateQueue(uninitializedFiber);
+
+  return root;
+}
+
+/**
+ * scheduleUpdateOnFiber - React 18 的调度入口
+ *
+ * 与 React 16 不同，这里不再检查 isBatchingUpdates
+ * 而是始终将更新交给 Scheduler 处理
+ */
+function scheduleUpdateOnFiber(fiber, lane, eventTime) {
+  // 1. 检查根节点是否正在工作
+  const root = markUpdateLaneFromFiberToRoot(fiber, lane);
+
+  if (root === null) {
+    console.warn('⚠️ 无法找到根节点');
+    return;
+  }
+
+  // 2. 标记该 fiber 及其祖先需要更新
+  markRootUpdated(root, lane, eventTime);
+
+  // 3. 确保根节点已被调度（核心！）
+  ensureRootIsScheduled(root, eventTime);
+
+  console.log(`📅 调度更新: lane=${lane}, 由 Scheduler 决定何时执行`);
+}
+
+/**
+ * ensureRootIsScheduled - 确保根节点的更新已被调度
+ *
+ * 这是自动批处理的核心！
+ * 多次快速调用 setState 时，只会调度一次回调
+ */
+function ensureRootIsScheduled(root, currentTime) {
+  // 获取现有的调度回调
+  const existingCallbackPriority = root.callbackPriority;
+  const existingCallbackNode = root.callbackNode;
+
+  // 计算新的优先级（取最高优先级的 lane）
+  const newCallbackPriority = getHighestPriorityLane(root.pendingLanes);
+
+  if (existingCallbackPriority === newCallbackPriority) {
+    // ✅ 优先级相同，不需要重新调度（复用已有的回调）
+    // 这就是为什么多次 setState 只会触发一次渲染！
+    console.log('  ♻️ 复用已有调度（自动批处理生效）');
+    return;
+  }
+
+  // ❌ 优先级变了或没有现有回调，需要调度新的
+  if (existingCallbackNode !== null) {
+    // 取消旧的调度
+    cancelCallback(existingCallbackNode);
+  }
+
+  // 根据优先级选择同步或并发调度
+  let newCallbackNode;
+  if (newCallbackPriority === SyncLane) {
+    // 同步优先级（如 flushSync 触发的更新）
+    newCallbackNode = scheduleSyncCallback(
+      performSyncWorkOnRoot.bind(null, root),
+    );
+  } else {
+    // 并发优先级（普通 setState、startTransition 等）
+    newCallbackNode = scheduleCallback(
+      schedulerPriorityLevel,
+      performConcurrentWorkOnRoot.bind(null, root),
+    );
+  }
+
+  root.callbackPriority = newCallbackPriority;
+  root.callbackNode = newCallbackNode;
+
+  console.log(`  📋 新调度已创建: priority=${newCallbackPriority}`);
+}
+
+/**
+ * performConcurrentWorkOnRoot - 并发模式下执行根节点的工作
+ *
+ * 这是在 Scheduler 的回调中执行的
+ * 可能会被高优先级任务打断
+ */
+function performConcurrentWorkOnRoot(root) {
+  console.log('\n🔄 执行并发工作...');
+
+  // 获取当前时间片截止时间（通常 5ms）
+  const shouldYieldToHost = getCurrentTime() >= deadline;
+
+  // 执行 workLoop（可中断）
+  const exitStatus = renderRootConcurrent(root, shouldYieldToHost);
+
+  if (exitStatus === RootCompleted) {
+    // 渲染完成，提交到 DOM
+    const finishedWork = root.current.alternate;
+    commitRoot(root, finishedWork);
+
+    // 返回 null 表示任务完成
+    return null;
+  } else if (exitStatus === RootInterrupted) {
+    // 被打断，返回一个函数让 Scheduler 继续调度
+    return performConcurrentWorkOnRoot.bind(null, root);
+  }
+
+  return null;
+}
+```
+
+#### 两者差异对比示例
+
+```javascript
+// ════════════════════════════════════════════════════════
+// 第三部分：React 16 vs React 18 差异对比演示
+// ════════════════════════════════════════════════════════
+
+function demoBatchingDifference() {
+  console.log('\n'.repeat(2));
+  console.log('=' .repeat(70));
+  console.log('🎯 React 16 vs React 18 批量更新差异对比');
+  console.log('='.repeat(70));
+
+  // ========== 场景 1: setTimeout 中的 setState ==========
+
+  console.log('\n📍 场景 1: setTimeout 中的多个 setState\n');
+
+  console.log('--- React 16/17 行为 ---');
+  console.log(`
+setTimeout(() => {
+  setCount(1);  // ❌ 立即渲染第 1 次
+  setCount(2);  // ❌ 立即渲染第 2 次
+  setName('Bob');  // ❌ 立即渲染第 3 次
+});
+→ 总共渲染 3 次！（性能浪费）
+`);
+
+  console.log('--- React 18 行为 ---');
+  console.log(`
+setTimeout(() => {
+  setCount(1);  // ✅ 入队
+  setCount(2);  // ✅ 入队（合并）
+  setName('Bob');  // ✅ 入队
+});
+→ 只渲染 1 次！（自动批处理）
+`);
+
+  // ========== 场景 2: Promise.then 中的 setState ==========
+
+  console.log('\n📍 场景 2: Promise.then 中的多个 setState\n');
+
+  console.log('--- React 16/17 行为 ---');
+  console.log(`
+fetch('/api/data').then(() => {
+  setData(res.data);  // ❌ 立即渲染
+  setLoading(false);  // ❌ 再次渲染
+});
+→ 渲染 2 次
+`);
+
+  console.log('--- React 18 行为 ---');
+  console.log(`
+fetch('/api/data').then(() => {
+  setData(res.data);  // ✅ 入队
+  setLoading(false);  // ✅ 入队
+});
+→ 只渲染 1 次
+`);
+
+  // ========== 场景 3: 自定义事件中的 setState ==========
+
+  console.log('\n📍 场景 3: 自定义事件监听器中的 setState\n');
+
+  console.log('--- React 16/17 行为 ---');
+  console.log(`
+window.addEventListener('custom-event', () => {
+  setValue(1);  // ❌ 立即渲染（不在 React 的事件系统中）
+  setValue(2);  // ❌ 再次渲染
+});
+→ 渲染 2 次
+`);
+
+  console.log('--- React 18 行为 ---');
+  console.log(`
+window.addEventListener('custom-event', () => {
+  setValue(1);  // ✅ 入队
+  setValue(2);  // ✅ 合并入队
+});
+→ 只渲染 1 次
+`);
+
+  // ========== 场景 4: 如何退出批处理 ==========
+
+  console.log('\n📍 场景 4: 使用 flushSync 强制同步渲染\n');
+
+  console.log('--- React 18 + flushSync ---');
+  console.log(`
+import { flushSync } from 'react-dom';
+
+function handleClick() {
+  flushSync(() => {
+    setCount(c => c + 1);  // 💥 强制立即渲染
+  });
+  // 此时 DOM 已更新
+
+  console.log(ref.current.offsetHeight);  // ✅ 可以读取最新尺寸
+
+  flushSync(() => {
+    setFlag(true);  // 💥 再次强制渲染
+  });
+  // 两次独立的渲染
+}
+`);
+}
+
+/**
+ * 完整的可运行示例：模拟两种批处理机制
+ */
+class BatchingDemoComponent {
+  constructor(props) {
+    this.props = props;
+    this.state = { count: 0, name: 'Alice' };
+    this.updates = [];  // 模拟更新队列
+  }
+
+  // React 16/17 风格的 setState
+  setState16(partialState) {
+    console.log(`  [React16] setState(${JSON.stringify(partialState)})`);
+
+    if (isBatchingUpdates) {
+      // 批量模式：加入队列
+      this.updates.push(partialState);
+      console.log(`    → 批量模式：入队（当前队列长度: ${this.updates.length}）`);
+    } else {
+      // 非批量模式：立即应用
+      this.state = { ...this.state, ...partialState };
+      console.log(`    → 非批量模式：立即更新状态为`, this.state);
+      this.render();
+    }
+  }
+
+  // React 18 风格的 setState（始终批处理）
+  setState18(partialState) {
+    console.log(`  [React18] setState(${JSON.stringify(partialState)})`);
+
+    // React 18: 始终入队，由 Scheduler 决定何时刷新
+    this.updates.push(partialState);
+    console.log(`    → 始终入队（当前队列长度: ${this.updates.length}）`);
+    scheduleFlushIfNeeded(this);
+  }
+
+  render() {
+    console.log(`  🎨 组件渲染! state=`, JSON.stringify(this.state));
+  }
+
+  // 应用所有排队的更新
+  flushUpdates() {
+    if (this.updates.length > 0) {
+      console.log(`\n  💧 刷新 ${this.updates.length} 个更新:`);
+
+      for (const update of this.updates) {
+        this.state = { ...this.state, ...update };
+        console.log(`    应用 ${JSON.stringify(update)}, 当前状态:`, this.state);
+      }
+
+      this.updates = [];
+      this.render();
+    }
+  }
+}
+
+// 模拟 Scheduler（简化版）
+let pendingFlush = null;
+function scheduleFlushIfNeeded(component) {
+  if (!pendingFlush) {
+    pendingFlush = true;
+    // 使用微任务模拟 Scheduler 的调度
+    Promise.resolve().then(() => {
+      pendingFlush = false;
+      component.flushUpdates();
+    });
+  }
+}
+
+// 运行完整演示
+demoBatchingDifference();
+
+console.log('\n' .repeat(2));
+console.log('=' .repeat(70));
+console.log('🔬 可运行示例：两种机制的对比');
+console.log('='.repeat(70));
+
+const demo = new BatchingDemoComponent();
+
+console.log('\n【测试 1】React 16: 事件处理中的批量更新');
+batchedUpdates(() => {
+  demo.setState16({ count: 1 });   // 入队
+  demo.setState16({ count: 2 });   // 入队
+  demo.setState16({ name: 'Bob' }); // 入队
+});
+// batchedUpdates 结束后自动 flush
+// 输出：只渲染 1 次，state = { count: 2, name: 'Bob' }
+
+console.log('\n【测试 2】React 16: setTimeout 中失去批处理');
+setTimeout(() => {
+  demo.setState16({ count: 3 });   // 立即渲染！
+  demo.setState16({ count: 4 });   // 再次渲染！
+}, 100);
+
+console.log('\n【测试 3】React 18: setTimeout 中保持批处理');
+setTimeout(() => {
+  demo.setState18({ count: 5 });   // 入队
+  demo.setState18({ count: 6 });   // 入队
+  // 微任务结束后统一渲染
+}, 200);
+```
+
+### 🔍 追问链
+1. **React 18 的 automatic batching 有什么限制？什么情况下不会批处理？**
+   → 方向：setTimeout/setInterval/Promise.then/.then/原生事件回调中的 setState 不会自动批处理（但在 flushSync 中可以）
+2. **如何手动控制批处理？flushSync 和 batch API？**
+   → 方向：flushSync 同步强制刷新（用于 DOM 操作后立即读取）；ReactDOM.unstable_batchedUpdates 手动合并
+3. **setState 是同步还是异步的？为什么有时能立刻拿到最新值？**
+   → 方向：异步的！但 React 18 的 concurrent 模式下或 flushSync 包裹中可能表现不同；永远不要依赖 setState 的同步行为
 
 ---
 
@@ -2719,6 +3279,14 @@
    └── 需要在 effect 中读取最新值（避免闭包陷阱）？
        └── → useRef（配合 useEffect 保持同步）
    ```
+
+### 🔍 追问链
+1. **useRef 存储的值变化会触发子组件重渲染吗？**
+   → 方向：不会！ref.current 的修改完全绕过 React 的调度系统，这是它的核心特性
+2. **useRef 可以用来解决闭包陷阱吗？和函数式更新有什么区别？**
+   → 方向：可以！ref.current 始终指向最新值，不受闭包影响；函数式更新 `setCount(c => c + 1)` 也能解决但语义不同
+3. **useCallback 内部是否也用了 useRef 来保持引用稳定？**
+   → 方向：是的！useCallback 内部通常用 ref 缓存最新回调，避免因依赖变化导致子组件不必要的重渲染
 
 ---
 
@@ -3791,6 +4359,14 @@
    - 特殊场景可以选择更适合的技术方案
    ```
 
+### 🔍 追问链
+1. **虚拟 DOM 一定比直接操作 DOM 快吗？什么场景下反而更慢？**
+   → 方向：小规模更新（改一个文本）虚拟 DOM 的创建+diff 开销可能超过直接操作；大规模/复杂场景下优势明显
+2. **Svelte 没有虚拟 DOM，它是怎么做到高性能的？**
+   → 方向：编译时将响应式更新直接编译为精确的 DOM 操作指令，运行时无需 diff；牺牲了灵活性换取性能
+3. **Vue 3 的虚拟 DOM 和 React 的有什么核心区别？**
+   → 方向：Vue 用 Proxy 做细粒度依赖收集（知道哪个属性变了），React 整体 re-render 再 diff（不知道哪里变了）
+
 ---
 
 ## Q29: 请详细解释 React Fiber 架构。为什么引入 Fiber？Fiber 节点的数据结构是怎样的？
@@ -3969,6 +4545,750 @@
    - 同优先级按顺序执行
    ```
 
+### 深度拓展：手写实现
+
+#### 1. Fiber 节点完整数据结构定义
+
+```javascript
+// ==================== Fiber 节点完整数据结构 ====================
+// 这是 React 内部 Fiber 节点的简化但完整的实现
+
+function FiberNode(tag, pendingProps, key) {
+  // ============ 实例属性（每个节点独立） ============
+
+  // 1️⃣ 节点类型标记 - 决定这个 Fiber 代表什么
+  this.tag = tag;  // 如: FunctionComponent=0, ClassComponent=1, HostRoot=3, HostComponent=5 等
+
+  // 2️⃣ 节点唯一标识符
+  this.key = key;           // React 的 key 属性，用于 Diff 算法复用判断
+  this.type = null;         // 组件类型（函数/类组件）或 DOM 标签名（'div'/'span'）
+
+  // 3️⃣ DOM 相关
+  this.stateNode = null;    // 对应的真实 DOM 节点 或 组件实例（class component）
+
+  // 4️⃣ Fiber 树结构指针（形成树形结构）
+  this.return = null;       // 指向父节点（注意：不叫 parent，因为 return 是保留字）
+  this.child = null;        // 指向第一个子节点
+  this.sibling = null;      // 指向下一个兄弟节点
+  this.index = 0;           // 在父节点的 children 数组中的索引位置
+
+  // 5️⃣ Props 相关
+  this.pendingProps = pendingProps;  // 新的 props（待处理）
+  this.memoizedProps = null;        // 上一次渲染时使用的 props（用于判断是否更新）
+
+  // 6️⃣ State/Hooks 相关
+  this.memoizedState = null;        // 上一次渲染后的 state（函数组件指向 hooks 链表头）
+  this.updateQueue = null;          // 更新队列（存放 setState 触发的更新）
+  this.dependencies = null;         // context/lane 依赖（用于判断是否需要更新）
+
+  // 7️⃣ 双缓存机制的核心字段
+  this.alternate = null;            // 指向另一棵树中对应的 Fiber 节点（current ↔ workInProgress）
+
+  // 8️⃣ 副作用标记（Side-Effects / Flags）
+  this.flags = NoFlags;             // 当前节点的副作用标记（如：插入、更新、删除、ref）
+  this.subtreeFlags = NoFlags;      // 子树的副作用标记（聚合了所有子孙节点的 flags）
+  this.deletions = null;            // 需要删除的子节点数组
+
+  // 9️⃣ Effect 链表（用于 commit 阶段遍历所有有副作用的节点）
+  this.nextEffect = null;           // 单向链表：指向下一个有副作用的节点（单链表）
+  this.firstEffect = null;          // 子树中第一个有副作用的节点
+  this.lastEffect = null;           // 子树中最后一个有副作用的节点
+
+  // 🔟 Lane 优先级相关（React 18）
+  this.lanes = NoLanes;             // 当前节点涉及的更新优先级
+  this.childLanes = NoLanes;        // 子树的更新优先级
+}
+
+// ==================== Tag 类型常量 ====================
+const FunctionComponent = 0;       // 函数组件
+const ClassComponent = 1;          // 类组件
+const IndeterminateComponent = 2;  // 不确定类型（首次渲染时）
+const HostRoot = 3;                // 根节点（FiberRoot 的直接子节点）
+const HostPortal = 4;              // Portal
+const HostComponent = 5;           // 原生 DOM 元素（div, span 等）
+const HostText = 6;                // 文本节点
+const Fragment = 7;                // React.Fragment
+const Mode = 8;                    // StrictMode / ConcurrentMode
+const ContextConsumer = 9;         // Context.Consumer
+const ContextProvider = 10;        // Context.Provider
+const ForwardRef = 11;             // React.forwardRef
+const Profiler = 12;               // DevTools Profiler
+const SuspenseComponent = 13;      // Suspense
+const MemoComponent = 14;          // React.memo
+const LazyComponent = 15;          // React.lazy
+const OffscreenComponent = 23;     // Offscreen（隐藏/显示）
+
+// ==================== Flags 副作用标记常量 ====================
+const NoFlags = 0b00000000000000000000;
+const Placement = 0b00000000000000000010;     // 插入 DOM
+const Update = 0b00000000000000000100;        // 更新 props/state
+const Deletion = 0b00000000000000001000;      // 删除 DOM
+const ChildDeletion = 0b00000000000000010000; // 删除子节点
+const Ref = 0b00000000000000100000;           // ref 变更
+const Snapshot = 0b00000000000001000000;      // 快照（getSnapshotBeforeUpdate）
+const Passive = 0b00000000000010000000;       // useEffect
+const LayoutMask = 0b00000000000100000000;    // useLayoutEffect
+const MountPassiveDevtools = 0b00001000000000000000;
+
+console.log('✅ Fiber 节点数据结构定义完成');
+```
+
+#### 2. 从 JSX 构建 Fiber 树的过程
+
+```javascript
+// ==================== 从 JSX 创建 Fiber 树 ====================
+
+/**
+ * 将 JSX 元素转换为 Fiber 节点并构建 Fiber 树
+ * 模拟 React 的 reconcile 过程
+ */
+
+// 示例 JSX 结构：
+// <App>
+//   <Header />
+//   <Main>
+//     <Sidebar />
+//     <Content>
+//       <Item /> <Item /> <Item />
+//     </Content>
+//   </Main>
+//   <Footer />
+// </App>
+
+/**
+ * 步骤 1: 将 JSX 转换为 Element 对象（简化版 createElement）
+ */
+function createElement(type, config, ...children) {
+  const props = { ...config };
+
+  if (children.length === 1) {
+    props.children = children[0];
+  } else if (children.length > 1) {
+    props.children = children;
+  }
+
+  // 提取 key 和 ref
+  const key = props.key || null;
+  delete props.key;
+  const ref = props.ref || null;
+  delete props.ref;
+
+  return { type, props, key, ref };
+}
+
+/**
+ * 步骤 2: 根据 Element 创建 Fiber 节点
+ */
+function createFiberFromElement(element) {
+  const { type, key, props } = element;
+
+  // 判断节点类型
+  let tag;
+  if (typeof type === 'function') {
+    tag = typeof type.prototype?.render === 'function'
+      ? ClassComponent   // 类组件
+      : FunctionComponent; // 函数组件
+  } else if (typeof type === 'string') {
+    tag = HostComponent;  // DOM 元素
+  } else if (type === Symbol.for('react.fragment')) {
+    tag = Fragment;
+  }
+
+  // 创建 Fiber 节点
+  const fiber = new FiberNode(tag, props, key);
+  fiber.type = type;
+
+  console.log(`🔨 创建 Fiber 节点: ${type.name || type}`, { tag, key });
+
+  return fiber;
+}
+
+/**
+ * 步骤 3: 协调子元素，建立 child/sibling 关系
+ * 这是最关键的一步！将扁平的 children 数组转换为 Fiber 树结构
+ */
+function reconcileChildren(returnFiber, newChildren) {
+  // 如果没有子节点，直接返回
+  if (!newChildren || (Array.isArray(newChildren) && newChildren.length === 0)) {
+    returnFiber.child = null;
+    return;
+  }
+
+  // 处理单个子节点的情况
+  if (!Array.isArray(newChildren)) {
+    const childFiber = createChildFiber(returnFiber, newChildren);
+    childFiber.return = returnFiber;
+    returnFiber.child = childFiber;
+    return;
+  }
+
+  // 处理多个子节点的情况
+  // ⭐ 核心：将数组转换为链表结构（child → sibling → sibling...）
+  let previousSibling = null;
+  let firstChildFiber = null;
+
+  for (let i = 0; i < newChildren.length; i++) {
+    const childElement = newChildren[i];
+
+    // 跳过 null/undefined/false（React 会忽略这些）
+    if (!childElement && childElement !== 0) continue;
+
+    // 为每个子元素创建 Fiber
+    const childFiber = createChildFiber(returnFiber, childElement);
+
+    // 设置在父节点中的索引
+    childFiber.index = i;
+    childFiber.return = returnFiber;
+
+    // 建立 sibling 链表关系
+    if (previousSibling === null) {
+      // 第一个子节点
+      firstChildFiber = childFiber;
+    } else {
+      // 后续子节点作为前一个节点的 sibling
+      previousSibling.sibling = childFiber;
+    }
+    previousSibling = childFiber;
+  }
+
+  // 将第一个子节点挂载到父节点的 child 属性
+  returnFiber.child = firstChildFiber;
+}
+
+/**
+ * 辅助函数：创建子 Fiber 节点
+ */
+function createChildFiber(returnFiber, element) {
+  // 处理文本节点
+  if (typeof element === 'string' || typeof element === 'number') {
+    const textFiber = new FiberNode(HostText, null, null);
+    textFiber.stateNode = String(element);
+    textFiber.memoizedProps = String(element);
+    return textFiber;
+  }
+
+  // 处理普通元素/组件
+  return createFiberFromElement(element);
+}
+
+/**
+ * 步骤 4: 完整的 Fiber 树构建示例
+ */
+function buildFiberTree(rootElement) {
+  console.log('🌳 开始构建 Fiber 树...\n');
+
+  // 1. 创建根 Fiber 节点（HostRoot）
+  const rootFiber = new FiberNode(HostRoot, null, null);
+  rootFiber.stateNode = { containerInfo: document.getElementById('root') };
+
+  console.log('📍 创建根节点 (HostRoot)', rootFiber);
+
+  // 2. 递归构建整个 Fiber 树
+  function processElement(element, parentFiber) {
+    // 创建当前元素的 Fiber 节点
+    const fiber = createFiberFromElement(element);
+    fiber.return = parentFiber;
+
+    // 如果是 DOM 节点或组件，创建 stateNode
+    if (fiber.tag === HostComponent) {
+      fiber.stateNode = document.createElement(fiber.type);  // 创建真实 DOM
+    }
+
+    // 递归处理子节点
+    if (element.props && element.props.children) {
+      const children = Array.isArray(element.props.children)
+        ? element.props.children
+        : [element.props.children];
+
+      reconcileChildren(fiber, children);
+    }
+
+    return fiber;
+  }
+
+  // 3. 从根元素开始构建
+  const appFiber = processElement(rootElement, rootFiber);
+  rootFiber.child = appFiber;
+
+  console.log('\n✅ Fiber 树构建完成！');
+  printFiberTree(rootFiber, 0);
+
+  return rootFiber;
+}
+
+/**
+ * 打印 Fiber 树结构（辅助调试）
+ */
+function printFiberTree(fiber, depth) {
+  const indent = '  '.repeat(depth);
+  const typeName = typeof fiber.type === 'function'
+    ? fiber.type.name
+    : fiber.type || (fiber.tag === HostRoot ? 'ROOT' : 'TEXT');
+
+  console.log(`${indent}├─ [${typeName}] tag=${fiber.tag}, key=${fiber.key}`);
+
+  // 先遍历 child
+  if (fiber.child) {
+    printFiberTree(fiber.child, depth + 1);
+  }
+
+  // 再遍历 sibling
+  if (fiber.sibling) {
+    printFiberTree(fiber.sibling, depth);
+  }
+}
+```
+
+#### 3. 双缓存切换过程（Double Buffering）
+
+```javascript
+// ==================== 双缓存机制（核心原理）====================
+
+/**
+ * React 使用双缓存技术来实现可中断渲染
+ * 两棵树交替使用，避免频繁创建/销毁
+ *
+ * currentTree: 当前屏幕上显示的 Fiber 树（稳定不变）
+ * workInProgressTree: 正在构建中的 Fiber 树（可以随时丢弃）
+ */
+
+// 全局变量：两棵树的根节点引用
+let currentRoot = null;        // 当前树根（屏幕显示的）
+let workInProgressRoot = null; // 工作中树根（正在构建的）
+
+/**
+ * 🔄 完整的双缓存切换流程
+ */
+function performSyncWorkOnRoot(root) {
+  console.log('\n🔄 开始双缓存切换流程');
+
+  // ========== 第 1 步：创建 workInProgress 树 ==========
+  // 从 current 树克隆一份作为工作副本
+  const current = root.current;  // 当前的 Fiber 根节点
+  const workInProgress = current.alternate
+    ? prepareWorkInProgress(current)  // 如果已有 alternate，复用并重置
+    : createWorkInProgress(current);  // 首次渲染，创建全新的 alternate
+
+  workInProgressRoot = workInProgress;
+  console.log('📋 Step 1: 创建 workInProgress 树', {
+    hasAlternate: !!current.alternate,
+    workInProgressTag: workInProgress.tag,
+  });
+
+  // ========== 第 2 步：在工作树上进行协调和渲染 ==========
+  // 在 workInProgress 树上执行 render 阶段（可中断）
+  workLoopSync(workInProgress);
+  console.log('📋 Step 2: 完成 render 阶段（workInProgress 树已就绪）');
+
+  // ========== 第 3 步：提交更新到 DOM（commit 阶段）==========
+  // 这个阶段不可中断，会直接操作真实 DOM
+  commitRoot(workInProgress);
+  console.log('📋 Step 3: 完成 commit 阶段（DOM 已更新）');
+
+  // ========== 第 4 步：交换双缓存指针 ==========
+  // 最关键的一步！将 workInProgress 变成新的 current
+  root.current = workInProgress;  // 🎯 屏幕现在显示 workInProgress 树
+
+  // 更新全局引用
+  currentRoot = workInProgress;
+  console.log('📋 Step 4: ✅ 双缓存切换完成！');
+  console.log(`   currentRoot 现在指向之前的 workInProgress 树`);
+  console.log(`   下次更新时，会基于这棵新树创建新的 workInProgress`);
+
+  // ========== 第 5 步：清理旧树 ==========
+  // 旧的 current 树现在变成了 alternate（备用）
+  // 可以在下一次更新时复用，避免重复创建
+}
+
+/**
+ * 创建 workInProgress Fiber（clone Fiber 节点）
+ */
+function createWorkInProgress(current) {
+  // 创建一个新的 Fiber 节点，复用 current 的基本信息
+  const workInProgress = new FiberNode(
+    current.tag,
+    current.pendingProps,
+    current.key
+  );
+
+  // 复制基本属性
+  workInProgress.type = current.type;
+  workInProgress.stateNode = current.stateNode;  // 共享同一个 DOM 节点！
+
+  // ⭐⭐⭐ 建立双向引用（双缓存的核心）⭐⭐⭐
+  workInProgress.alternate = current;  // 新节点 → 旧节点
+  current.alternate = workInProgress;   // 旧节点 → 新节点
+
+  // 复用上一次的状态（避免重新计算）
+  workInProgress.memoizedProps = current.memoizedProps;
+  workInProgress.memoizedState = current.memoizedState;
+  workInProgress.updateQueue = current.updateQueue;
+
+  // 复制树结构指针
+  workInProgress.return = current.return;
+  workInProgress.child = current.child;
+  workInProgress.sibling = current.sibling;
+  workInProgress.index = current.index;
+  workInProgress.flags = NoFlags;  // 重置副作用标记
+  workInProgress.subtreeFlags = NoFlags;
+  workInProgress.deletions = null;
+
+  // 复制 lane 信息
+  workInProgress.lanes = current.lanes;
+  workInProgress.childLanes = current.childLanes;
+
+  return workInProgress;
+}
+
+/**
+ * 准备复用已有的 workInProgress（非首次渲染）
+ */
+function prepareWorkInProgress(current) {
+  // 取出之前创建的 alternate（就是上一轮的 workInProgress）
+  const workInProgress = current.alternate;
+
+  // 重置状态，准备新一轮的更新
+  workInProgress.flags = NoFlags;
+  workInProgress.subtreeFlags = NoFlags;
+  workInProgress.deletions = null;
+
+  // 重置副作用链表
+  workInProgress.nextEffect = null;
+  workInProgress.firstEffect = null;
+  workInProgress.lastEffect = null;
+
+  // 更新 pendingProps（可能有了新的 props）
+  workInProgress.pendingProps = current.pendingProps;
+
+  return workInProgress;
+}
+
+/**
+ * 工作循环（render 阶段的调度器）
+ */
+function workLoopSync(workInProgress) {
+  while (workInProgress !== null) {
+    // 执行单个工作单元（beginWork + completeWork）
+    workInProgress = performUnitOfWork(workInProgress);
+  }
+}
+
+/**
+ * 执行单个工作单元
+ */
+function performUnitOfWork(fiber) {
+  // beginWork: 处理当前节点（协调子节点、Diff、打标记）
+  const next = beginWork(fiber);
+
+  if (next === null) {
+    // 没有子节点了，执行 completeWork 并返回 sibling
+    return completeUnitOfWork(fiber);
+  }
+
+  // 有子节点，继续深度优先遍历
+  return next;
+}
+
+function beginWork(fiber) {
+  console.log(`  🔧 beginWork: ${fiber.type?.name || fiber.type}`);
+
+  // 根据不同的 tag 执行不同的协调逻辑
+  switch (fiber.tag) {
+    case FunctionComponent:
+      return updateFunctionComponent(fiber);
+    case HostComponent:
+      return updateHostComponent(fiber);
+    case HostRoot:
+      return updateHostRoot(fiber);
+    default:
+      return null;
+  }
+}
+
+function updateFunctionComponent(fiber) {
+  // 执行组件函数，获取 JSX
+  const Component = fiber.type;
+  const props = fiber.pendingProps;
+  const children = Component(props);
+
+  // 协调子节点（创建/复用 Fiber）
+  reconcileChildren(fiber, children);
+
+  // 返回第一个子节点（继续深度优先遍历）
+  return fiber.child;
+}
+
+function completeUnitOfWork(fiber) {
+  console.log(`  ✅ completeWork: ${fiber.type?.name || fiber.type}`);
+
+  // 如果有兄弟节点，返回兄弟节点继续处理
+  if (fiber.sibling) {
+    return fiber.sibling;
+  }
+
+  // 没有兄弟节点了，返回父节点（回溯）
+  return fiber.return;
+}
+
+/**
+ * Commit 阶段（不可中断）
+ */
+function commitRoot(finishedWork) {
+  console.log('\n🎬 进入 Commit 阶段（不可中断）');
+
+  // 三阶段提交：
+  // 1. Before Mutation（DOM 变更前）- 读取 DOM 状态、调用 getSnapshotBeforeUpdate
+  commitBeforeMutationEffects(finishedWork);
+
+  // 2. Mutation（DOM 变更）- 插入、更新、删除 DOM 节点
+  commitMutationEffects(finishedWork);
+
+  // 3. Layout（DOM 变更后）- 调用 useEffect/useLayoutEffect、ref 回调
+  commitLayoutEffects(finishedWork);
+}
+
+// ==================== 示例使用 ====================
+function demoDoubleBuffering() {
+  console.log('\n'.repeat(2));
+  console.log('=' .repeat(60));
+  console.log('🎯 双缓存机制演示');
+  console.log('='.repeat(60));
+
+  // 模拟初始渲染
+  const mockRoot = {
+    current: new FiberNode(HostRoot, null, null),
+  };
+  mockRoot.current.stateNode = { containerInfo: '#root' };
+
+  console.log('\n📍 初始状态:');
+  console.log('  currentRoot:', mockRoot.current);
+  console.log('  alternate:', mockRoot.current.alternate);
+
+  // 第一次渲染
+  performSyncWorkOnRoot(mockRoot);
+
+  console.log('\n📍 渲染后状态:');
+  console.log('  currentRoot 已切换到 workInProgress 树');
+  console.log('  旧的 current 树保存在 alternate 中');
+  console.log('  下次更新将基于新的 current 树创建新的 workInProgress');
+}
+
+// 运行演示
+demoDoubleBuffering();
+```
+
+#### 4. Fiber 树完整结构的 ASCII 图
+
+```
+═══════════════════════════════════════════════════════════════
+                    Fiber 树完整结构图
+═══════════════════════════════════════════════════════════════
+
+对应 JSX 结构:
+┌──────────────────────────────────────────────────────────────┐
+│  <App>                                                       │
+│    <Header title="首页" />                                   │
+│    <Main>                                                    │
+│      <Sidebar items={menu} />                                │
+│      <Content>                                               │
+│        <ListItem key="1" text="项目1" />                     │
+│        <ListItem key="2" text="项目2" />                     │
+│        <ListItem key="3" text="项目3" />                     │
+│      </Content>                                              │
+│    </Main>                                                   │
+│    <Footer copyright="2024" />                                │
+│  </App>                                                      │
+└──────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+                         CURRENT TREE（当前显示的树）
+═══════════════════════════════════════════════════════════════
+
+                          ┌─────────────┐
+                          │  ROOT (tag=3) │ ← HostRoot
+                          │  key=null    │
+                          └──────┬──────┘
+                                 │
+                                 ▼ (child)
+                          ┌─────────────┐
+                          │  App (tag=0)  │ ← FunctionComponent
+                          │  key=null    │
+                          │  stateNode=  │ ← null (函数组件无实例)
+                          │    undefined  │
+                          └──────┬──────┘
+                                 │
+                    ┌────────────┼────────────┐
+                    ▼ (child)                 │ (sibling)
+          ┌─────────────┐             ┌─────────────┐
+          │ Header (tag=0)│            │ Main (tag=0)  │
+          │ key=null    │             │ key=null    │
+          └──────┬──────┘             └──────┬──────┘
+                 │                           │
+                 ▼ (child)                   ├────────────┐
+          ┌─────────────┐             ▼ (child)    │ (sibling)
+          │ "首页"(tag=6)│      ┌─────────────┐ ┌─────────────┐
+          │ (HostText)   │      │ Sidebar(tag=0)│ │ Content(tag=0)│
+          └─────────────┘      └──────┬──────┘ └──────┬──────┘
+                                      │                │
+                                      ▼ (child)        ▼ (child)
+                               ┌─────────────┐  ┌─────────────┐
+                               │ menu[0](tag=6)│  │ Item1(tag=0) │
+                               │ (HostText)   │  │ key="1"     │
+                               └─────────────┘  └──────┬──────┘
+                                                        │
+                                          ┌─────────────┼─────────────┐
+                                          ▼ (child)     │ (sibling)   ▼ (sibling)
+                                   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+                                   │"项目1"(tag=6)│ │ Item2(tag=0) │ │ Item3(tag=0) │
+                                   │ (HostText)   │ │ key="2"     │ │ key="3"     │
+                                   └─────────────┘ └──────┬──────┘ └──────┬──────┘
+                                                  │ (child)    │ (child)
+                                                  ▼            ▼
+                                           ┌─────────────┐ ┌─────────────┐
+                                           │"项目2"(tag=6)│ │"项目3"(tag=6)│
+                                           │ (HostText)   │ │ (HostText)   │
+                                           └─────────────┘ └─────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+                      WORK IN PROGRESS TREE（工作中树）
+═══════════════════════════════════════════════════════════════
+
+  （结构与 Current Tree 相同，但是独立的对象实例）
+  （正在此树上进行协调和更新，不影响 Current Tree 的显示）
+
+  ┌─────────────────────────────────────────────────────────┐
+  │                                                         │
+  │   每个 WIP 节点都通过 .alternate 字段                   │
+  │   指向 Current Tree 中对应的节点                        │
+  │                                                         │
+  │   例如：                                                │
+  │   WIP_App.alternate ─────────────────→ Current_App     │
+  │   Current_App.alternate ─────────────→ WIP_App         │
+  │                                                         │
+  │   这种双向引用实现了双缓存！                             │
+  └─────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+                    关键字段说明（以 App 节点为例）
+═══════════════════════════════════════════════════════════════
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  FiberNode: App                                            │
+  ├─────────────────────────────────────────────────────────────┤
+  │                                                             │
+  │  【标识信息】                                                │
+  │  ├── tag = 0 (FunctionComponent)                            │
+  │  ├── type = function App() {...}                            │
+  │  └── key = null                                             │
+  │                                                             │
+  │  【树结构】                                                  │
+  │  ├── return → ROOT (父节点)                                  │
+  │  ├── child → Header (第一个子节点)                           │
+  │  ├── sibling → null (App 是独生子)                           │
+  │  └── index = 0 (在 ROOT 的 children 中排第 0 位)             │
+  │                                                             │
+  │  【状态】                                                    │
+  │  ├── stateNode = undefined (函数组件无实例)                  │
+  │  ├── memoizedProps = { children: [...] }                    │
+  │  ├── memoizedState → Hook1 → Hook2 → ... (hooks 链表)       │
+  │  └── updateQueue = null (暂无待处理的 setState)              │
+  │                                                             │
+  │  【双缓存】                                                  │
+  │  └── alternate → WorkInProgress_App (对应的工作树节点)       │
+  │                                                             │
+  │  【副作用】                                                  │
+  │  ├── flags = 0 (无副作用)                                    │
+  │  ├── subtreeFlags = 0 (子树无副作用)                         │
+  │  ├── deletions = null                                       │
+  │  └── lanes = 0 (无待处理更新)                                │
+  │                                                             │
+  └─────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+                    SIBLING 链表示意图（重要！）
+═══════════════════════════════════════════════════════════════
+
+  Main 节点的子节点通过 sibling 形成链表：
+
+  Content (child)
+      │
+      ▼
+  ┌────────┐   sibling   ┌────────┐   sibling   ┌────────┐
+  │ Item1  │ ──────────→ │ Item2  │ ──────────→ │ Item3  │
+  │key="1" │             │key="2" │             │key="3" │
+  └────────┘             └────────┘             └───┬────┘
+                                                     │
+                                                 sibling = null
+                                                    (最后一个)
+
+  这样设计的好处：
+  ✓ 只需要 O(1) 就能找到下一个兄弟
+  ✓ 避免数组操作的性能开销
+  ✓ 方便进行列表 Diff（只需遍历链表）
+
+
+═══════════════════════════════════════════════════════════════
+                    EFFECT 链表（Commit 阶段使用）
+═══════════════════════════════════════════════════════════════
+
+  Commit 阶段不会遍历整棵树，而是只遍历有副作用的节点：
+
+  Root.firstEffect ──→ Header (flags=Placement)
+                        │
+                        ▼ nextEffect
+                     Item1 (flags=Placement)
+                        │
+                        ▼ nextEffect
+                     Item2 (flags=Placement)
+                        │
+                        ▼ nextEffect
+                     Item3 (flags=Placement)
+
+  效果：跳过所有不需要更新的节点，O(副作用数量) 而非 O(总节点数)
+
+
+═══════════════════════════════════════════════════════════════
+                    双缓存切换时间线
+═══════════════════════════════════════════════════════════════
+
+  时间轴 →
+
+  ┌──────────┐     ┌──────────────────┐     ┌──────────┐
+  │ 显示 A   │ ──→ │ 构建树 B (WIP)   │ ──→ │ 显示 B   │
+  │(current) │     │ (可中断/可恢复)   │     │(current) │
+  └──────────┘     └──────────────────┘     └──────────┘
+       ↑                  ↑                       ↑
+       │                  │                       │
+  current=A         workInProgress=B          current=B
+  alternate=null     alternate=A             alternate=A
+  (首次渲染)         (双向链接)              (A 可复用)
+
+  下次更新：
+  ┌──────────┐     ┌──────────────────┐     ┌──────────┐
+  │ 显示 B   │ ──→ │ 构建树 C (WIP)   │ ──→ │ 显示 C   │
+  │(current) │     │ 基于 B 创建      │     │(current) │
+  └──────────┘     └──────────────────┘     └──────────┘
+       ↑                  ↑                       ↑
+  current=B         workInProgress=C          current=C
+  alternate=A        alternate=B              alternate=B
+  (复用 A 作为 WIP)  (基于 B clone)           (B 可复用)
+
+
+═══════════════════════════════════════════════════════════════
+```
+
+### 🔍 追问链
+1. **Fiber 架构解决了 Stack Reconciler 的什么问题？具体是什么场景下会卡顿？**
+   → 方向：Stack Reconciler 递归遍历不可中断，大组件树一次更新占用主线程太久（>16ms）→ 掉帧；Fiber 可中断/恢复
+2. **时间切片 Time Slicing 的最小单位是什么？requestIdleCallback 怎么配合工作？**
+   → 方向：一个 Fiber 节点的处理是最小单位；Scheduler 用 rIC 在每帧空闲时间执行 workLoop
+3. **current 树和 workInProgress 树同时存在于内存中，内存开销怎么办？**
+   → 方向：双缓存确实增加约 2x 内存；但 Fiber 节点是轻量的（相比真实 DOM），且 GC 会及时回收旧节点
+
 ---
 
 ## Q30: 请详细解释 React 的 Diff 算法（Reconciliation）。它是如何实现 O(n) 复杂度的？
@@ -4110,6 +5430,547 @@
    - 开发者需要正确使用 key（跨层移动不会被检测到）
    - 但这是可接受的工程权衡
    ```
+
+### 深度拓展：手写实现
+
+#### 完整的 reconcileChildrenArray 函数（5 轮 Diff 算法）
+
+```javascript
+// ==================== 完整的列表 Diff 算法实现 ====================
+/**
+ * React 的 reconcileChildrenArray 是整个 Diff 算法的核心
+ * 通过 5 轮遍历实现 O(n) 复杂度的列表对比
+ *
+ * @param {Fiber} returnFiber - 父 Fiber 节点
+ * @param {Fiber|null} currentFirstChild - 当前树的第一个子 Fiber（旧节点链表头）
+ * @param {Array} newChildren - 新的子元素数组（JSX 元素）
+ * @returns {Fiber|null} 返回新的第一个子 Fiber
+ */
+
+function reconcileChildrenArray(returnFiber, currentFirstChild, newChildren) {
+  console.log('\n🔄 开始 reconcileChildrenArray');
+  console.log('旧 children:', getFiberKeys(currentFirstChild));
+  console.log('新 children:', newChildren.map(c => c.key || c.type));
+
+  // ========== 辅助函数：将旧 Fiber 链表转换为数组 ==========
+  // 因为旧 children 是通过 sibling 链接的单向链表
+  function fiberToArray(firstChild) {
+    const result = [];
+    let node = firstChild;
+    while (node !== null) {
+      result.push(node);
+      node = node.sibling;
+    }
+    return result;
+  }
+
+  // ========== 初始化变量 ==========
+  // 旧的 Fiber 节点数组（从链表转换）
+  const existingChildren = fiberToArray(currentFirstChild);
+  let newIdx = 0;              // 新数组的当前索引
+  let oldIdx = 0;              // 旧数组的当前索引
+  let oldFiber = existingChildren[oldIdx];  // 当前的旧 Fiber
+  let prevNewFiber = null;     // 上一个新创建的 Fiber（用于建立 sibling 链）
+  let resultingFirstChild = null;  // 最终返回的第一个子 Fiber
+
+  // ════════════════════════════════════════════════════════
+  // 📍 第一轮遍历：从头开始匹配前置相同节点
+  // ════════════════════════════════════════════════════════
+  console.log('\n📌 第一轮：从前置位置匹配相同节点');
+
+  for (
+    ;
+    newIdx < newChildren.length && oldIdx < existingChildren.length;
+    newIdx++, oldIdx++
+  ) {
+    const newChild = newChildren[newIdx];
+    oldFiber = existingChildren[oldIdx];
+
+    // 检查 key 和 type 是否都相同
+    if (oldFiber.key === (newChild.key ?? null) && oldFiber.type === newChild.type) {
+      // ✅ 匹配成功！复用旧 Fiber
+      console.log(`  ✅ 匹配 [${newIdx}]: key="${newChild.key}", type=${newChild.type?.name || newChild.type}`);
+
+      const newFiber = updateSlot(returnFiber, oldFiber, newChild);
+
+      // 建立 sibling 链表关系
+      if (prevNewFiber === null) {
+        resultingFirstChild = newFiber;  // 第一个子节点
+      } else {
+        prevNewFiber.sibling = newFiber;  // 后续节点挂到前一个的 sibling 上
+      }
+      prevNewFiber = newFiber;
+    } else {
+      // ❌ 不匹配，停止第一轮遍历
+      console.log(`  ❌ 不匹配 [${newIdx}]: 停止第一轮`);
+      break;
+    }
+  }
+
+  // 记录第一轮处理后的位置
+  const firstUnprocessedOldIdx = oldIdx;   // 第一轮后旧数组未处理的起始位置
+  const firstUnprocessedNewIdx = newIdx;   // 第一轮后新数组未处理的起始位置
+
+  console.log(`  第一轮结果: 处理了 ${firstUnprocessedOldIdx} 个前置相同节点`);
+
+  // ════════════════════════════════════════════════════════
+  // 📍 第二轮遍历：从尾部匹配后置相同节点
+  // ════════════════════════════════════════════════════════
+  console.log('\n📌 第二轮：从后置位置匹配相同节点');
+
+  let newLastIdx = newChildren.length - 1;
+  let oldLastIdx = existingChildren.length - 1;
+
+  for (
+    ;
+    newLastIdx >= firstUnprocessedNewIdx &&
+    oldLastIdx >= firstUnprocessedOldIdx &&
+    newLastIdx >= newIdx;  // 确保不与第一轮重叠
+    newLastIdx--, oldLastIdx--
+  ) {
+    const newChild = newChildren[newLastIdx];
+    const lastOldFiber = existingChildren[oldLastIdx];
+
+    // 检查 key 和 type 是否都相同
+    if (lastOldFiber.key === (newChild.key ?? null) && lastOldFiber.type === newChild.type) {
+      // ✅ 尾部匹配成功！
+      console.log(`  ✅ 尾部匹配 [${newLastIdx}]: key="${newChild.key}"`);
+
+      const newFiber = updateSlot(returnFiber, lastOldFiber, newChild);
+
+      // 标记为需要移动（因为位置可能变了）
+      markPlacement(newFiber, newLastIdx);
+
+      // 注意：尾部匹配的节点暂时存起来，后面再链接到链表中
+      // 这里简化处理，实际 React 会更复杂
+    } else {
+      // ❌ 不匹配，停止第二轮遍历
+      console.log(`  ❌ 尾部不匹配: 停止第二轮`);
+      break;
+    }
+  }
+
+  // 记录第二轮处理后的位置
+  const lastUnprocessedOldIdx = oldLastIdx + 1;  // 第二轮后旧数组未处理的结束位置+1
+  const lastUnprocessedNewIdx = newLastIdx + 1;  // 第二轮后新数组未处理的结束位置+1
+
+  console.log(`  第二轮结果: 从尾部又匹配了 ${existingChildren.length - lastUnprocessedOldIdx} 个节点`);
+
+  // ════════════════════════════════════════════════════════
+  // 📍 第三轮：处理只剩新节点的情况（全是插入）
+  // ════════════════════════════════════════════════════════
+  if (newIdx > newChildren.length - 1) {
+    // 所有新节点都已处理完毕，但还有旧节点未处理 → 全是删除
+    console.log('\n📌 第三轮：只剩旧节点 → 全部标记删除');
+
+    for (let i = firstUnprocessedOldIdx; i <= lastUnprocessedOldIdx - 1; i++) {
+      const oldFiberToDelete = existingChildren[i];
+      console.log(`  🗑️ 删除旧节点: key="${oldFiberToDelete.key}"`);
+      markDeletion(returnFiber, oldFiberToDelete);
+    }
+
+    return resultingFirstChild;
+  }
+
+  if (oldIdx > existingChildren.length - 1) {
+    // 所有旧节点都已处理完毕，但还有新节点未处理 → 全是插入
+    console.log('\n📌 第三轮：只剩新节点 → 全部创建并插入');
+
+    for (; newIdx < newChildren.length; newIdx++) {
+      const newChild = newChildren[newIdx];
+      console.log(`  ➕ 插入新节点 [${newIdx}]: key="${newChild.key}"`);
+
+      const newFiber = createChild(returnFiber, newChild);
+      newFiber.flags |= Placement;  // 标记为需要插入 DOM
+
+      if (prevNewFiber === null) {
+        resultingFirstChild = newFiber;
+      } else {
+        prevNewFiber.sibling = newFiber;
+      }
+      prevNewFiber = newFiber;
+    }
+
+    return resultingFirstChild;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // 📍 第四轮 & 第五轮：新旧都有剩余节点（最复杂的情况）
+  // 使用 Key 映射 + 最长递增子序列优化
+  // ════════════════════════════════════════════════════════
+  console.log('\n📌 第四、五轮：新旧都有节点 → 使用 Map + LIS 优化');
+
+  // Step 1: 将剩余的旧 Fiber 放入 Map（key → oldFiber）
+  const existingChildrenMap = new Map();
+  for (let i = firstUnprocessedOldIdx; i < lastUnprocessedOldIdx; i++) {
+    const oldFiber = existingChildren[i];
+    if (oldFiber.key !== null) {
+      existingChildrenMap.set(oldFiber.key, oldFiber);  // 用 key 作为索引
+    } else {
+      // 没有 key 的情况（使用 index）
+      existingChildrenMap.set(i, oldFiber);
+    }
+  }
+
+  console.log(`  创建了 Key-Map，包含 ${existingChildrenMap.size} 个旧节点`);
+
+  // Step 2: 遍历新的中间部分，从 Map 中查找可复用的旧 Fiber
+  // 同时记录每个新节点在旧数组中的位置（用于计算最长递增子序列）
+  const newChildrenMiddle = [];
+  const positionsInOldArray = [];  // 每个新节点在旧数组中的索引位置
+
+  for (let i = firstUnprocessedNewIdx; i < lastUnprocessedNewIdx; i++) {
+    const newChild = newChildren[i];
+    const key = newChild.key ?? null;
+
+    // 🔍 从 Map 中查找匹配的旧 Fiber
+    let matchedOldFiber = existingChildrenMap.get(key);
+
+    if (matchedOldFiber !== undefined) {
+      // ✅ 找到了可复用的旧 Fiber
+      console.log(`  🔍 找到匹配: key="${key}" → 复用旧 Fiber`);
+
+      // 从 Map 中移除（防止重复使用）
+      existingChildrenMap.delete(key);
+
+      // 更新旧 Fiber 为新 Fiber（复用）
+      const newFiber = updateSlot(returnFiber, matchedOldFiber, newChild);
+
+      // 记录这个新节点对应的旧位置
+      positionsInOldArray.push({
+        newFiber,
+        oldIndex: existingChildren.indexOf(matchedOldFiber),
+        newIndex: i,
+      });
+
+      newChildrenMiddle.push(newFiber);
+    } else {
+      // ❌ 没找到匹配 → 这是一个全新的节点，需要创建
+      console.log(`  🔍 未找到匹配: key="${key}" → 创建新 Fiber`);
+
+      const newFiber = createChild(returnFiber, newChild);
+      newFiber.flags |= Placement;
+
+      positionsInOldArray.push({
+        newFiber,
+        oldIndex: -1,  // -1 表示是新节点
+        newIndex: i,
+      });
+
+      newChildrenMiddle.push(newFiber);
+    }
+  }
+
+  // Step 3: Map 中剩下的旧 Fiber 都是需要删除的
+  console.log(`\n  🗑️ Map 中剩余 ${existingChildrenMap.size} 个旧节点需要删除`);
+  existingChildrenMap.forEach((oldFiberToDelete, key) => {
+    console.log(`    删除: key="${key}"`);
+    markDeletion(returnFiber, oldFiberToDelete);
+  });
+
+  // Step 4: ⭐⭐⭐ 最长递增子序列（LIS）优化 ⭐⭐⭐
+  // 目标：找出哪些节点不需要移动，只移动最少的节点
+  if (positionsInOldArray.length > 0) {
+    console.log('\n  ⭐ 计算 LIS（最长递增子序列）以最小化 DOM 移动次数');
+
+    // 提取旧位置的索引数组
+    const oldIndices = positionsInOldArray.map(p => p.oldIndex);
+
+    // 计算最长递增子序列
+    const lis = getLongestIncreasingSubsequence(oldIndices);
+    console.log(`    旧位置数组: [${oldIndices.join(', ')}]`);
+    console.log(`    LIS 结果: [${lis.join(', ')}]`);
+    console.log(`    LIS 长度: ${lis.length}`);
+
+    // Step 5: 根据 LIS 决定哪些节点需要移动
+    let lisIndex = 0;  // LIS 数组的当前位置（从后往前遍历）
+
+    // 从后往前遍历（这样移动时不会影响前面的位置）
+    for (let i = positionsInOldArray.length - 1; i >= 0; i--) {
+      const position = positionsInOldArray[i];
+      const newFiber = position.newFiber;
+
+      if (position.oldIndex === -1) {
+        // 新节点，标记为插入
+        newFiber.flags |= Placement;
+        console.log(`    ➕ [${position.newIndex}] 新节点，需要插入`);
+      } else if (i === lis[lisIndex]) {
+        // 这个节点在 LIS 中，说明它不需要移动！
+        // 但仍可能需要更新 props/state
+        lisIndex++;
+        console.log(`    ✓ [${position.newIndex}] 在 LIS 中，无需移动`);
+      } else {
+        // 不在 LIS 中，需要移动
+        newFiber.flags |= Placement;
+        console.log(`    🔄 [${position.newIndex}] 需要移动`);
+      }
+
+      // 将新 Fiber 链接到结果链表中
+      if (prevNewFiber === null) {
+        resultingFirstChild = newFiber;
+      } else {
+        prevNewFiber.sibling = newFiber;
+      }
+      prevNewFiber = newFiber;
+    }
+  }
+
+  console.log('\n✅ reconcileChildrenArray 完成！');
+  return resultingFirstChild;
+}
+
+// ==================== 辅助函数 ====================
+
+/**
+ * 更新已存在的 slot（复用旧 Fiber）
+ */
+function updateSlot(returnFiber, oldFiber, newElement) {
+  // 创建新的 Fiber 节点，复用旧 Fiber 的状态
+  const newFiber = {
+    ...oldFiber,  // 复用所有属性
+    pendingProps: newElement.props,  // 更新 props
+    flags: Update,  // 标记为更新
+  };
+
+  // 如果 props 变了，标记需要更新 DOM
+  if (!shallowEqual(oldFiber.memoizedProps, newElement.props)) {
+    newFiber.flags |= Update;
+  }
+
+  return newFiber;
+}
+
+/**
+ * 创建全新的子 Fiber
+ */
+function createChild(returnFiber, newElement) {
+  // 创建全新的 Fiber 节点
+  const newFiber = createFiberFromElement(newElement);
+  newFiber.return = returnFiber;
+  newFiber.flags = Placement;  // 新节点默认需要插入
+  return newFiber;
+}
+
+/**
+ * 标记删除
+ */
+function markDeletion(returnFiber, fiberToDelete) {
+  // 在父节点的 deletions 数组中记录要删除的子节点
+  if (returnFiber.deletions === null) {
+    returnFiber.deletions = [fiberToDelete];
+  } else {
+    returnFiber.deletions.push(fiberToDelete);
+  }
+
+  // 标记父节点有子树删除操作
+  returnFiber.flags |= ChildDeletion;
+}
+
+/**
+ * 标记放置（用于尾部匹配的节点）
+ */
+function markPlacement(fiber, index) {
+  fiber.flags |= Placement;
+  // 存储目标位置信息（实际 commit 时会用到）
+  fiber._index = index;
+}
+
+/**
+ * 浅比较两个对象是否相等
+ */
+function shallowEqual(objA, objB) {
+  if (Object.is(objA, objB)) return true;
+
+  if (typeof objA !== 'object' || objA === null ||
+      typeof objB !== 'object' || objB === null) {
+    return false;
+  }
+
+  const keysA = Object.keys(objA);
+  const keysB = Object.keys(objB);
+
+  if (keysA.length !== keysB.length) return false;
+
+  for (let i = 0; i < keysA.length; i++) {
+    const key = keysA[i];
+    if (!Object.prototype.hasOwnProperty.call(objB, key) ||
+        !Object.is(objA[key], objB[key])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * 获取 Fiber 链表的 key 列表（调试用）
+ */
+function getFiberKeys(firstFiber) {
+  const keys = [];
+  let node = firstFiber;
+  while (node) {
+    keys.push(node.key ?? node.index);
+    node = node.sibling;
+  }
+  return keys;
+}
+```
+
+#### 最长递增子序列（LIS）算法实现
+
+```javascript
+// ==================== 最长递增子序列算法 ====================
+/**
+ * 用于优化 DOM 移动操作
+ * 时间复杂度: O(n log n)
+ *
+ * 示例：
+ * 输入: [3, 1, 4, 2] （这些数字代表旧数组中的位置索引）
+ * 输出: [1, 2] 或 [0, 2] （LIS 的索引位置）
+ * 含义：位置 1 和 2（或 0 和 2）上的元素已经是有序的，不需要移动
+ */
+
+function getLongestIncreasingSubsequence(arr) {
+  const n = arr.length;
+  if (n === 0) return [];
+
+  // tails[i] 表示长度为 i+1 的递增子序列的最小末尾元素值
+  const tails = [];
+  // prevIndices 用于回溯实际的 LIS 序列
+  const prevIndices = new Array(n).fill(-1);
+  // positions 记录每个元素在 tails 数组中的位置
+  const positions = [];
+
+  for (let i = 0; i < n; i++) {
+    // 二分查找：找到 arr[i] 应该插入的位置
+    let left = 0, right = tails.length;
+
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2);
+      if (tails[mid].value < arr[i]) {
+        left = mid + 1;
+      } else {
+        right = mid;
+      }
+    }
+
+    // 如果找到了合适的位置
+    if (left < tails.length) {
+      // 更新该位置的值为更小的值（贪心策略）
+      tails[left] = { value: arr[i], index: i };
+    } else {
+      // 扩展 tails 数组
+      tails.push({ value: arr[i], index: i });
+    }
+
+    // 记录前驱
+    if (left > 0) {
+      prevIndices[i] = tails[left - 1].index;
+    }
+
+    positions[i] = left;
+  }
+
+  // 回溯得到实际的 LIS 索引
+  const lis = [];
+  let currentIndex = tails[tails.length - 1]?.index;
+
+  while (currentIndex !== -1) {
+    lis.unshift(currentIndex);
+    currentIndex = prevIndices[currentIndex];
+  }
+
+  return lis;
+}
+
+// ==================== 完整示例演示 ====================
+
+function demoDiffAlgorithm() {
+  console.log('\n'.repeat(2));
+  console.log('=' .repeat(70));
+  console.log('🎯 React Diff 算法完整演示');
+  console.log('='.repeat(70));
+
+  // 场景：列表中间插入了新元素，并且交换了顺序
+  // 旧列表: [A, B, C, D, E]
+  // 新列表: [A, B, X, C, E]
+
+  console.log('\n📋 测试场景:');
+  console.log('  旧 children: [A, B, C, D, E]');
+  console.log('  新 children: [A, B, X, C, E]');
+  console.log('  变化: 在 B 和 C 之间插入了 X，删除了 D');
+
+  // 构造模拟数据
+  const oldChildren = [
+    { key: 'a', type: 'Item', memoizedProps: { text: 'A' } },
+    { key: 'b', type: 'Item', memoizedProps: { text: 'B' } },
+    { key: 'c', type: 'Item', memoizedProps: { text: 'C' } },
+    { key: 'd', type: 'Item', memoizedProps: { text: 'D' } },
+    { key: 'e', type: 'Item', memoizedProps: { text: 'E' } },
+  ];
+
+  const newChildren = [
+    { key: 'a', type: 'Item', props: { text: 'A' } },
+    { key: 'b', type: 'Item', props: { text: 'B' } },
+    { key: 'x', type: 'Item', props: { text: 'X' } },  // 新增
+    { key: 'c', type: 'Item', props: { text: 'C' } },
+    { key: 'e', type: 'Item', props: { text: 'E' } },    // D 被删除了
+  ];
+
+  // 模拟 Fiber 链表结构
+  function buildFiberChain(elements) {
+    let first = null;
+    let prev = null;
+
+    elements.forEach((el, index) => {
+      const fiber = {
+        ...el,
+        tag: 5,  // HostComponent
+        index: index,
+        sibling: null,
+        child: null,
+        return: null,
+        alternate: null,
+        flags: 0,
+        stateNode: document.createElement('div'),
+      };
+
+      if (prev === null) {
+        first = fiber;
+      } else {
+        prev.sibling = fiber;
+      }
+      prev = fiber;
+    });
+
+    return first;
+  }
+
+  const oldFirstFiber = buildFiberChain(oldChildren);
+  const mockReturnFiber = { tag: 3, deletions: null, flags: 0 };
+
+  // 执行 Diff 算法
+  const result = reconcileChildrenArray(mockReturnFiber, oldFirstFiber, newChildren);
+
+  // 打印结果
+  console.log('\n📊 Diff 结果总结:');
+  console.log('  ┌─────────────────────────────────────┐');
+  console.log('  │ 操作类型       │ 节点                │');
+  console.log('  ├─────────────────────────────────────┤');
+  console.log('  │ 复用(不变)     │ A, B, C, E          │');
+  console.log('  │ 新增(插入)     │ X                   │');
+  console.log('  │ 删除           │ D                   │');
+  console.log('  └─────────────────────────────────────┘');
+
+  console.log('\n💡 性能分析:');
+  console.log('  • 时间复杂度: O(n) - 只遍历了常数次');
+  console.log('  • DOM 操作次数: 最小化（只有必要的插入和删除）');
+  console.log('  • 复用率: 80%（5 个旧节点中复用了 4 个）');
+}
+
+// 运行演示
+demoDiffAlgorithm();
+```
 
 ---
 
@@ -4429,6 +6290,14 @@
    跨组件全局通信 → Redux / Zustand / Jotai
    不相关的组件 → 自定义事件 / 状态管理库
    ```
+
+### 🔍 追问链
+1. **Context.Provider 的 value 每次渲染都创建新对象会有什么问题？**
+   → 方向：所有消费该 Context 的子组件都会重渲染（即使它们不关心变化的值）；解决方案：value 用 useMemo 包裹 / 拆分 Context
+2. **Context 能替代 Redux 吗？两者本质区别是什么？**
+   → 方向：Context 是依赖注入机制不是状态管理；缺少中间件/devtools/时间旅行调试；适合简单场景
+3. **跨多层级传递数据除了 Context 还有什么方案？**
+   → 方向：Component Composition（组合）、Portal（仅限 DOM 层级）、Event Bus（已不推荐）、Module Singleton（ Zustand/Jotai 全局 store）
 
 ---
 
@@ -5233,6 +7102,480 @@
    const formDataAtom = atom({...});
    ```
 
+### 深度拓展：手写实现
+
+#### 简化版 Zustand Store 实现（完整可运行）
+
+```javascript
+// ==================== 简化版 Zustand Store 实现 ====================
+/**
+ * Zustand 是一个轻量级的状态管理库
+ * 核心特点：
+ * - 极简 API（无需 Provider 包裹）
+ * - 支持在组件外访问和修改状态
+ * - 内置中间件机制
+ * - 支持 selector 模式实现细粒度更新
+ *
+ * 本实现模拟了 Zustand 的核心功能
+ */
+
+import { useEffect, useSyncExternalStore, useRef } from 'react';
+
+// ════════════════════════════════════════════════════════
+// 第一部分：Store 核心实现
+// ════════════════════════════════════════════════════════
+
+/**
+ * createStore - 创建 Zustand 风格的 store
+ *
+ * @param {Function} createState - 初始化状态的函数，接收 set/get/api 参数
+ * @returns {Function} useStore hook（类似 zustand 的 create 返回值）
+ */
+function createStore(createState) {
+  console.log('🏗️ 创建 Zustand Store');
+
+  // ========== 状态存储 ==========
+  let state;                          // 当前状态
+  const listeners = new Set();         // 订阅者集合（监听状态变化的回调）
+  const middlewareListeners = new Set(); // 中间件监听器
+
+  // ========== setState 实现 ==========
+  /**
+   * setState - 更新状态
+   *
+   * 支持两种调用方式：
+   * 1. 直接传值：setState({ count: 1 })
+   * 2. 函数式更新：setState(prev => ({ count: prev.count + 1 }))
+   *
+   * @param {*} partial - 新的部分状态或更新函数
+   */
+  function setState(partial, replace = false) {
+    // ⭐⭐⭐ 核心：支持 Immer 风格的不可变更新 ⭐⭐⭐
+    // 实际 Zustand 使用 immer 中间件，这里简化为浅合并
+    const nextState =
+      typeof partial === 'function'
+        ? partial(state)           // 函数式更新
+        : partial;                  // 对象式更新
+
+    if (replace) {
+      state = nextState;            // 完全替换状态
+    } else if (typeof nextState === 'object' && nextState !== null) {
+      state = Object.assign({}, state, nextState);  // 浅合并
+    } else {
+      state = nextState;
+    }
+
+    console.log('📝 setState:', nextState);
+
+    // 通知所有订阅者
+    listeners.forEach(listener => listener(state));
+
+    // 通知中间件
+    middlewareListeners.forEach(listener => listener(state, nextState));
+  }
+
+  // ========== getState 实现 ==========
+  /**
+   * getState - 获取当前状态快照
+   * 可以在任何地方调用（不限于 React 组件内）
+   */
+  function getState() {
+    return state;
+  }
+
+  // ========== subscribe 实现 ==========
+  /**
+   * subscribe - 订阅状态变化
+   *
+   * @param {Function} listener - 状态变化时的回调函数 (newState) => void
+   * @returns {Function} 取消订阅的函数
+   */
+  function subscribe(listener) {
+    listeners.add(listener);
+
+    // 返回取消订阅的函数（用于清理）
+    return () => {
+      listeners.delete(listener);
+      console.log('🔕 取消订阅');
+    };
+  }
+
+  // ========== getSnapshot 实现（用于 useSyncExternalStore）==========
+  function getSnapshot() {
+    return state;
+  }
+
+  // ========== API 对象（暴露给用户的高级 API）==========
+  const api = { setState, getState, subscribe, getSnapshot };
+
+  // ========== 初始化状态 ==========
+  // 调用用户传入的 createState 函数来初始化状态
+  state = createState(setState, getState, api);
+
+  console.log('✅ Store 初始化完成，初始状态:', state);
+
+  // ========== 返回 useStore hook ==========
+  /**
+   * useStore - 组件中使用的 hook
+   *
+   * 支持两种用法：
+   * 1. 无参数：返回整个 state（任何变化都会触发重渲染）
+   * 2. 有参数（selector）：返回选中部分（只有选中的部分变化才重渲染）
+   *
+   * @param {Function} [selector] - 选择器函数 (state) => selectedValue
+   * @param {Function} [equalityFn] - 自定义比较函数（默认是 Object.is）
+   */
+  function useStore(selector, equalityFn) {
+    // 如果没有提供 selector，默认返回整个 state
+    const defaultSelector = (s) => s;
+
+    const actualSelector = selector || defaultSelector;
+
+    // 🔑🔑🔑 核心：使用 React 18 的 useSyncExternalStore 🔑🔑🔑
+    // 这是 React 18 提供的官方 hook，专门用于订阅外部数据源
+    // 它会自动处理服务端渲染、并发模式等边缘情况
+    const slice = useSyncExternalStore(
+      subscribe,       // 订阅函数
+      getSnapshot,     // 获取快照函数
+      () => actualSelector(getState()),  // 服务端渲染用的快照
+    );
+
+    return slice;
+  }
+
+  // 暴露更多方法供高级使用
+  useStore.getState = getState;
+  useStore.setState = setState;
+  useStore.subscribe = subscribe;
+
+  return useStore;
+}
+
+console.log('✅ createStore 函数定义完成');
+```
+
+#### 中间件系统实现
+
+```javascript
+// ════════════════════════════════════════════════════════
+// 第二部分：中间件系统
+// ════════════════════════════════════════════════════════
+
+/**
+ * applyMiddleware - 应用中间件
+ *
+ * 中间件的执行流程：
+ * setState → middleware1 → middleware2 → ... → 原始 setState
+ *
+ * 每个中间件可以：
+ * 1. 记录日志（logger）
+ * 2. 持久化状态（persist）
+ * 3. 时间旅行调试（devtools）
+ * 4. 异步处理（虽然 Zustand 本身不需要）
+ */
+function applyMiddleware(...middlewares) {
+  return (createState) => (set, get, api) => {
+    // 应用中间件包装原始的 set 方法
+    let currentSet = set;
+
+    // 从右到左应用中间件（类似于 Redux）
+    for (let i = middlewares.length - 1; i >= 0; i--) {
+      const middleware = middlewares[i];
+      currentSet = middleware(
+        api.setState,   // 原始的 setState
+        get,           // getState
+        api            // 完整的 api 对象
+      )(currentSet);
+    }
+
+    // 用包装后的 set 替换原始 set
+    api.setState = currentSet;
+
+    // 执行初始化
+    return createState(currentSet, get, api);
+  };
+}
+
+/**
+ * logger 中间件 - 记录所有状态变更
+ */
+function logger(set, get) {
+  return (setInner) => (partial, replace) => {
+    console.group('📋 Zustand Logger');
+    console.log('%c prev state', 'color: #9E9E9E', get());
+
+    // 执行实际的 setState
+    setInner(partial, replace);
+
+    console.log('%c next state', 'color: #4CAF50', get());
+    console.groupEnd();
+  };
+}
+
+/**
+ * persist 中间件 - 将状态持久化到 localStorage
+ */
+function persist(options = {}) {
+  const { key = 'zustand-store', storage = localStorage } = options;
+
+  return (set, get) => (setInner) => (partial, replace) => {
+    // 先执行实际的 setState
+    setInner(partial, replace);
+
+    // 然后持久化新状态
+    try {
+      const stateToPersist = get();
+      storage.setItem(key, JSON.stringify(stateToPersist));
+      console.log(`💾 状态已持久化到 ${key}`);
+    } catch (error) {
+      console.error('❌ 持久化失败:', error);
+    }
+  };
+}
+```
+
+#### 与 Redux 的核心差异对比代码
+
+```javascript
+// ════════════════════════════════════════════════════════
+// 第三部分：Zustand vs Redux 核心差异对比
+// ════════════════════════════════════════════════════════
+
+/**
+ * 差异点 1：不需要 Provider 包裹
+ *
+ * Redux 必须用 Provider 包裹整个应用：
+ *   <Provider store={store}>
+ *     <App />
+ *   </Provider>
+ *
+ * Zustand 不需要！直接使用即可：
+ *   const useStore = createStore(...)
+ *   在任何组件中直接调用 useStore()
+ */
+console.log('\n📍 差异 1: Provider vs 无 Provider\n');
+console.log(`
+Redux:
+┌─────────────────────────────┐
+│ <Provider store={store}>    │ ← 必须包裹
+│   ┌─────────────────────┐  │
+│   │ App                 │  │
+│   └─────────────────────┘  │
+│ </Provider>                │
+└─────────────────────────────┘
+
+Zustand:
+┌─────────────────────────────┐
+│ App                         │ ← 直接使用，无需 Provider
+│ (内部直接 import useStore)  │
+└─────────────────────────────┘
+`);
+
+/**
+ * 差异点 2：可以在组件外访问/修改状态
+ *
+ * Redux: 只能通过 dispatch(action) 修改，且通常在组件内
+ * Zustand: 可以在任何地方调用 store.setState() 或 store.getState()
+ */
+console.log('\n📍 差异 2: 组件外访问状态\n');
+console.log(`
+// Redux ❌
+// 不能在组件外直接修改状态
+// 必须通过 dispatch({ type: 'INCREMENT' })
+
+// Zustand ✅
+// 可以在任何地方访问和修改状态
+const useCounterStore = create((set) => ({
+  count: 0,
+  increment: () => set((state) => ({ count: state.count + 1 })),
+}));
+
+// 在组件外部也能操作！
+useCounterStore.getState().count;              // 读取
+useCounterStore.setState({ count: 100 });       // 写入
+useCounterStore.subscribe(console.log);        // 订阅
+`);
+
+/**
+ * 差异点 3：Boilerplate（样板代码）对比
+ */
+console.log('\n📍 差异 3: 样板代码量对比\n');
+console.log(`
+=== Redux (RTK) ===
+1️⃣ 定义 slice:
+   const counterSlice = createSlice({
+     name: 'counter',
+     initialState: { value: 0 },
+     reducers: {
+       increment: (state) => { state.value += 1 },
+     },
+   });
+
+2️⃣ 配置 store:
+   const store = configureStore({
+     reducer: { counter: counterSlice.reducer },
+   });
+
+3️⃣ Provider 包裹:
+   <Provider store={store}><App /></Provider>
+
+4️⃣ 组件中使用:
+   const count = useSelector(s => s.counter.value);
+   const dispatch = useDispatch();
+
+5️⃣ 总代码量: ~40-50 行
+
+
+=== Zustand ===
+1️⃣ 创建 store（一步到位）:
+   const useStore = create((set) => ({
+     count: 0,
+     increment: () => set((s) => ({ count: s.count + 1 })),
+   }));
+
+2️⃣ 组件中使用:
+   const count = useStore(s => s.count);
+   const increment = useStore(s => s.increment);
+
+3️⃣ 总代码量: ~10-15 行 ✨
+`);
+```
+
+#### 完整使用示例
+
+```javascript
+// ════════════════════════════════════════════════════════
+// 第四部分：完整使用示例
+// ════════════════════════════════════════════════════════
+
+function ZustandDemo() {
+  console.log('\n'.repeat(2));
+  console.log('=' .repeat(70));
+  console.log('🎯 Zustand Store 使用演示');
+  console.log('='.repeat(70));
+
+  // 创建一个带有中间件的 store
+  const useStore = createStore(
+    // 应用中间件（可选）
+    applyMiddleware(
+      logger(),                    // 日志中间件
+      // persist({ key: 'my-app' })  // 持久化中间件（注释掉避免 localStorage 错误）
+    )
+  )((set, get) => ({
+    // 初始状态
+    bears: 0,
+    user: null,
+    theme: 'light',
+
+    // Actions（可以直接修改状态）
+    increasePopulation: () =>
+      set((state) => ({ bears: state.bears + 1 })),
+
+    removeAllBears: () =>
+      set({ bears: 0 }),
+
+    setUser: (user) =>
+      set({ user }),
+
+    toggleTheme: () =>
+      set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
+  }));
+
+  console.log('\n✅ Store 创建完成！\n');
+
+  // ====== 组件定义 ======
+
+  // 组件 1: Bear Counter（只订阅 bears 字段）
+  function BearCounter() {
+    const bears = useStore((state) => state.bears);  // 🎯 Selector 模式
+    const increasePopulation = useStore((state) => state.increasePopulation);
+    const removeAllBears = useStore((state) => state.removeAllBears);
+
+    return (
+      <div style={{
+        padding: '16px', backgroundColor: '#fff7e6',
+        border: '1px solid #ffd591', borderRadius: '8px'
+      }}>
+        <h3>🐻 熊计数器</h3>
+        <p>当前熊数量：<strong style={{ fontSize: '24px', color: '#fa8c16' }}>{bears}</strong></p>
+        <button onClick={increasePopulation}>➕ 增加一只熊</button>
+        {' '}
+        <button onClick={removeAllBears}>🗑️ 清空</button>
+      </div>
+    );
+  }
+
+  // 组件 2: Theme Switcher（只订阅 theme 字段）
+  function ThemeSwitcher() {
+    const theme = useStore((state) => state.theme);
+    const toggleTheme = useStore((state) => state.toggleTheme);
+
+    return (
+      <div style={{
+        padding: '16px', backgroundColor: '#e6f7ff',
+        border: '1px solid #91d5ff', borderRadius: '8px'
+      }}>
+        <h3>🎨 主题切换</h3>
+        <p>当前主题：<strong>{theme}</strong></p>
+        <button onClick={toggleTheme}>
+          {theme === 'light' ? '🌙 切换到暗色' : '☀️ 切换到亮色'}
+        </button>
+      </div>
+    );
+  }
+
+  // 组件 3: 展示组件外访问能力
+  function ExternalAccessDemo() {
+    const handleClick = () => {
+      // 🔑 关键特性：在事件处理函数中直接访问/修改 store
+      const currentState = useStore.getState();  // 读取当前状态
+      console.log('📍 当前完整状态:', currentState);
+
+      // 直接修改状态（不在 React 渲染周期内）
+      useStore.setState({ bears: currentState.bears + 10 });
+      console.log('💥 从组件外增加了 10 只熊！');
+    };
+
+    return (
+      <button onClick={handleClick}>
+        🔧 从外部增加 10 只熊（组件外 setState）
+      </button>
+    );
+  }
+
+  // 主应用组件
+  return (
+    <div style={{ fontFamily: '-apple-system, sans-serif', padding: '20px', maxWidth: '600px' }}>
+      <h1>Zustand Store 演示</h1>
+
+      <div style={{ display: 'grid', gap: '16px' }}>
+        <BearCounter />
+        <ThemeSwitcher />
+        <ExternalAccessDemo />
+      </div>
+
+      {/* 特性说明 */}
+      <div style={{
+        marginTop: '24px', padding: '16px',
+        backgroundColor: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: '6px'
+      }}>
+        <strong>🎯 Zustand 核心优势：</strong><br/><br/>
+
+        ✓ <strong>极简 API：</strong> 一行代码创建 store<br/>
+        ✓ <strong>无 Provider：</strong> 不需要包裹应用<br/>
+        ✓ <strong>组件外访问：</strong> 可在任何地方读写状态<br/>
+        ✓ <strong>细粒度更新：</strong> Selector 模式避免不必要的重渲染<br/>
+        ✓ <strong>TypeScript 友好：</strong> 完善的类型推断<br/>
+        ✓ <strong>内置中间件：</strong> 日志、持久化等开箱即用<br/>
+        ✓ <strong>体积小巧：</strong> 仅 ~1KB gzip
+      </div>
+    </div>
+  );
+}
+
+export default ZustandDemo;
+```
+
 ---
 
 ## Q38: Redux 的核心概念是什么？请解释其单向数据流。
@@ -5356,6 +7699,14 @@
      → middleware 1 (logger: 记录新 state)
      → store 更新
    ```
+
+### 🔍 追问链
+1. **为什么要区分 action 和 reducer？不能直接修改 state 吗？**
+   → 方向：单向数据流可预测、可追踪（devtools 记录每次 action）；直接修改 state 会导致数据流混乱难以调试
+2. **Redux Toolkit 的 createSlice 和手写 reducer 相比省了什么？**
+   → 方向：省去了 switch/case 样板代码、action creator 自动生成、immutable 更新由 immer 处理
+3. **Redux 在 React 19 Server Components 中还能用吗？**
+   → 方向：RSC 不能使用 hooks/context，但可以在 Client Component 边界内使用 RTK Query；或者用 server-only 数据获取替代
 
 ---
 
@@ -6150,6 +8501,642 @@
    - 执行所有 cleanup 函数
    ```
 
+### 深度拓展：手写实现
+
+#### 完整的 mini-react Hooks 系统
+
+```javascript
+// ==================== Mini-React Hooks 系统完整实现 ====================
+/**
+ * 这是一个简化但完整的 React Hooks 实现
+ * 包含：useState, useEffect, useReducer, useRef, useCallback, useMemo
+ * 以及核心的调度系统和 Fiber 节点上的 hooks 链表管理
+ */
+
+// ════════════════════════════════════════════════════════════════
+// 第一部分：全局变量和基础数据结构
+// ════════════════════════════════════════════════════════════════
+
+// 全局变量：当前正在渲染的 Fiber 节点（组件函数执行期间有效）
+let currentlyRenderingFiber = null;
+
+// 全局变量：当前正在处理的 hook 节点（hooks 链表的游标）
+let workInProgressHook = null;
+
+// 全局变量：是否正在渲染（用于检测非法调用）
+let isRendering = false;
+
+// Hook 数据结构定义
+function Hook() {
+  this.memoizedState = null;    // 当前状态值（useState）或 effect 对象（useEffect）
+  this.baseState = null;       // 基础状态（用于跳过更新的优化）
+  this.baseQueue = null;       // 基础更新队列（被跳过的更新）
+  this.queue = null;           // 更新队列（存放 pending 的 setState/dispatch）
+  this.next = null;            // 指向下一个 hook（形成链表）
+}
+
+// Effect 数据结构定义（用于 useEffect/useLayoutEffect）
+function Effect() {
+  this.tag = 0;                // Effect 标记位（区分不同类型）
+  this.create = null;          // effect 函数本体（用户传入的回调）
+  this.destroy = undefined;    // 清理函数（create 返回的函数）
+  this.deps = null;            // 依赖数组
+  this.next = null;            // 下一个 effect（单向链表）
+}
+
+// Update 对象（存放在 queue 中，代表一次状态更新）
+function Update(action) {
+  this.action = action;        // 更新动作（新值或函数 (prev => newValue)）
+  this.next = null;            // 指向下一个 update（循环链表）
+}
+
+// UpdateQueue（更新队列）
+function UpdateQueue(pendingQueue) {
+  this.pending = pendingQueue; // 待处理的更新（循环链表）
+  this.dispatch = null;        // dispatch 函数引用（setState 返回的函数）
+  this.lastRenderedState = null; // 上一次渲染时的状态值
+}
+
+console.log('✅ 基础数据结构定义完成');
+```
+
+#### 核心函数：mountWorkInProgressHook 和 updateWorkInProgressHook
+
+```javascript
+// ════════════════════════════════════════════════════════════════
+// 第二部分：Hooks 链表的核心操作
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * mountWorkInProgressHook - 首次渲染时创建新的 hook 节点
+ *
+ * 首次渲染时（组件第一次挂载），hooks 链表是空的
+ * 每调用一个 hook（如 useState），就创建一个新的 Hook 对象并加入链表
+ */
+function mountWorkInProgressHook() {
+  const hook = new Hook();           // 创建新的 Hook 对象
+
+  // 如果这是第一个 hook，将其设为链表头
+  if (workInProgressHook === null) {
+    currentlyRenderingFiber.memoizedState = hook;
+  } else {
+    // 否则，将其链接到上一个 hook 的 next 上
+    workInProgressHook.next = hook;
+  }
+
+  // 移动游标到当前这个新创建的 hook
+  workInProgressHook = hook;
+
+  return hook;
+}
+
+/**
+ * updateWorkInProgressHook - 更新时复用已有的 hook 节点
+ *
+ * 组件重新渲染时（因为 setState 触发了更新），hooks 链表已经存在
+ * 只需要按顺序遍历已有的链表，读取/更新每个 hook 的状态
+ *
+ * ⚠️ 这就是为什么 hooks 必须按相同顺序调用的原因！
+ *    如果顺序变了，会读到错误的 hook！
+ */
+function updateWorkInProgressHook() {
+  let nextCurrentHook;
+
+  if (currentHook === null) {
+    // 当前 hook 是链表中的第一个
+    const current = currentlyRenderingFiber.alternate;
+    if (current !== null) {
+      nextCurrentHook = current.memoizedState;
+    } else {
+      nextCurrentHook = null;
+    }
+  } else {
+    // 移动到下一个 hook
+    nextCurrentHook = currentHook.next;
+  }
+
+  let nextWorkInProgressHook;
+  if (workInProgressHook === null) {
+    // workInProgress 链表为空（首次构建 workInProgress 树时）
+    nextWorkInProgressHook = currentlyRenderingFiber.memoizedState;
+  } else {
+    // 移动到下一个 hook
+    nextWorkInProgressHook = workInProgressHook.next;
+  }
+
+  if (nextWorkInProgressHook !== null) {
+    // ✅ 已有可复用的 workInProgress hook（说明之前已经创建过）
+    // 直接移动游标即可，不需要创建新对象（性能优化）
+    workInProgressHook = nextWorkInProgressHook;
+    nextWorkInProgressHook = workInProgressHook.next;
+
+    currentHook = nextCurrentHook;
+  } else {
+    // ❌ 没有可复用的（hooks 数量比上次多了？或者 clone 了 fiber）
+    // 这种情况不应该发生，如果发生了说明代码有 bug
+    invariant(
+      nextCurrentHook !== null,
+      'Rendered more hooks than during the previous render.'
+    );
+
+    // 创建新的 hook 并复制旧 hook 的状态
+    currentHook = nextCurrentHook;
+
+    const newHook = {
+      memoizedState: currentHook.memoizedState,
+      baseState: currentHook.baseState,
+      baseQueue: currentHook.baseQueue,
+      queue: currentHook.queue,
+      next: null,
+    };
+
+    if (workInProgressHook === null) {
+      currentlyRenderingFiber.memoizedState = newHook;
+    } else {
+      workInProgressHook.next = newHook;
+    }
+    workInProgressHook = newHook;
+  }
+
+  return workInProgressHook;
+}
+```
+
+#### useState 内部实现（dispatchAction + processUpdateQueue）
+
+```javascript
+// ════════════════════════════════════════════════════════════════
+// 第三部分：useState 的完整内部实现
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * useState - 用户使用的 API
+ * @param {*} initialState - 初始状态值或初始化函数
+ * @returns {[*, Function]} [stateValue, dispatchFunction]
+ */
+function useState(initialState) {
+  // 判断是首次渲染还是更新渲染
+  if (currentlyRenderingFiber.alternate === null || currentlyRenderingFiber.alternate.memoizedState === null) {
+    // 首次渲染 → 使用 mount 逻辑
+    return mountState(initialState);
+  } else {
+    // 更新渲染 → 使用 update 逻辑
+    return updateState(initialState);
+  }
+}
+
+/**
+ * mountState - useState 的首次渲染逻辑
+ */
+function mountState(initialState) {
+  const hook = mountWorkInProgressHook();  // 创建新的 hook 节点
+
+  // 处理初始状态（支持惰性初始化）
+  if (typeof initialState === 'function') {
+    // 如果传入的是函数，调用它获取初始值（惰性初始化）
+    // 这样可以避免昂贵的计算在每次渲染都执行
+    initialState = initialState();
+  }
+
+  hook.memoizedState = hook.baseState = initialState;  // 记录初始状态
+
+  // 创建更新队列（循环链表结构）
+  const queue = new UpdateQueue(null);
+  hook.queue = queue;
+
+  // ⭐⭐⭐ 核心：创建 dispatch 函数（就是 setState）⭐⭐⭐
+  const dispatch = dispatchAction.bind(null, currentlyRenderingFiber, queue);
+  queue.dispatch = dispatch;
+
+  // 返回 [当前状态, dispatch 函数]
+  return [hook.memoizedState, dispatch];
+}
+
+/**
+ * updateState - useState 的更新渲染逻辑
+ */
+function updateState(initialState) {
+  const hook = updateWorkInProgressHook();  // 复用已有的 hook 节点
+
+  const queue = hook.queue;
+
+  // ⭐⭐⭐ 核心：处理更新队列，计算最新状态 ⭐⭐⭐
+  hook.memoizedState = processUpdateQueue(
+    hook.baseState,
+    queue,
+    hook,
+  );
+
+  return [hook.memoizedState, queue.dispatch];
+}
+
+/**
+ * dispatchAction - setState 的内部实现
+ *
+ * 这是 React 批量更新的核心！
+ * 当你调用 setState(1) 时，实际执行的是这个函数
+ *
+ * @param {Fiber} fiber - 当前组件的 Fiber 节点
+ * @param {UpdateQueue} queue - 该 state 的更新队列
+ * @param {*} action - 新的状态值或更新函数
+ */
+function dispatchAction(fiber, queue, action) {
+  // 1️⃣ 创建 Update 对象
+  const update = new Update(action);
+
+  // 2️⃣ 将 Update 加入循环链表（O(1) 操作）
+  if (queue.pending === null) {
+    // 第一个 update，指向自己（循环链表）
+    update.next = update;
+  } else {
+    // 插入到 pending 链表的末尾
+    update.next = queue.pending.next;
+    queue.pending.next = update;
+  }
+  queue.pending = update;  // pending 指向最后一个 update
+
+  console.log(`📝 dispatchAction: 添加了更新 ${typeof action === 'function' ? '(函数)' : action}`);
+
+  // 3️⃣ 调度更新（告诉 React 需要重新渲染）
+  scheduleUpdateOnFiber(fiber);
+}
+
+/**
+ * processUpdateQueue - 处理状态更新队列
+ *
+ * 这是计算最终状态值的函数
+ * 它会遍历整个更新队列，依次应用每个 update
+ *
+ * @param {*} baseState - 基础状态（上一次的 memoizedState）
+ * @param {UpdateQueue} queue - 更新队列
+ * @param {Hook} hook - 当前的 hook 节点
+ * @returns {*} 计算后的最新状态
+ */
+function processUpdateQueue(baseState, queue, hook) {
+  let newState = baseState;          // 从基础状态开始
+  let first = queue.pending;         // 取出待处理的更新链表
+  let update = first;                // 从第一个 update 开始遍历
+
+  if (first !== null) {
+    let doWhileLoopCounter = 0;      // 安全计数器（防止死循环）
+
+    // 遍历循环链表中的所有 update
+    do {
+      const action = update.action;
+
+      if (typeof action === 'function') {
+        // 🔸 函数式更新：(prevState) => newState
+        // 例如：setCount(c => c + 1)
+        newState = action(newState);
+        console.log(`  🔄 应用函数式更新: ${newState}`);
+      } else {
+        // 🔸 直接赋值更新：newValue
+        // 例如：setState(10)
+        newState = action;
+        console.log(`  🔄 应用直接赋值: ${newState}`);
+      }
+
+      update = update.next;  // 移动到下一个 update
+      doWhileLoopCounter++;
+
+      // 安全检查：防止无限循环（理论上不应该发生）
+      if (doWhileLoopCounter > 1000) {
+        console.error('⚠️ 更新队列可能存在无限循环！');
+        break;
+      }
+    } while (update !== first);  // 循环条件：回到起点则结束
+
+    // 清空已处理的更新队列
+    queue.pending = null;
+  }
+
+  // 记录本次渲染后的状态
+  queue.lastRenderedState = newState;
+
+  return newState;
+}
+```
+
+#### scheduleUpdateOnFiber 和调度系统
+
+```javascript
+// ════════════════════════════════════════════════════════════════
+// 第四部分：调度系统（触发重新渲染）
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * scheduleUpdateOnFiber - 调度 Fiber 节点的更新
+ *
+ * 这个函数是连接 "setState" 和 "重新渲染" 的桥梁
+ * 它负责：
+ * 1. 标记该 Fiber 及其祖先需要更新
+ * 2. 根据 Lane 优先级决定何时调度
+ * 3. 可能触发批量更新合并
+ */
+function scheduleUpdateOnFiber(fiber) {
+  // 1. 标记该节点需要更新
+  markUpdate(fiber);
+
+  // 2. 向上冒泡，标记所有祖先节点也需要更新（子树更新会影响父级）
+  let parent = fiber.return;
+  while (parent !== null) {
+    markChildNeedsUpdate(parent);
+    parent = parent.return;
+  }
+
+  // 3. 根据当前环境决定调度策略
+  if (isBatchingUpdates) {
+    // 🎯 批量更新模式：
+    // 不立即渲染，而是将任务放入队列
+    // 等当前事件处理完毕后统一渲染
+    console.log('📦 批量更新模式：延迟渲染');
+    enqueueUpdate(fiber);
+  } else {
+    // 🚀 同步模式：
+    // 立即开始渲染（如 setTimeout、Promise 回调中的 setState）
+    console.log('🚀 同步模式：立即渲染');
+    performSyncWorkOnRoot(fiber);
+  }
+}
+
+/**
+ * renderWithHooks - 渲染组件并设置 Hooks 环境
+ *
+ * 这是 React 在执行组件函数前后的包装器
+ * 负责初始化和清理全局变量
+ */
+function renderWithHooks(current, workInProgress, Component, props) {
+  // ========== 渲染前的准备工作 ==========
+  currentlyRenderingFiber = workInProgress;  // 设置全局变量
+  isRendering = true;
+
+  // 将 current Fiber 的 hook 链表挂载到 workInProgress
+  // 这样可以复用上一次的 hook 状态
+  workInProgress.memoizedState = current?.memoizedState ?? null;
+
+  // 重置当前 hook 指针（从链表头开始遍历）
+  workInProgressHook = workInProgress.memoizedState;
+  currentHook = current?.memoizedState ?? null;
+
+  console.log('\n🔄 开始渲染组件:', Component.name || 'Anonymous');
+
+  // ========== 执行组件函数 ==========
+  // 在这里，用户的组件代码被执行
+  // 用户代码中调用的 useState、useEffect 等 hooks 会使用全局变量
+  const children = Component(props);  // ← 这里执行你的组件代码！
+
+  // ========== 渲染后的清理工作 ==========
+  isRendering = false;
+  currentlyRenderingFiber = null;     // 清空全局变量
+  workInProgressHook = null;          // 清空游标
+  currentHook = null;
+
+  console.log('✅ 组件渲染完成\n');
+
+  return children;  // 返回 JSX
+}
+```
+
+#### useEffect 的完整实现
+
+```javascript
+// ════════════════════════════════════════════════════════════════
+// 第五部分：useEffect 的完整实现
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * useEffect - 用户 API
+ * @param {Function} create - effect 函数
+ * @param {Array|null} deps - 依赖数组
+ */
+function useEffect(create, deps) {
+  if (currentlyRenderingFiber.alternate === null) {
+    return mountEffect(create, deps);
+  } else {
+    return updateEffect(create, deps);
+  }
+}
+
+/**
+ * mountEffect - useEffect 的首次渲染逻辑
+ */
+function mountEffect(create, deps) {
+  const hook = mountWorkInProgressHook();
+
+  // 创建 Effect 对象
+  const effect = new Effect();
+  effect.tag = PassiveEffect;  // 标记为 passive effect（异步执行）
+  effect.create = create;      // 保存 effect 函数
+  effect.deps = deps;          // 保存依赖数组
+  effect.destroy = undefined;  // 还没有 cleanup 函数
+
+  // 将 effect 存入 hook 的 memoizedState
+  hook.memoizedState = effect;
+
+  // 将 effect 加入 Fiber 的副作用链表（commit 阶段会遍历此链表）
+  currentlyRenderingFiber.flags |= Passive;  // 标记有 passive effect
+
+  // 将 effect 推入组件的 effects 链表
+  pushEffect(PassiveEffect, create, undefined, deps);
+}
+
+/**
+ * updateEffect - useEffect 的更新渲染逻辑
+ */
+function updateEffect(create, deps) {
+  const hook = updateWorkInProgressHook();
+
+  // 取出上一次的 effect
+  const prevEffect = hook.memoizedState;
+
+  if (deps !== null) {
+    // 比较新旧依赖数组
+    if (areHookInputsEqual(deps, prevEffect.deps)) {
+      // ✅ 依赖没变 → 跳过本次 effect 执行
+      // 但仍需要将 effect 放入链表（保持结构一致）
+      pushEffect(PassiveEffect, create, prevEffect.destroy, deps);
+      hook.memoizedState = prevEffect;  // 复用旧的 effect
+      return;
+    }
+  }
+
+  // ❌ 依赖变了 → 需要重新执行
+  // 先创建新的 effect
+  const effect = new Effect();
+  effect.tag = PassiveEffect;
+  effect.create = create;
+  effect.deps = deps;
+  effect.destroy = undefined;
+
+  hook.memoizedState = effect;
+
+  // 将 effect 推入链表
+  pushEffect(PassiveEffect, create, prevEffect.destroy, deps);
+
+  // 标记需要执行 effect
+  currentlyRenderingFiber.flags |= Passive;
+}
+
+/**
+ * areHookInputsEqual - 比较两个依赖数组
+ */
+function areHookInputsEqual(nextDeps, prevDeps) {
+  if (prevDeps === null) return false;  // 首次渲染，肯定要执行
+
+  for (let i = 0; i < prevDeps.length && i < nextDeps.length; i++) {
+    if (!Object.is(nextDeps[i], prevDeps[i])) {
+      return false;  // 有变化
+    }
+  }
+
+  return true;  // 全部相同
+}
+
+/**
+ * pushEffect - 将 effect 加入组件的副作用链表
+ */
+function pushEffect(tag, create, destroy, deps) {
+  const effect = new Effect();
+  effect.tag = tag;
+  effect.create = create;
+  effect.destroy = destroy;
+  effect.deps = deps;
+  effect.next = null;
+
+  // 获取组件 Fiber 上的 lastEffect
+  let lastEffect = currentlyRenderingFiber.lastEffect;
+
+  if (lastEffect === null) {
+    // 第一个 effect
+    currentlyRenderingFiber.firstEffect = effect;
+    currentlyRenderingFiber.lastEffect = effect;
+  } else {
+    // 链接到末尾
+    lastEffect.next = effect;
+    currentlyRenderingFiber.lastEffect = effect;
+  }
+
+  return effect;
+}
+```
+
+#### Fiber 节点上 Hooks 链表的完整示例
+
+```javascript
+// ════════════════════════════════════════════════════════════════
+// 第六部分：完整示例演示 - Hooks 链表的创建和遍历过程
+// ════════════════════════════════════════════════════════════════
+
+function demoMiniReactHooks() {
+  console.log('\n'.repeat(2));
+  console.log('=' .repeat(70));
+  console.log('🎯 Mini-React Hooks 系统完整演示');
+  console.log('='.repeat(70));
+
+  // 定义一个使用了多个 hooks 的组件
+  function CounterComponent(props) {
+    console.log('  ▶ 执行 CounterComponent 函数体...');
+
+    // Hook 1: useState
+    const [count, setCount] = useState(0);
+    console.log(`    useState(0) → count=${count}`);
+
+    // Hook 2: useState
+    const [name, setName] = useState('Alice');
+    console.log(`    useState('Alice') → name=${name}`);
+
+    // Hook 3: useEffect
+    useEffect(() => {
+      console.log(`    ✨ useEffect 执行: count 变成了 ${count}`);
+      return () => console.log(`    🧹 cleanup: count 从 ${count} 变化`);
+    }, [count]);
+
+    // Hook 4: useRef
+    const ref = { current: null };  // 简化的 useRef
+    console.log(`    useRef(null)`);
+
+    return (
+      `Count: ${count}, Name: ${name}`  // 简化返回
+    );
+  }
+
+  // 模拟 Fiber 节点
+  const mockFiber = {
+    tag: 0,                    // FunctionComponent
+    type: CounterComponent,
+    memoizedState: null,       // hooks 链表头（初始为空）
+    alternate: null,           // 首次渲染无 alternate
+    flags: 0,
+    firstEffect: null,
+    lastEffect: null,
+    return: null,
+    child: null,
+    sibling: null,
+  };
+
+  console.log('\n📍 第一次渲染（Mount）：\n');
+
+  // 使用 renderWithHooks 包装渲染
+  const result1 = renderWithHooks(null, mockFiber, CounterComponent, {});
+
+  // 打印 hooks 链表结构
+  console.log('\n📊 渲染后的 Hooks 链表结构:');
+  printHooksChain(mockFiber.memoizedState);
+
+  console.log('\n📍 第二次渲染（Update - setCount(5)）：\n');
+
+  // 模拟 setCount(5)
+  console.log('  调用 setCount(5)...');
+  dispatchAction(mockFiber, mockFiber.memoizedState.queue, 5);
+
+  // 再次渲染
+  const result2 = renderWithHooks(mockFiber, mockFiber, CounterComponent, {});
+
+  console.log('\n📊 更新后的 Hooks 链表结构:');
+  printHooksChain(mockFiber.memoizedState);
+
+  console.log('\n💡 关键观察点:');
+  console.log('  • 首次渲染：创建了 4 个 Hook 节点，通过 .next 形成链表');
+  console.log('  • 更新渲染：复用了相同的 Hook 节点，只更新了 memoizedState');
+  console.log('  • 顺序一致性：两次渲染必须以相同顺序调用 hooks');
+  console.log('  • 链表遍历：通过 workInProgressHook 游标逐个访问');
+}
+
+/**
+ * 辅助函数：打印 hooks 链表
+ */
+function printHooksChain(firstHook) {
+  let hook = firstHook;
+  let index = 0;
+
+  console.log('  ┌──────────────────────────────────────────────┐');
+
+  while (hook !== null) {
+    const stateType = index === 2 ? 'Effect' : 'State';
+    const stateValue = index === 2
+      ? `{create: fn, destroy: ${hook.memoizedState?.destroy ? 'fn' : 'undefined'}}`
+      : JSON.stringify(hook.memoizedState);
+
+    console.log(`  │ Hook ${index + 1} (${stateType})`);
+    console.log(`  │   memoizedState: ${stateValue}`);
+    console.log(`  │   queue: ${hook.queue ? '有' : '无'}pending updates`);
+
+    if (hook.next) {
+      console.log(`  │   ↓ next`);
+    }
+
+    hook = hook.next;
+    index++;
+  }
+
+  console.log('  └──────────────────────────────────────────────┘');
+  console.log(`  共 ${index} 个 Hook 节点`);
+}
+
+// 运行演示
+demoMiniReactHooks();
+```
+
 ---
 
 ## Q43: React.memo、useMemo 和 useCallback 的正确使用方式是什么？如何判断是否需要优化？
@@ -6317,14 +9304,22 @@
      }, [onItemClick]);
 
      return (
-       <ul>
-         {items.map(item => (
-           <ItemRow key={item.id} item={item} onClick={handleItemClick} />
-         ))}
-       </ul>
-     );
-   }
-   ```
+      <ul>
+        {items.map(item => (
+          <ItemRow key={item.id} item={item} onClick={handleItemClick} />
+        ))}
+      </ul>
+    );
+  }
+  ```
+
+### 🔍 追问链
+1. **React.memo 的浅比较是怎么实现的？Object.is 还是 === ？**
+   → 方向：React 使用 Object.is（注意 Object.is(NaN, NaN) = true, Object.is(+0, -0) = false）
+2. **useMemo 的计算函数什么时候会被重新执行？依赖数组是引用比较还是值比较？**
+   → 方向：依赖数组的每个元素用 Object.is 比较；如果 deps 是 [] 则只在 mount 后执行一次
+3. **过度使用 memo/useMemo/callback 会有什么副作用？**
+   → 方向：内存开销（缓存结果占内存）、代码可读性下降、隐藏真正的性能瓶颈（过早优化）
 
 ---
 
@@ -6509,6 +9504,418 @@
 
    结论：虚拟列表将性能提升 50-100 倍
    ```
+
+### 深度拓展：手写实现
+
+#### 简化版 FixedSizeList 虚拟列表组件（完整可运行）
+
+```javascript
+// ==================== 简化版 FixedSizeList 实现 ====================
+/**
+ * 这是一个完整可运行的虚拟长列表组件
+ * 模拟 react-window 的 FixedSizeList 核心功能
+ *
+ * 核心原理：
+ * 1. 只渲染可视区域内的项目 + 少量缓冲区
+ * 2. 使用绝对定位将渲染的项目放置在正确的位置
+ * 3. 用一个占位元素撑开容器的总高度，使滚动条正常工作
+ * 4. 监听滚动事件，动态计算并更新可见范围
+ */
+
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+
+/**
+ * FixedSizeList - 固定行高的虚拟列表组件
+ *
+ * @param {Object} props
+ * @param {number} props.height - 容器高度（px）
+ * @param {number} props.itemCount - 总数据量
+ * @param {number} props.itemSize - 每个列表项的高度（px）
+ * @param {Function} props.children - 渲染函数：(index: number) => ReactNode
+ * @param {number} [props.overscanCount=5] - 可见区域上下额外渲染的数量（缓冲区）
+ * @param {string} [props.width='100%'] - 容器宽度
+ * @param {Object} [props.style] - 额外的容器样式
+ * @param {string} [props.className] - 容器的 CSS 类名
+ * @param {Function} props.onScroll - 滚动事件回调 (scrollTop: number) => void
+ */
+function FixedSizeList({
+  height = 400,
+  itemCount,
+  itemSize = 50,
+  children: renderItem,
+  overscanCount = 5,
+  width = '100%',
+  style = {},
+  className = '',
+  onItemsRendered,
+}) {
+  // ════════════════════════════════════════════════════════
+  // 第一部分：状态管理
+  // ════════════════════════════════════════════════════════
+
+  // useRef 存储容器 DOM 引用和当前滚动位置
+  const containerRef = useRef(null);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  // 节流控制：防止滚动时频繁触发重渲染
+  const isScrollingRef = useRef(false);
+  const scrollTimeoutRef = useRef(null);
+
+  console.log('📋 FixedSizeList 初始化:', { height, itemCount, itemSize });
+
+  // ════════════════════════════════════════════════════════
+  // 第二部分：核心计算逻辑
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * 计算可见范围的起始索引
+   *
+   * 原理：
+   * - scrollTop 是用户滚动的距离
+   * - 除以每个 item 的高度，得到第一个可见项的索引
+   * - 向下取整确保不会漏掉任何项
+   *
+   * 例如：scrollTop=250, itemSize=50 → startIndex=5
+   *       说明第 5 个项（0-indexed）是第一个完全可见的项
+   */
+  const getStartIndex = useCallback((scrollOffset) => {
+    return Math.max(
+      0,
+      Math.floor(scrollOffset / itemSize) - overscanCount
+    );
+  }, [itemSize, overscanCount]);
+
+  /**
+   * 计算可见范围的结束索引
+   *
+   * 原理：
+   * - 容器高度 + scrollTop = 可视区域的底部位置
+   * - 除以 itemSize 得到最后一项的索引
+   * - 加上 overscanCount 作为缓冲区
+   *
+   * 例如：height=400, scrollTop=250, itemSize=50
+   *       → (400+250)/50 = 13 → endIndex = 18（含 5 个缓冲项）
+   */
+  const getEndIndex = useCallback((scrollOffset) => {
+    const visibleItemCount = Math.ceil(height / itemSize);  // 可见区域内的项数
+    return Math.min(
+      itemCount - 1,  // 不能超过总数
+      Math.floor(scrollOffset / itemSize) + visibleItemCount + overscanCount
+    );
+  }, [height, itemCount, itemSize, overscanCount]);
+
+  // 计算当前的可见范围
+  const startIndex = getStartIndex(scrollTop);
+  const endIndex = getEndIndex(scrollTop);
+
+  // 计算需要渲染的项目数量
+  const visibleItemCount = endIndex - startIndex + 1;
+
+  // ════════════════════════════════════════════════════════
+  // 第三部分：滚动事件处理（带节流）
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * handleScroll - 处理滚动事件
+   *
+   * 优化策略：
+   * 1. 使用 requestAnimationFrame 节流（约 60fps）
+   * 2. 只有当 startIndex 或 endIndex 变化时才触发重渲染
+   * 3. 提供 isScrolling 状态用于显示加载指示器等
+   */
+  const handleScroll = useCallback((event) => {
+    const { scrollTop: newScrollTop } = event.currentTarget;
+
+    // 标记正在滚动（可用于显示"加载中"效果）
+    if (!isScrollingRef.current) {
+      isScrollingRef.current = true;
+    }
+
+    // 清除之前的定时器
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    // 设置定时器：停止滚动 150ms 后标记为非滚动状态
+    scrollTimeoutRef.current = setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 150);
+
+    // 更新滚动位置（触发重渲染）
+    setScrollTop(newScrollTop);
+
+    // 回调通知外部（如需要无限加载）
+    if (onItemsRendered) {
+      onItemsRendered({
+        visibleStartIndex: startIndex,
+        visibleStopIndex: endIndex,
+        overscanStartIndex: Math.max(0, startIndex - overscanCount),
+        overscanStopIndex: Math.min(itemCount - 1, endIndex + overscanCount),
+      });
+    }
+  }, [startIndex, endIndex, overscanCount, itemCount, onItemsRendered]);
+
+  // ════════════════════════════════════════════════════════
+  // 第四部分：渲染
+  // ════════════════════════════════════════════════════════
+
+  // 计算所有项目的总高度（用于占位元素）
+  const totalHeight = itemCount * itemSize;
+
+  // 计算内容区域的偏移量（用于定位第一个可见项）
+  // 这就是为什么需要绝对定位！
+  const contentOffset = startIndex * itemSize;
+
+  /**
+   * 渲染可见范围内的项目
+   *
+   * 关键点：
+   * 1. 每个项目使用绝对定位
+   * 2. top 位置 = (index - startIndex) * itemSize + 内容偏移？不对！
+   *    正确的是：top = index * itemSize（相对于容器顶部）
+   * 3. 高度固定为 itemSize
+   */
+  const itemsToRender = [];
+
+  for (let index = startIndex; index <= endIndex; index++) {
+    itemsToRender.push(
+      <div
+        key={index}
+        style={{
+          position: 'absolute',
+          top: index * itemSize,       // 🎯 关键：根据索引计算实际位置
+          left: 0,
+          width: '100%',
+          height: itemSize,
+        }}
+      >
+        {/* 调用用户的渲染函数 */}
+        {renderItem({ index, style: {} })}
+      </div>
+    );
+  }
+
+  console.log(`📊 当前渲染: 第 ${startIndex}-${endIndex} 项 (共 ${visibleItemCount} 项)`);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`fixed-size-list ${className}`}
+      style={{
+        position: 'relative',           // 相对定位作为子元素的参考系
+        overflow: 'auto',              // 启用滚动
+        height,                         // 固定高度
+        width,
+        ...style,
+      }}
+      onScroll={handleScroll}          // 监听滚动事件
+    >
+      {/* 🔑 占位元素：撑开容器的总高度，使滚动条正常工作 */}
+      <div
+        style={{
+          height: totalHeight,         // 总高度 = 项目数 × 单项高度
+          width: 1,                    // 不占用实际宽度
+          pointerEvents: 'none',       // 不响应鼠标事件
+        }}
+      />
+
+      {/* 🔑 内容容器：包含所有可见项目 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: totalHeight,
+        }}
+      >
+        {itemsToRender}
+      </div>
+    </div>
+  );
+}
+
+console.log('✅ FixedSizeList 组件定义完成');
+```
+
+#### 完整使用示例
+
+```javascript
+// ==================== 使用示例 ====================
+
+function VirtualListDemo() {
+  console.log('\n'.repeat(2));
+  console.log('=' .repeat(70));
+  console.log('🎯 虚拟长列表使用演示');
+  console.log('='.repeat(70));
+
+  // 模拟 10000 条数据
+  const generateData = (count) => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: i,
+      name: `用户 ${i + 1}`,
+      email: `user${i + 1}@example.com`,
+      avatar: `👤`,
+    }));
+  };
+
+  const data = generateData(10000);
+  console.log(`📦 生成了 ${data.length} 条数据`);
+
+  // 自定义渲染函数
+  const Row = ({ index, style }) => {
+    const user = data[index];
+
+    return (
+      <div
+        style={{
+          ...style,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '10px 16px',
+          borderBottom: '1px solid #e8e8e8',
+          backgroundColor: index % 2 === 0 ? '#fafafa' : '#fff',
+          transition: 'background-color 0.15s ease',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e6f7ff'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#fafafa' : '#fff'}
+      >
+        <span style={{ fontSize: '24px', marginRight: '12px' }}>
+          {user.avatar}
+        </span>
+        <div>
+          <div style={{ fontWeight: '500', color: '#333' }}>
+            {user.name}
+          </div>
+          <div style={{ fontSize: '12px', color: '#888' }}>
+            {user.email} · ID: #{user.id}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding: '20px', fontFamily: '-apple-system, sans-serif' }}>
+      <h2>📋 虚拟长列表演示（10,000 条数据）</h2>
+
+      <div style={{ marginBottom: '12px', color: '#666', fontSize: '14px' }}>
+        💡 提示：只渲染可见区域 + 缓冲区的项目（约 20-25 个 DOM 节点），
+        而不是全部 10,000 个！
+      </div>
+
+      {/* 使用 FixedSizeList 组件 */}
+      <FixedSizeList
+        height={500}                    // 容器高度 500px
+        itemCount={data.length}         // 总共 10000 条
+        itemSize={72}                   // 每项高度 72px
+        overscanCount={5}               // 上下各多渲染 5 项作为缓冲
+        width="800"
+        style={{
+          border: '1px solid #d9d9d9',
+          borderRadius: '8px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        }}
+      >
+        {Row}                           {/* 渲染函数 */}
+      </FixedSizeList>
+
+      {/* 性能统计面板 */}
+      <VirtualListStats />
+    </div>
+  );
+}
+
+/**
+ * 性能统计组件（展示虚拟列表的效果）
+ */
+function VirtualListStats() {
+  const [stats, setStats] = useState({
+    renderedNodes: 0,
+    totalData: 10000,
+    memorySaved: '99.75%',
+  });
+
+  useEffect(() => {
+    // 模拟统计
+    const containerHeight = 500;
+    const itemHeight = 72;
+    const overscan = 5;
+    const renderedNodes = Math.ceil(containerHeight / itemHeight) + overscan * 2;
+    const memorySaved = ((1 - renderedNodes / 10000) * 100).toFixed(2);
+
+    setStats({
+      renderedNodes,
+      totalData: 10000,
+      memorySaved: `${memorySaved}%`,
+    });
+  }, []);
+
+  return (
+    <div style={{
+      marginTop: '16px',
+      padding: '12px 16px',
+      backgroundColor: '#f6ffed',
+      border: '1px solid #b7eb8f',
+      borderRadius: '6px',
+      fontSize: '14px',
+    }}>
+      <strong>📊 性能对比：</strong>
+      {' '}普通列表会创建 <strong>{stats.totalData.toLocaleString()}</strong> 个 DOM 节点，
+      {' '}虚拟列表只创建了 <strong style={{ color: '#52c41a' }}>{stats.renderedNodes}</strong> 个，
+      {' '}内存节省 <strong>{stats.memorySaved}</strong> ✨
+    </div>
+  );
+}
+
+export default VirtualListDemo;
+```
+
+#### 核心算法图解
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║                 虚拟列表核心原理图解                          ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  ┌──────────────────────────────────────┐  ← 容器 (500px)   ║
+║  │                                      │                   ║
+║  │  ┌────────────────────────────────┐  │                   ║
+║  │  │ Item 25 (可见)                │  │ ← scrollTop=1250  ║
+║  │  ├────────────────────────────────┤  │    (25×50=1250)   ║
+║  │  │ Item 26 (可见)                │  │                   ║
+║  │  ├────────────────────────────────┤  │                   ║
+║  │  │ Item 27 (可见)                │  │  可见区域:         ║
+║  │  ├────────────────────────────────┤  │  Item 25 ~ 34     ║
+║  │  │ Item 28 (可见)                │  │  (共 10 项)        ║
+║  │  ├────────────────────────────────┤  │                   ║
+║  │  │ Item 29 (可见)                │  │  缓冲区:           ║
+║  │  ├────────────────────────────────┤  │  Item 20~24 (上)  ║
+║  │  │ Item 30 (可见)                │  │  Item 35~39 (下)  ║
+║  │  ├────────────────────────────────┤  │                   ║
+║  │  │ Item 31 (可见)                │  │  实际渲染:         ║
+║  │  ├────────────────────────────────┤  │  Item 20 ~ 39     ║
+║  │  │ Item 32 (可见)                │  │  (共 20 项)        ║
+║  │  ├────────────────────────────────┤  │                   ║
+║  │  │ Item 33 (可见)                │  │  未渲染:           ║
+║  │  ├────────────────────────────────┤  │  Item 0~19       ║
+║  │  │ Item 34 (可见)                │  │  Item 40~9999     ║
+║  │  └────────────────────────────────┘  │                   ║
+║  │                                      │                   ║
+║  └──────────────────────────────────────┘                   ║
+║                                                              ║
+║  ┌──────────────────────────────────────┐                   ║
+║  │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│  ← 占位元素        ║
+║  │ (高度 = 10000 × 50 = 500000px)      │    (撑开总高度)   ║
+║  └──────────────────────────────────────┘                   ║
+║                                                              ║
+║  ⚙️ 核心计算公式:                                           ║
+║  • startIndex = floor(scrollTop / itemSize) - overscan      ║
+║  • endIndex   = ceil((height+scrollTop)/itemSize)+overscan  ║
+║  • item.top   = index × itemSize  (绝对定位)                ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+```
 
 ---
 
@@ -6727,6 +10134,242 @@
    }
    ```
 
+### 深度拓展：手写实现
+
+#### 简化版 React.lazy() 实现（完整可运行）
+
+```javascript
+// ==================== 简化版 React.lazy() 实现 ====================
+/**
+ * React.lazy 是 React 提供的代码分割和懒加载 API
+ * 它接受一个动态 import() 函数，返回一个懒加载的组件
+ *
+ * 核心原理：
+ * 1. 接受一个返回 Promise 的工厂函数
+ * 2. 返回一个 LazyComponent 包装器
+ * 3. 首次渲染时触发动态导入
+ * 4. 通过抛出 Promise 触发 Suspense 边界显示 fallback UI
+ * 5. 模块加载完成后缓存结果，后续渲染直接使用
+ */
+
+import React, { Component } from 'react';
+
+// ════════════════════════════════════════════════════════
+// 第一部分：LazyComponent 状态机
+// ════════════════════════════════════════════════════════
+
+/**
+ * 懒加载组件的状态常量
+ */
+const Uninitialized = 0;   // 未初始化（还没开始加载）
+const Pending = 1;          // 加载中（Promise pending）
+const Resolved = 2;        // 已解决（模块加载成功）
+const Rejected = 3;        // 已拒绝（加载失败）
+
+/**
+ * LazyComponent - React.lazy 返回的包装器组件
+ *
+ * 这是一个特殊的 React 组件类，它的行为如下：
+ * - 首次渲染：触发动态导入，抛出 Promise → Suspense 显示 fallback
+ * - 加载完成：正常渲染实际组件
+ * - 后续渲染：直接使用缓存的组件，不再加载
+ */
+class LazyComponent extends Component {
+  constructor(props) {
+    super(props);
+
+    // 内部状态
+    this.state = {
+      _result: null,       // 加载的结果（Resolved 时是组件，Rejected 时是错误）
+      _status: Uninitialized,  // 当前状态
+    };
+
+    // 绑定 this（因为需要在静态方法中使用实例方法）
+    this._thenable = {
+      then: (onFulfill, onReject) => this._loadThenable(onFulfill, onReject),
+    };
+  }
+
+  componentDidMount() {
+    this._loadIfNeeded();
+  }
+
+  componentDidUpdate() {
+    this._loadIfNeeded();
+  }
+
+  _loadIfNeeded() {
+    if (this.state._status === Uninitialized) {
+      console.log('🚀 LazyComponent: 开始懒加载...');
+      this._triggerLoad();
+    }
+  }
+
+  /**
+   * 触发动态导入
+   */
+  _triggerLoad() {
+    const { _payload } = this.constructor;
+    this.setState({ _status: Pending });
+
+    const thenable = _payload();
+
+    console.log('⏳ 动态导入已触发，等待模块加载...');
+
+    thenable.then(
+      (module) => {
+        console.log('✅ 模块加载成功:', module);
+        const DefaultComponent = module.default || module;
+
+        this.setState({
+          _status: Resolved,
+          _result: { _payload: DefaultComponent },
+        });
+      },
+      (error) => {
+        console.error('❌ 模块加载失败:', error);
+        this.setState({
+          _status: Rejected,
+          _result: error,
+        });
+      }
+    );
+  }
+
+  /**
+   * 处理 Suspense 的 thenable 协议（核心！）
+   */
+  _loadThenable(onFulfill, onReject) {
+    if (this.state._status === Resolved) {
+      onFulfill(this.state._result);
+    } else if (this.state._status === Rejected) {
+      onReject(this.state._result);
+    } else {
+      console.log('⏳ 注册 Suspense 回调，等待加载完成...');
+    }
+  }
+
+  render() {
+    const { _status, _result } = this.state;
+
+    switch (_status) {
+      case Uninitialized:
+        console.log('📍 状态: Uninitialized → 触发加载');
+        throw this._thenable;  // 抛出 Promise 给 Suspense
+
+      case Pending:
+        console.log('📍 状态: Pending → 继续等待');
+        throw this._thenable;  // 继续等待
+
+      case Resolved:
+        console.log('📍 状态: Resolved → 渲染组件');
+        return <_result._payload {...this.props} />;
+
+      case Rejected:
+        console.error('📍 状态: Rejected → 抛出错误');
+        throw _result;
+
+      default:
+        return null;
+    }
+  }
+}
+```
+
+#### lazy 函数实现
+
+```javascript
+// 缓存已加载的模块（避免重复加载）
+const moduleCache = new Map();
+
+/**
+ * lazy - React.lazy 的简化实现
+ * @param {Function} factory - 动态导入函数
+ * @returns {React.ComponentType} 懒加载组件包装器
+ */
+function lazy(factory) {
+  class LazyWrapper extends LazyComponent {}
+
+  LazyWrapper._payload = function lazyInit() {
+    const cacheKey = factory.toString();
+
+    if (moduleCache.has(cacheKey)) {
+      console.log('💾 命中缓存，复用已加载的模块');
+      return Promise.resolve(moduleCache.get(cacheKey));
+    }
+
+    const promise = factory();
+
+    promise.then((module) => {
+      moduleCache.set(cacheKey, module);
+    });
+
+    return promise;
+  };
+
+  LazyWrapper.displayName = 'lazy';
+  return LazyWrapper;
+}
+```
+
+#### 完整使用示例
+
+```javascript
+function LazyLoadingDemo() {
+  // 定义懒加载组件（模拟异步加载）
+  const HeavyDashboard = lazy(() =>
+    new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          default: function Dashboard({ title }) {
+            return (
+              <div style={{ padding: '24px', backgroundColor: '#f0f5ff', borderRadius: '8px' }}>
+                <h2>📊 {title}</h2>
+                <p>这是一个懒加载的重型 Dashboard 组件！</p>
+                <p style={{ color: '#666', fontSize: '14px' }}>
+                  ✅ 通过 React.lazy 延迟加载<br/>
+                  ✅ 只在首次访问时下载 JS bundle<br/>
+                  ✅ 后续访问直接从缓存读取
+                </p>
+              </div>
+            );
+          },
+        });
+      }, 1500);  // 模拟网络延迟
+    })
+  );
+
+  return (
+    <div style={{ fontFamily: '-apple-system, sans-serif', padding: '20px' }}>
+      <h1>🚀 React.lazy + Suspense 演示</h1>
+
+      <Suspense
+        fallback={
+          <div style={{
+            padding: '40px', textAlign: 'center',
+            backgroundColor: '#fafafa', borderRadius: '8px'
+          }}>
+            <div style={{ fontSize: '32px' }}>⏳</div>
+            <div style={{ color: '#666' }}>正在加载组件...</div>
+          </div>
+        }
+      >
+        <HeavyDashboard title="数据看板" />
+      </Suspense>
+
+      {/* 工作流程说明 */}
+      <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: '6px' }}>
+        <strong>📚 工作流程：</strong><br/>
+        ① lazy() 创建包装器 → ② 渲染时触发 import() → ③ 抛出 Promise → 
+        ④ Suspense 显示 fallback → ⑤ 模块加载完成 → ⑥ 渲染实际组件
+      </div>
+    </div>
+  );
+}
+
+export default LazyLoadingDemo;
+```
+
 ---
 
 ## Q46: Web Worker 在 React 中如何使用？有什么应用场景和注意事项？
@@ -6937,6 +10580,14 @@
    - 需要 DOM 操作的任务
    - I/O 密集型任务（Node.js 环境）
    ```
+
+### 🔍 追问链
+1. **Web Worker 能操作 DOM 吗？能访问 React 组件的状态吗？**
+   → 方向：不能操作 DOM！Worker 是独立线程没有 window/document；可以通过 postMessage 与主线程通信间接影响 UI
+2. **Comlink Worker 或 Workerize 库是如何让 Worker 使用像本地调用一样的？**
+   → 方向：基于 Proxy 拦截属性访问，通过 postMessage 序列化传输到 Worker 执行后再返回结果
+3. **OffscreenCanvas 在 Worker 中渲染 Canvas 有什么优势？**
+   → 方向：Canvas 渲染计算在 Worker 中不阻塞主线程；适用于复杂图形/图表/视频处理
 
 ---
 
@@ -7416,6 +11067,14 @@
    - CrUX（Google 的公开数据）
    ```
 
+### 🔍 追问链
+1. **Critical Rendering Path 关键指标有哪些？目标值是多少？**
+   → 方向：FCP < 1.8s, LCP < 2.5s, FID < 100ms, CLS < 0.1; TTFB < 200ms
+2. **preload vs prefetch vs preconnect 各自适用什么资源？**
+   → 方向：preload 当前导航必需的高优先级资源；prefetch 下一步可能需要的；preconnect 建立域名连接（DNS+TCP）
+3. **SSR 一定能提升首屏性能吗？TTFB 可能更差吗？**
+   → 方向：不一定！SSR 的 TTFB 通常比 CSR 差（服务端要计算）；但 FCP/LCP 更好。取决于网络和服务端算力
+
 ---
 
 ## Q50: CSR、SSR、SSG、ISR 各有什么特点？如何选择合适的技术方案？
@@ -7581,6 +11240,14 @@
        ├── 小团队/低成本 → SSG / CSR
        └── 大团队/充足资源 → SSR / Next.js 全栈
    ```
+
+### 🔍 追问链
+1. **Next.js 的 ISR (Incremental Static Regeneration) 的 revalidate 机制是怎么工作的？**
+   → 方向：后台触发式重新验证；用户请求时检查缓存是否过期，过期则在后台重新生成并返回新的
+2. **Hydration 失败的常见原因有哪些？如何排查？**
+   → 方向：服务端和客户端 HTML 不一致（时间戳/随机数/平台差异 API）、嵌套标签不匹配、注释位置不同
+3. **Partial Hydration（选择性注水）和 Islands 架构是什么？**
+   → 方向：只对交互区域 hydration，其余部分保持纯 HTML；Astro 框架的核心概念
 
 ---
 
@@ -7909,6 +11576,14 @@
    3. Partial Hydration：延迟 Hydrate 非关键部分
    4. React Server Components：减少需要 Hydrate 的代码量
    ```
+
+### 🔍 追问链
+1. **Hydration 和 SSR 的关系？没有 SSR 就没有 Hydration 吗？**
+   → 方向：Hydration 是 SSR 流程的第二阶段（客户端激活）；CSR 没有 Hydration（因为没有预渲染 HTML）
+2. **Hydration 时的警告 "Text content does not match" 通常是什么原因？**
+   → 方向：服务端渲染的内容和客户端重新渲染的不一致（通常是动态数据如 Date.now()/Math.random()）
+3. **React 19 的 hydration 有什么改进？Selective Hydration？**
+   → 方向：支持渐进式注水（先注水可见区域，后续按需注水其他部分）；Suspense 配合 Streaming 实现
 
 ---
 

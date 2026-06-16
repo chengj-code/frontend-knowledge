@@ -15,7 +15,7 @@
 | **React** | ✅ 15章+附录 | ✅ 53题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
 | **Node.js** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **工程化** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
-| **性能优化** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
+| **性能优化** | ✅ 16章+2附录 | ✅ 50题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-16 |
 | **网络** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **浏览器** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 
@@ -66,9 +66,11 @@ frontend-knowledge/
 │   ├── basics/.gitkeep
 │   └── interviews/.gitkeep
 │
-├── 性能优化/                 # 前端性能优化策略与实践       📋 待生成
-│   ├── basics/.gitkeep
-│   └── interviews/.gitkeep
+├── 性能优化/                 # 前端性能优化策略与实践       ⭐9.3
+│   ├── basics/
+│   │   └── 性能优化-Basics-Guide.md           # ~5578行 (16章+2附录)
+│   └── interviews/
+│       └── 性能优化-Interview-Questions.md    # ~6244行 (50题)
 │
 ├── 网络/                     # HTTP、HTTPS、WebSocket 等    📋 待生成
 │   ├── basics/.gitkeep
@@ -109,6 +111,15 @@ frontend-knowledge/
 | [面试题库](JavaScript/interviews/JavaScript-Interview-Questions.md) | ~10900 行 | 50 题 / 17 题追问链 / 7 道手写源码实现（EventLoop/new/deepClone/V8/虚拟滚动等） |
 
 **核心覆盖**：变量类型、函数进阶（this/call/bind）、闭包原理与应用、原型链与继承、ES6+ 类、作用域链、Event Loop 完整模拟、Promise 手写实现、async/await、DOM 事件机制、数组方法大全、正则表达式、V8 引擎/GC 机制、性能优化、XSS/CSRF 安全
+
+### 性能优化 ⭐ 9.3 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](性能优化/basics/性能优化-Basics-Guide.md) | ~5578 行 | 16 章 + 附录 A（按场景分类的优化速查表）+ 附录 B（电商首页完整实战案例）+ 6 组 Mermaid 图 |
+| [面试题库](性能优化/interviews/性能优化-Interview-Questions.md) | ~6244 行 | 50 题（基础15/进阶18/专家17）+ 15 题追问链 + 5 道手写实现（debounce/虚拟列表/懒加载指令/Performance SDK）|
+
+**核心覆盖**：Core Web Vitals、关键渲染路径、代码分割、缓存策略（HTTP/SW）、渲染性能优化（Reflow/Repaint/合成层）、JS 执行性能（长任务/Web Worker）、内存管理与泄漏防护、网络层优化（HTTP/2&3/CDN）、图片/字体/打包体积优化、移动端特殊考虑、性能监控体系、Lighthouse 实战、性能预算与工程化
 
 ---
 

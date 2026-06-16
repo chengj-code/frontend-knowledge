@@ -3729,6 +3729,155 @@ demonstrateSessionFlow();
 
 ---
 
+### 2.10 HTTP 头部速查表
+
+#### 2.10.1 Content-Type 完整 MIME Type 列表
+
+**MIME (Multipurpose Internet Mail Extensions) 类型**用于标识数据的格式，浏览器根据此类型决定如何处理内容。以下是前端开发中最常用的 50+ 种 MIME 类型：
+
+| MIME Type | 文件扩展名 | 说明 | 使用场景 |
+|-----------|-----------|------|---------|
+| **文本类型** | | | |
+| `text/html` | .html, .htm | 超文本标记语言 | 网页文档 |
+| `text/css` | .css | 层叠样式表 | 样式文件 |
+| `text/javascript` | .js | JavaScript 脚本（已废弃） | 旧版脚本 |
+| `text/plain` | .txt, .log | 纯文本 | 日志、配置文件 |
+| `text/xml` | .xml | XML 文档 | 数据交换 |
+| `text/csv` | .csv | 逗号分隔值 | 数据导出 |
+| `text/markdown` | .md, .markdown | Markdown 文档 | 文档编写 |
+| **应用类型 - JSON/XML** | | | |
+| `application/json` | .json | JSON 数据格式 | API 响应（推荐） |
+| `application/xml` | .xml | XML 数据格式 | SOAP 服务 |
+| `application/xhtml+xml` | .xhtml, .xht | XHTML 文档 | 严格 HTML |
+| **应用类型 - 表单数据** | | | |
+| `application/x-www-form-urlencoded` | - | URL 编码的表单数据 | 表单提交（默认） |
+| `multipart/form-data` | - | 多部分表单数据 | 文件上传 |
+| `multipart/mixed` | - | 混合多部分数据 | 邮件附件 |
+| `multipart/alternative` | - | 替代多部分数据 | 邮件正文 |
+| **应用类型 - 二进制/流** | | | |
+| `application/octet-stream` | .bin, .exe | 任意二进制数据 | 文件下载 |
+| `application/pdf` | .pdf | PDF 文档 | 电子文档 |
+| `application/zip` | .zip | ZIP 压缩包 | 压缩文件 |
+| `application/gzip` | .gz, .tar.gz | GZIP 压缩 | 压缩传输 |
+| `application/vnd.ms-excel` | .xls, .xlsx | Excel 电子表格 | 数据报表 |
+| `application/msword` | .doc, .docx | Word 文档 | 文档处理 |
+| `application/vnd.openxmlformats-officedocument.*` | .pptx 等 | Office 2007+ 格式 | 办公文档 |
+| **图片类型** | | | |
+| `image/jpeg` | .jpg, .jpeg | JPEG 图片 | 照片、复杂图像 |
+| `image/png` | .png | PNG 图片 | 透明背景、图标 |
+| `image/gif` | .gif | GIF 图片 | 动画、简单图形 |
+| `image/svg+xml` | .svg | SVG 矢量图 | 图标、矢量图形 |
+| `image/webp` | .webp | WebP 图片 | 新一代图片格式 |
+| `image/x-icon` | .ico | ICO 图标 | 网站图标(favicon) |
+| `image/bmp` | .bmp | BMP 位图 | Windows 位图 |
+| `image/tiff` | .tif, .tiff | TIFF 图像 | 印刷质量图像 |
+| `image/avif` | .avif | AVIF 图片 | 高效图像编码 |
+| **音频类型** | | | |
+| `audio/mpeg` | .mp3 | MP3 音频 | 音乐播放 |
+| `audio/wav` | .wav | WAV 音频 | 无损音频 |
+| `audio/ogg` | .ogg | OGG 音频 | 开源音频格式 |
+| `audio/webm` | .weba | WebM 音频 | Web 音频 |
+| `audio/aac` | .aac | AAC 音频 | 高效音频编码 |
+| **视频类型** | | | |
+| `video/mp4` | .mp4 | MP4 视频 | 主流视频格式 |
+| `video/webm` | .webm | WebM 视频 | Web 视频格式 |
+| `video/ogg` | .ogv | OGG 视频 | 开源视频格式 |
+| `video/quicktime` | .mov | QuickTime 视频 | Apple 视频格式 |
+| `video/x-msvideo` | .avi | AVI 视频 | 传统视频格式 |
+| **字体类型** | | | |
+| `font/woff` | .woff | WOFF 字体 | Web 字体 |
+| `font/woff2` | .woff2 | WOFF2 字体（推荐） | 现代 Web 字体 |
+| `font/ttf` | .ttf | TrueType 字体 | 系统字体 |
+| `font/otf` .otf | OpenType 字体 | 专业字体 |
+| `font/eot` | .eot | Embedded OpenType | IE 专用字体 |
+| **其他常用类型** | | | |
+| `application/ld+json` | .jsonld | JSON-LD 结构化数据 | SEO 结构化数据 |
+| `application/graphql` | .gql | GraphQL 查询 | GraphQL API |
+| `application/grpc` | .proto | gRPC 协议 | 微服务通信 |
+| `application/wasm` | .wasm | WebAssembly 模块 | 高性能 Web 计算 |
+| `application/manifest+json` | .webmanifest | Web App Manifest | PWA 配置 |
+
+> ⚠️ **重要提示**：
+> - 对于 API 接口，**强烈推荐使用 `application/json`**，避免使用 `text/html`
+> - 文件上传必须使用 `multipart/form-data`
+> - 浏览器会根据 Content-Type 自动选择渲染方式（如 PDF 预览）
+
+#### 2.10.2 常用请求头速查表
+
+HTTP 请求头携带了客户端的信息和期望，以下是最常用的请求头及其说明：
+
+| 请求头名称 | 示例值 | 说明 | 典型使用场景 |
+|-----------|--------|------|-------------|
+| **Accept** | `*/*`, `text/html`, `application/json` | 客户端可接受的响应内容类型 | 内容协商 |
+| **Accept-Language** | `zh-CN,zh;q=0.9,en;q=0.8` | 客户端偏好的语言及权重 | 国际化(i18n) |
+| **Accept-Encoding** | `gzip, deflate, br` | 支持的压缩算法 | 减少传输体积 |
+| **User-Agent** | `Mozilla/5.0...` | 客户端软件信息 | 设备检测、兼容性判断 |
+| **Content-Type** | `application/json` | 请求体的 MIME 类型 | 告知服务器数据格式 |
+| **Content-Length** | `256` | 请求体长度（字节） | 分块传输时必需 |
+| **Authorization** | `Bearer xxxxx` | 认证凭证 | OAuth 2.0、JWT 认证 |
+| **Cookie** | `sessionid=abc; token=xyz` | 携带的 Cookie 数据 | 会话管理 |
+| **Cache-Control** | `no-cache` | 缓存指令 | 控制缓存行为 |
+| **If-None-Match** | `"33a64df551431fc9"` | 资源的 ETag 值 | 协商缓存(304) |
+| **If-Modified-Since** | `Wed, 21 Oct 2026 07:28:00 GMT` | 资源最后修改时间 | 条件请求 |
+| **Referer** | `https://example.com/page` | 来源页面 URL | 统计来源、防盗链 |
+| **Origin** | `https://example.com` | 请求来源域名 | CORS 预检 |
+| **Host** | `api.example.com:443` | 目标服务器主机名和端口 | 虚拟主机路由 |
+| **Connection** | `keep-alive` | 连接管理方式 | HTTP/1.1 持久连接 |
+| **Upgrade-Insecure-Requests** | `1` | 请求升级到 HTTPS | 安全升级提示 |
+| **X-Requested-With** | `XMLHttpRequest` | 标识 AJAX 请求 | 区分普通请求和 AJAX |
+| **Sec-Fetch-Dest** | `document` | 请求的目标类型 | 安全策略检查 |
+| **Sec-Fetch-Mode** | `cors` | 请求的模式 | CORS 控制 |
+| **Sec-Fetch-Site** | `same-origin` | 请求的站点关系 | CSRF 防护 |
+| **Priority** | `u=1, i` | 资源优先级（HTTP/3） | 资源加载优化 |
+| **DNT** | `1` | Do Not Track 标识 | 隐私保护 |
+| **Save-Data** | `on` | 节省数据模式标识 | 弱网优化 |
+
+#### 2.10.3 常用响应头速查表
+
+HTTP 响应头包含了服务器的信息和控制指令，以下是关键响应头的详细说明：
+
+| 响应头名称 | 示例值 | 说明 | 典型使用场景 |
+|-----------|--------|------|-------------|
+| **Server** | `nginx/1.18.0` | 服务器软件信息 | ⚠️ 建议隐藏或伪造版本号 |
+| **Set-Cookie** | `session=abc; HttpOnly; Secure` | 设置 Cookie | 会话创建、认证 |
+| **Location** | `https://example.com/new-url` | 重定向目标 URL | 301/302 重定向 |
+| **Content-Type** | `application/json; charset=utf-8` | 响应体的 MIME 类型 | 内容解析 |
+| **Content-Length** | `1024` | 响应体长度 | 进度显示 |
+| **Content-Encoding** | `gzip` | 内容使用的压缩算法 | 解压响应体 |
+| **Cache-Control** | `max-age=3600, public` | 缓存策略指令 | 性能优化核心头 |
+| **ETag** | `"33a64df551431fc9"` | 资源唯一标识符 | 协商缓存验证 |
+| **Last-Modified** | `Wed, 21 Oct 2026 07:28:00 GMT` | 资源最后修改时间 | 条件请求 |
+| **Expires** | `Thu, 22 Oct 2026 07:28:00 GMT` | 资源过期时间 | 强缓存（已过时） |
+| **Access-Control-Allow-Origin** | `*` 或 `https://app.com` | 允许的跨域来源 | CORS 跨域控制 |
+| **Access-Control-Allow-Methods** | `GET, POST, OPTIONS` | 允许的跨域方法 | CORS 预检响应 |
+| **Access-Control-Allow-Headers** | `Content-Type, Authorization` | 允许的自定义请求头 | CORS 预检响应 |
+| **Access-Control-Max-Age** | `86400` | 预检结果缓存时间 | 减少 OPTIONS 请求 |
+| **Access-Control-Expose-Headers** | `X-Custom-Header` | 允许客户端读取的头 | 自定义头访问 |
+| **Access-Control-Allow-Credentials** | `true` | 是否允许携带凭证 | 跨域 Cookie/认证 |
+| **Strict-Transport-Security** | `max-age=31536000; includeSubDomains` | 强制 HTTPS | HSTS 安全策略 |
+| **X-Frame-Options** | `DENY` 或 `SAMEORIGIN` | 防止点击劫持 | 安全防护 |
+| **X-Content-Type-Options** | `nosniff` | 禁止 MIME 嗅探 | 防止 XSS |
+| **X-XSS-Protection** | `1; mode=block` | XSS 过滤器 | 浏览器 XSS 防护 |
+| **Content-Security-Policy** | `default-src 'self'` | 内容安全策略 | 防 XSS、防注入 |
+| **Referrer-Policy** | `strict-origin-when-cross-origin` | Referer 发送策略 | 隐私保护 |
+| **Permissions-Policy** | `camera=(), microphone=()` | 权限策略 | 浏览器功能限制 |
+| **Content-Disposition** | `attachment; filename="file.pdf"` | 内容展示方式 | 文件下载触发 |
+| **Retry-After** | `120` 或日期 | 可重试时间 | 503 服务不可用 |
+| **Vary** | `Accept-Encoding, User-Agent` | 缓存区分依据 | 正确缓存不同版本 |
+| **Timing-Allow-Origin** | `*` | 允许访问资源计时 API | 性能监控 |
+| **Report-To** | `{ "endpoint": {...} }` | 错误报告端点 | 监控上报 |
+| **NEL** | `{"report_to": "default"}` | 网络错误日志 | 网络错误收集 |
+
+> 💡 **CORS 相关头部组合示例**：
+>
+> ```http
+> Access-Control-Allow-Origin: https://frontend.example.com
+> Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+> Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With
+> Access-Control-Allow-Credentials: true
+> Access-Control-Max-Age: 86400  # 预检结果缓存24小时
+> ```
+
 ### 2.9 本章要点速查
 
 | 知识点 | 要点总结 | 重要程度 |
@@ -3827,4 +3976,1173 @@ class SymmetricEncryptionDemo {
 }
 ```
 
-由于文件内容较长，我将分段继续追加剩余章节。请允许我继续写入第4章后续内容及第5-14章及附录。
+### 3.2 TLS 握手详解
+
+#### 3.2.1 TLS 1.2 完整握手过程
+
+**TLS 1.2 握手**是建立安全连接的核心过程，它确保了通信双方的身份认证和密钥协商。完整握手过程需要 **2-RTT**（两个往返时间）。
+
+**握手的主要目标：**
+1. **身份认证**：验证服务器（可选客户端）的身份
+2. **密钥交换**：安全地协商出会话密钥
+3. **算法协商**：确定使用的加密套件
+
+**TLS 1.2 握手流程包含以下关键消息：**
+
+| 消息名称 | 方向 | 主要内容 | 作用 |
+|---------|------|---------|------|
+| **ClientHello** | C→S | 支持的TLS版本、密码套件列表、客户端随机数 | 发起握手，告知能力 |
+| **ServerHello** | S→C | 选定的密码套件、服务器随机数 | 确认使用的参数 |
+| **Certificate** | S→C | 服务器证书链 | 身份认证 |
+| **ServerHelloDone** | S→C | 无 | 等待客户端响应 |
+| **ClientKeyExchange** | C→S | 加密的预主密钥(PMS) | 密钥交换 |
+| **ChangeCipherSpec** | 双向 | 通知切换到加密模式 | 标识后续消息加密 |
+| **Finished** | 双向 | 验证数据(加密) | 验证握手完整性 |
+
+> 💡 **关键概念 - 预主密钥(Pre-Master Secret)**：
+> - 由客户端生成的一个48字节的随机数
+> - 使用服务器的公钥加密后发送（RSA密钥交换）
+> - 或者通过 Diffie-Hellman 协议协商得出
+> - 结合客户端随机数、服务器随机数，通过 PRF（伪随机函数）生成主密钥（Master Secret）
+
+下面用时序图展示完整的 TLS 1.2 握手过程：
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    
+    Note over C,S: TCP 三次握手完成
+    C->>S: ClientHello<br/>支持的TLS版本/密码套件/随机数
+    S->C: ServerHello + Certificate<br/>+ ServerHelloDone<br/>选择密码套件/证书/服务器随机数
+    C->>S: ClientKeyExchange<br/>+ ChangeCipherSpec<br/>+ Finished(加密)<br/>预主密钥用服务器公钥加密
+    S->>S: 计算会话密钥<br/>验证客户端Finished
+    S->>C: ChangeCipherSpec<br/>+ Finished(加密)
+    C->>C: 验证服务器Finished<br/>握手完成，开始加密通信
+    Note over C,S: 后续通信使用对称加密
+```
+
+**📊 时序图解读：**
+
+1. **阶段一：参数协商（第1个RTT）**
+   - Client 发送支持的协议版本、密码套件和随机数
+   - Server 选择密码套件、发送证书和服务器随机数
+
+2. **阶段二：密钥交换与认证（第2个RTT）**
+   - Client 使用服务器公钥加密预主密钥并发送
+   - 双方独立计算出相同的会话密钥
+   - 通过加密的 Finished 消息验证密钥一致性
+
+3. **安全性保证**
+   - 前向安全性（Forward Secrecy）：使用 ECDHE 密钥交换时，即使长期私钥泄露，历史会话也无法被解密
+   - 证书验证：防止中间人攻击（MITM）
+   - Finished 消息的 MAC 验证：确保握手过程未被篡改
+
+#### 3.2.2 TLS 1.3 的优化改进
+
+相比 TLS 1.2，**TLS 1.3** 进行了重大优化：
+
+| 特性 | TLS 1.2 | TLS 1.3 |
+|-----|---------|---------|
+| **握手延迟** | 2-RTT | 1-RTT (0-RTT 可选) |
+| **密码套件数量** | 数十种 | 仅5种推荐 |
+| **支持算法** | RSA、DH、ECDH | 仅 ECDHE |
+| **密钥派生** | PRF (SHA-256/384) | HKDF |
+| **0-RTT 恢复** | ❌ 不支持 | ✅ 支持 |
+
+---
+
+## 第6章 TCP 协议深入
+
+### 📚 本章学习目标
+
+- 理解 **TCP 三次握手** 和 **四次挥手** 的完整过程
+- 掌握 TCP 的 **连接状态机** 和状态转换
+- 理解 **流量控制**、**拥塞控制** 和 **可靠性保证** 机制
+- 了解 TCP 的 **Keep-Alive** 和 **延迟确认** 优化
+- 掌握 TCP 相关的性能调优参数
+
+---
+
+### 6.1 TCP 协议概述
+
+**TCP (Transmission Control Protocol)** 是一种面向连接的、可靠的、基于字节流的传输层协议。它为应用层提供了可靠的数据传输服务。
+
+**TCP 的核心特性：**
+
+| 特性 | 说明 | 实现机制 |
+|-----|------|---------|
+| **面向连接** | 通信前需建立连接 | 三次握手 |
+| **可靠传输** | 保证数据不丢失、不重复、按序到达 | 序号、确认、重传 |
+| **流量控制** | 根据接收方能力调整发送速率 | 滑动窗口 |
+| **拥塞控制** | 根据网络状况调整发送速率 | 慢启动、拥塞避免等 |
+| **字节流** | 无消息边界保护 | 应用层自行处理 |
+
+---
+
+### 6.2 TCP 三次握手与四次挥手
+
+#### 6.2.1 三次握手详解
+
+三次握手建立连接的过程：
+
+```
+客户端                          服务器
+  |                               |
+  |-------- SYN (seq=x) -------->|
+  |                               |  SYN_RCVD
+  |<--- SYN+ACK (seq=y,ack=x+1)--|
+  |  ESTABLISHED                 |
+  |-------- ACK (ack=y+1) ------->|
+  |                               |  ESTABLISHED
+  |          数据传输开始           |
+```
+
+**为什么需要三次握手？**
+1. **防止已失效的连接请求到达服务器**：如果只有两次握手，客户端的延迟SYN可能在服务器端建立无用连接
+2. **同步双方的初始序列号**：双方都需要确认对方的序列号，确保后续数据传输的可靠性
+3. **确认双方都具有收发能力**：验证双向通信通道正常
+
+#### 6.2.2 四次挥手详解
+
+四次挥手断开连接的过程：
+
+```
+客户端                          服务器
+  |                               |
+  |-------- FIN (seq=u) -------->|
+  |                               |  CLOSE_WAIT
+  |<--- ACK (ack=u+1) -----------|  （应用层处理完发送FIN）
+  |  FIN_WAIT_2                  |
+  |<--- FIN (seq=w) ------------|
+  |  TIME_WAIT                   |  LAST_ACK
+  |-------- ACK (ack=w+1) ------->|
+  |                               |  CLOSED
+  |  等待 2MSL 后关闭             |
+```
+
+**为什么需要四次挥手？**
+- TCP 是全双工协议，每个方向需要单独关闭
+- 服务器收到FIN后可能还有数据要发送，所以先回复ACK，稍后再发FIN
+- 这导致挥手比握手多一次交互
+
+---
+
+### 6.3 TCP 连接状态转换图
+
+TCP 连接在生命周期中会经历多种状态，理解这些状态对于排查网络问题至关重要。下面是完整的 TCP 状态机：
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+    CLOSED --> LISTEN: passive_open()
+    LISTEN --> SYN_RCVD: rcv SYN
+    LISTEN --> CLOSED: close()
+    SYN_RCVD --> ESTABLISHED: rcv ACK of SYN
+    SYN_RCVD --> LISTEN: RST received
+    ESTABLISHED --> FIN_WAIT_1: active_close() [app calls close]
+    ESTABLISHED --> CLOSE_WAIT: passive_close() [rcv FIN]
+    FIN_WAIT_1 --> FIN_WAIT_2: rcv ACK of FIN
+    FIN_WAIT_1 --> CLOSING: rcv FIN (simultaneous close)
+    FIN_WAIT_2 --> TIME_WAIT: rcv FIN
+    CLOSING --> TIME_WAIT: rcv ACK
+    CLOSE_WAIT --> LAST_ACK: close()
+    TIME_WAIT --> CLOSED: after 2MSL timeout
+    LAST_ACK --> CLOSED: rcv ACK
+    ESTABLISHED --> SYN_SENT: active_open()
+    SYN_SENT --> ESTABLISHED: rcv SYN+ACK, send ACK
+    SYN_SENT --> CLOSED: connect fails / RST
+```
+
+**📊 关键状态说明：**
+
+| 状态名称 | 出现场景 | 说明 |
+|---------|---------|------|
+| **CLOSED** | 初始/终止状态 | 连接不存在或已关闭 |
+| **LISTEN** | 服务端监听 | 等待客户端连接请求 |
+| **SYN_SENT** | 客户端发起连接 | 已发送SYN，等待服务端响应 |
+| **SYN_RCVD** | 服务端收到SYN | 已收到SYN，等待客户端确认 |
+| **ESTABLISHED** | 连接已建立 | 数据传输阶段 |
+| **FIN_WAIT_1** | 主动关闭方 | 已发送FIN，等待对方ACK |
+| **FIN_WAIT_2** | 主动关闭方 | 收到对方ACK，等待对方FIN |
+| **TIME_WAIT** | 主动关闭方 | 双方都同意关闭，等待2MSL |
+| **CLOSE_WAIT** | 被动关闭方 | 收到对方FIN，等待应用层关闭 |
+| **LAST_ACK** | 被动关闭方 | 应用层已关闭，等待最后ACK |
+| **CLOSING** | 双方同时关闭 | 双方同时发送FIN的特殊情况 |
+
+> ⚠️ **常见问题排查 - TIME_WAIT 过多**：
+> - **原因**：频繁短连接、高并发场景
+> - **影响**：占用端口资源（每个连接占用一个四元组）
+> - **解决方案**：
+>   - 启用连接复用（Connection: keep-alive）
+>   - 调整系统参数 `net.ipv4.tcp_tw_reuse`
+>   - 使用长连接替代短连接
+
+---
+
+### 6.4 TCP 流量控制与拥塞控制
+
+#### 6.4.1 流量控制（Flow Control）
+
+**目标**：防止发送方发送过快，导致接收方缓冲区溢出。
+
+**实现机制**：滑动窗口（Sliding Window）
+
+```javascript
+/**
+ * TCP 滑动窗口原理演示
+ * 接收方通过通告窗口大小控制发送速率
+ */
+class TCPSlidingWindow {
+  constructor(receiverBufferSize = 10240) {
+    this.receiverBuffer = receiverBufferSize; // 接收缓冲区大小(字节)
+    this.windowSize = receiverWindowSize;      // 当前可用窗口大小
+    this.lastByteRead = -1;                    // 最后读取的字节序号
+    this.lastByteReceived = -1;                // 最后接收的字节序号
+  }
+
+  /**
+   * 计算当前可用窗口大小
+   */
+  getAvailableWindow() {
+    return this.receiverBuffer - (this.lastByteReceived - this.lastByteRead);
+  }
+
+  /**
+   * 接收数据后更新窗口
+   */
+  receiveData(dataLength) {
+    if (dataLength <= this.getAvailableWindow()) {
+      this.lastByteReceived += dataLength;
+      return true;  // 接收成功
+    }
+    return false;  // 缓冲区不足，丢弃
+  }
+}
+```
+
+**关键概念 - 零窗口（Zero Window）**：
+- 当接收方窗口为0时，发送方停止发送
+- 发送方启动**持续定时器**（Persist Timer），定期探测窗口大小
+- 防止死锁：接收方有空间后会发送窗口更新通知
+
+#### 6.4.2 拥塞控制（Congestion Control）
+
+**目标**：防止过多数据注入网络，导致整个网络环境发生拥塞。
+
+**四个核心算法**：
+
+| 算法 | 触发条件 | 行为 | 目标 |
+|-----|---------|------|------|
+| **慢启动 (Slow Start)** | 连接建立或超时重传 | cwnd 从1 MSS开始，每RTT翻倍 | 快速试探网络承载能力 |
+| **拥塞避免 (Congestion Avoidance)** | cwnd 达到阈值(ssthresh) | 每RTT增加1 MSS | 平稳增长，避免拥塞 |
+| **快速重传 (Fast Retransmission)** | 收到3个重复ACK | 立即重传丢失报文 | 减少等待时间 |
+| **快速恢复 (Fast Recovery)** | 触发快速重传后 | ssthresh减半，cwnd设为新ssthresh | 不进入慢启动，保持较高吞吐量 |
+
+**拥塞窗口变化示意图**：
+
+```
+cwnd (拥塞窗口)
+  ^
+  |        /\
+  |       /  \       /\
+  |      /    \     /  \
+  |     /      \   /    \
+  |    /        \_/      \
+  |   /                  \
+  |  /                    \
+  | /                      \
+  +-------------------------------------------------> 时间
+     慢启动  拥塞避免  超时  慢启动  拥塞避免
+            (ssthresh)      (3个dup ACK)
+```
+
+---
+
+## 第9章 CDN 内容分发网络
+
+### 📚 本章学习目标
+
+- 理解 **CDN 的工作原理**和架构组成
+- 掌握 **DNS 解析流程**如何引导用户到最近节点
+- 了解 **缓存策略**和**回源机制**
+- 理解 **GSLB 全局负载均衡**的决策逻辑
+- 掌握 CDN 性能优化和故障排查方法
+
+---
+
+### 9.1 CDN 基础概念
+
+**CDN (Content Delivery Network, 内容分发网络)**是一组分布在不同地理位置的服务器集群，用于将内容缓存到离用户更近的位置，从而加速内容交付。
+
+**CDN 的核心价值：**
+
+| 优势 | 说明 | 典型提升 |
+|-----|------|---------|
+| **降低延迟** | 用户访问最近的边缘节点 | 延迟降低50-80% |
+| **减轻源站压力** | 大部分请求由边缘节点处理 | 源站带宽节省70-90% |
+| **提高可用性** | 多节点冗余，单点故障不影响全局 | 可用性达99.99%+ |
+| **抵御DDoS攻击** | 分散流量到多个节点 | 抗攻击能力增强 |
+| **改善用户体验** | 加快页面加载速度 | 转化率提升10-20% |
+
+---
+
+### 9.2 CDN 工作原理
+
+#### 9.2.1 CDN 架构组件
+
+```
+用户 → 本地DNS → 递归DNS → CDN GSLB → 边缘节点(POP)
+                                    ↓
+                              缓存命中？
+                                ↓ 是    ↓ 否
+                            返回资源   回源站获取
+                                        ↓
+                                  更新缓存 → 返回资源
+```
+
+**关键组件说明：**
+
+| 组件 | 功能 | 技术实现 |
+|-----|------|---------|
+| **GSLB (Global Server Load Balance)** | 全局负载均衡，选择最优节点 | DNS调度、HTTP重定向、Anycast |
+| **POP (Point of Presence)** | 边缘节点，缓存和响应用户请求 | 边缘服务器集群 |
+| **Origin Server** | 源站，存储原始内容 | 您的应用服务器 |
+| **Cache Node** | 缓存节点，存储热点内容 | 内存缓存、SSD缓存 |
+
+#### 9.2.2 CDN 请求路由决策流程
+
+当用户访问 CDN 加速的资源时，整个路由决策过程如下：
+
+```mermaid
+flowchart TD
+    A["用户访问 https://cdn.example.com/image.jpg"] --> B{"本地DNS 缓存?"}
+    B -- 有且未过期 --> C["返回缓存的IP地址"]
+    B -- 无/已过期 --> D["递归查询根DNS服务器"]
+    D --> E["CNAME 解析到 CDN GSLB"]
+    E --> F{"GSLB 负载均衡决策"}
+    F --> G["选择最优边缘节点"]
+    F --> H["根据用户地理位置/运营商/节点负载"]
+    H --> G
+    G --> I{"边缘节点是否有缓存?"}
+    I -- 是且未过期 --> J["直接返回资源 ✅<br/>（边缘命中）"]
+    I -- 否/已过期 --> K["回源站获取资源"]
+    K --> L{"源站响应"}
+    L --> M["更新边缘节点缓存"]
+    M --> N["返回资源给用户"]
+    J --> O["记录访问日志/统计"]
+    N --> O
+```
+
+**📊 流程解读：**
+
+1. **DNS 解析阶段**
+   - 浏览器检查本地 DNS 缓存（TTL 控制）
+   - 若过期则递归查询，最终得到 CNAME 记录指向 CDN
+   - CDN 的 DNS 服务器（GSLB）返回最优边缘节点 IP
+
+2. **GSLB 决策因素**
+   - **地理位置**：选择距离最近的节点（基于 GeoIP）
+   - **运营商**：同运营商优先（减少跨网延迟）
+   - **节点负载**：选择负载较低的节点（CPU、内存、带宽）
+   - **健康状态**：排除故障节点（主动探测+被动监控）
+   - **成本考量**：考虑不同节点的计费策略
+
+3. **缓存查找与回源**
+   - 边缘节点根据 URL + Header 计算 Cache Key
+   - 命中且未过期直接返回（通常 < 10ms）
+   - 未命中或过期则回源站，更新本地缓存
+
+---
+
+### 9.3 CDN 缓存策略
+
+#### 9.3.1 缓存规则配置
+
+| 配置项 | 说明 | 推荐值 | 示例 |
+|-------|------|-------|------|
+| **Cache-Control** | HTTP 缓存头 | `max-age=31536000` | 静态资源长期缓存 |
+| **Edge-Cache-TTL** | 边缘节点缓存时间 | 1小时 ~ 30天 | 根据资源更新频率 |
+| **Ignore Query String** | 是否忽略URL参数 | 动态资源设为 false | API 请求不缓存 |
+| **Honor Origin Headers** | 是否遵循源站缓存头 | 通常开启 | 尊重源站策略 |
+| **Cache Key** | 缓存键规则 | URL + 部分Header | 区分移动端/桌面端 |
+
+#### 9.3.2 缓存刷新方式
+
+| 方式 | 适用场景 | 生效时间 | 影响范围 |
+|-----|---------|---------|---------|
+| **URL 刷新** | 单个资源更新 | 即时 | 仅指定URL |
+| **目录刷新** | 批量资源更新 | 数分钟内 | 整个目录下资源 |
+| **全站刷新** | 紧急修复/重大变更 | 分钟级 | 所有缓存 |
+| **版本号方案** | 最佳实践（推荐） | 新版本立即生效 | 仅新版本URL |
+
+> 💡 **最佳实践 - 版本号缓存策略**：
+>
+> ```javascript
+> // ❌ 错误做法：无法利用缓存
+> const scriptSrc = '/js/main.js';
+>
+> // ✅ 正确做法：带版本号的静态资源
+> const scriptSrc = `/js/main.js?v=${APP_VERSION}`;  // 或使用 content hash
+> // 例如: /js/main.a1b2c3d4.js
+> ```
+
+---
+
+## 第13章 网络性能优化实战
+
+### 📚 本章学习目标
+
+- 掌握 **前端性能优化的完整 Checklist**
+- 理解 **弱网环境下的降级策略**设计
+- 学会 **网络层错误监控上报**的实现思路
+- 掌握 **性能指标采集与分析**方法
+- 了解 **真实用户监控 (RUM)** 的实践方案
+
+---
+
+### 13.1 性能优化核心指标
+
+在开始优化之前，我们需要明确优化的目标和衡量标准：
+
+| 指标类别 | 核心指标 | 目标值 | 衡量工具 |
+|---------|---------|-------|---------|
+| **加载性能** | First Contentful Paint (FCP) | < 1.8s | Lighthouse、Web Vitals |
+| | Largest Contentful Paint (LCP) | < 2.5s | Lighthouse、Web Vitals |
+| | Time to Interactive (TTI) | < 3.8s | Lighthouse |
+| | Total Blocking Time (TBT) | < 200ms | Lighthouse |
+| **运行性能** | Cumulative Layout Shift (CLS) | < 0.1 | Web Vitals |
+| | First Input Delay (FID) | < 100ms | Web Vitals |
+| | Interaction to Next Paint (INP) | < 200ms | Web Vitals (2024+) |
+| **网络性能** | Time to First Byte (TTFB) | < 200ms | DevTools Network |
+| | DOMContentLoaded (DCL) | < 1.5s | Performance API |
+| | Load 事件触发时间 | < 3s | Performance API |
+
+---
+
+### 13.2 HTTP 缓存决策流程
+
+缓存是提升性能的最有效手段之一。浏览器在请求资源时会按照以下流程进行缓存决策：
+
+```mermaid
+flowchart TD
+    A["浏览器请求资源"] --> B{"本地有缓存?"}
+    B -- 否 --> C["发起网络请求"]
+    B -- 是 --> D{"强缓存是否有效?"}
+    D -- "Cache-Control: max-age 未过期" --> E["返回200 from cache<br/>（强缓存命中）"]
+    D -- "过期 或 no-cache" --> F{"协商缓存"}
+    F -- "ETag 匹配" --> G["返回304 Not Modified<br/>（协商缓存命中）"]
+    F -- "ETag 不匹配" --> C
+    F -- "无 ETag" --> H{"Last-Modified?"}
+    H -- "未修改" --> G
+    H -- "已修改" --> C
+    C --> I["返回新资源 + 更新缓存"]
+    
+    style E fill:#4CAF50,color:#fff
+    style G fill:#8BC34A,color:#fff
+    style I fill:#FF9800,color:#fff
+    style C fill:#F44336,color:#fff
+```
+
+**📊 缓存策略对比：**
+
+| 策略类型 | 命中时状态码 | 优点 | 缺点 | 适用场景 |
+|---------|------------|------|------|---------|
+| **强缓存** | 200 (from cache) | 最快，无需网络请求 | 无法获取最新版本 | 不变的静态资源(hash命名) |
+| **协商缓存 (ETag)** | 304 Not Modified | 可验证新鲜度 | 需一次网络往返 | 频繁更新的HTML/API |
+| **协商缓存 (Last-Modified)** | 304 Not Modified | 简单易用 | 精度低(秒级) | 对精度要求不高的资源 |
+| **无缓存** | 200 (from server) | 始终最新 | 性能最差 | 实时性要求高的API |
+
+---
+
+### 13.3 完整性能优化 Checklist
+
+以下是按优先级排列的前端性能优化清单，建议逐项检查实施：
+
+#### P0 - 必须完成（影响核心体验）
+
+| # | 优化项 | 具体措施 | 预期收益 | 难度 |
+|---|-------|---------|---------|------|
+| 1 | **启用 gzip/brotli 压缩** | Nginx/Apache 开启文本压缩 | 体积减少60-80% | ⭐ |
+| 2 | **配置合理的缓存策略** | 静态资源 long-term cache + hash 文件名 | 减少重复下载 | ⭐ |
+| 3 | **图片优化** | 使用 WebP/AVIF 格式 + 响应式图片 + 懒加载 | 体积减少50-70% | ⭐⭐ |
+| 4 | **减少 HTTP 请求数量** | 合并小文件、使用 Sprite 图、内联关键CSS | 减少RTT开销 | ⭐⭐ |
+| 5 | **使用 CDN 加速** | 静态资源托管至 CDN | 降低延迟50%+ | ⭐ |
+| 6 | **关键渲染路径优化** | 内联关键CSS、异步加载非关键JS | FCP/LCP 提升 | ⭐⭐⭐ |
+
+#### P1 - 强烈推荐（显著提升体验）
+
+| # | 优化项 | 具体措施 | 预期收益 | 难度 |
+|---|-------|---------|---------|------|
+| 7 | **代码分割 (Code Splitting)** | 路由懒加载、动态 import() | 首屏体积减少40-60% | ⭐⭐ |
+| 8 | **Tree Shaking** | ES Module + webpack/rollup 配置 | 移除无用代码 | ⭐ |
+| 9 | **预加载关键资源** | `<link rel="preload">` 字体、关键API | 减少阻塞 | ⭐ |
+| 10 | **预连接 (Preconnect)** | `<link rel="preconnect">` 第三方域名 | DNS+TLS 提前完成 | ⭐ |
+| 11 | **字体优化** | font-display: swap + 子集化 | FOIT/FOUT 问题解决 | ⭐⭐ |
+| 12 | **Service Worker 缓存** | 离线缓存策略 + App Shell | 二次访问秒开 | ⭐⭐⭐ |
+
+#### P2 - 建议实施（锦上添花）
+
+| # | 优化项 | 具体措施 | 预期收益 | 难度 |
+|---|-------|---------|---------|------|
+| 13 | **HTTP/2 或 HTTP/3** | 升级服务器协议 | 多路复用、头部压缩 | ⭐⭐ |
+| 14 | **资源提示 (Hints)** | prefetch/dns-prefetch | 预测性加载 | ⭐ |
+| 15 | **骨架屏/Loading 态** | 提升感知性能 | 用户感知更快 | ⭐⭐ |
+| 16 | **IntersectionObserver** | 替代 scroll 事件监听 | 懒加载性能提升 | ⭐ |
+| 17 | **Virtual List** | 长列表虚拟滚动 | DOM 节点大幅减少 | ⭐⭐⭐ |
+| 18 | **Web Worker** | 耗时任务移出主线程 | 保持UI流畅 | ⭐⭐⭐ |
+
+#### P3 - 进阶优化（特定场景）
+
+| # | 优化项 | 具体措施 | 预期收益 | 难度 |
+|---|-------|---------|---------|------|
+| 19 | **SSR/SSG** | Next.js/Nuxt.js | SEO + 首屏加速 | ⭐⭐⭐⭐ |
+| 20 | **Edge Computing** | Cloudflare Workers/Vercel Edge | 全球就近计算 | ⭐⭐⭐⭐ |
+| 21 | **ISRG/QUIC** | UDP 传输优化 | 弱网性能提升 | ⭐⭐⭐ |
+| 22 | **Early Hints (103)** | 服务器提前推送资源提示 | 并行加载提升 | ⭐⭐ |
+| 23 | **Resource Hints (Priority Hints)** | `fetchpriority` 属性 | 资源加载顺序优化 | ⭐ |
+| 24 | **Compression Dictionary** | 共享字典压缩 | Brotli 效率再提升 | ⭐⭐⭐ |
+
+---
+
+### 13.4 弱网环境下的降级策略设计
+
+在网络条件不佳的情况下（如 2G/3G、地铁、电梯等场景），需要设计优雅的降级策略来保障基本用户体验。
+
+#### 13.4.1 网络质量检测
+
+```javascript
+/**
+ * 网络质量检测器
+ * 基于 Network Information API 和实际测速
+ */
+class NetworkQualityDetector {
+  constructor() {
+    this.connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    this.qualityLevel = 'unknown'; // 'fast' | 'slow' | 'offline'
+    this.listeners = new Set();
+    
+    this.init();
+  }
+  
+  init() {
+    // 监听网络变化
+    if (this.connection) {
+      this.connection.addEventListener('change', () => this.evaluate());
+    }
+    
+    // 在线/离线状态
+    window.addEventListener('online', () => this.updateQuality('online'));
+    window.addEventListener('offline', () => this.updateQuality('offline'));
+    
+    // 初始评估
+    this.evaluate();
+  }
+  
+  evaluate() {
+    if (!navigator.onLine) {
+      this.updateQuality('offline');
+      return;
+    }
+    
+    const effectiveType = this.connection?.effectiveType; // '4g' | '3g' | '2g' | 'slow-2g'
+    const rtt = this.connection?.rtt; // 往返时间(ms)
+    const downlink = this.connection?.downlink; // 下行速度(Mbps)
+    
+    if (effectiveType === '4g' && downlink > 5) {
+      this.updateQuality('fast');
+    } else if (effectiveType === '3g' || effectiveType === '2g') {
+      this.updateQuality('slow');
+    } else {
+      // 通过实际测速进一步判断
+      this.measureSpeed();
+    }
+  }
+  
+  async measureSpeed() {
+    const start = performance.now();
+    try {
+      const response = await fetch('/api/ping', { method: 'HEAD' });
+      const duration = performance.now() - start;
+      
+      if (duration < 500) {
+        this.updateQuality('fast');
+      } else if (duration < 2000) {
+        this.updateQuality('slow');
+      } else {
+        this.updateQuality('very-slow');
+      }
+    } catch (error) {
+      this.updateQuality('offline');
+    }
+  }
+  
+  updateQuality(quality) {
+    this.qualityLevel = quality;
+    this.listeners.forEach(listener => listener(quality));
+  }
+  
+  onQualityChange(callback) {
+    this.listeners.add(callback);
+    return () => this.listeners.delete(callback); // 返回取消订阅函数
+  }
+}
+
+// 使用示例
+const detector = new NetworkQualityDetector();
+const unsubscribe = detector.onQualityChange((quality) => {
+  console.log(`网络质量变化: ${quality}`);
+  
+  switch (quality) {
+    case 'fast':
+      // 正常模式：加载高清图片、视频自动播放
+      break;
+    case 'slow':
+      // 降级模式1：加载低分辨率图片、禁用动画
+      break;
+    case 'very-slow':
+      // 降级模式2：仅加载文字、精简功能
+      break;
+    case 'offline':
+      // 离线模式：显示缓存内容、提示用户
+      break;
+  }
+});
+```
+
+#### 13.4.2 渐进式降级策略矩阵
+
+| 网络等级 | RTT范围 | 带宽 | 图片策略 | 视频策略 | 功能策略 | UI策略 |
+|---------|--------|------|---------|---------|---------|--------|
+| **优秀** (4G/WiFi) | < 100ms | > 5 Mbps | 原图/WebP | 自动播放1080p | 全部功能 | 完整动效 |
+| **良好** (3G+) | 100-300ms | 1.5-5 Mbps | 压缩图/WebP | 手动播放720p | 主要功能 | 简化动效 |
+| **一般** (3G) | 300-800ms | 0.5-1.5 Mbps | 低分辨率/JPEG | 禁用视频/封面图 | 核心功能 | 静态UI |
+| **较差** (2G) | 800-2000ms | < 0.5 Mbps | 占位图/渐进式 | 完全禁用 | 基础功能 | 极简UI |
+| **离线** | ∞ | 0 | 显示缓存/默认图 | 显示占位符 | 离线可用功能 | 离线提示 |
+
+#### 13.4.3 请求降级与超时控制
+
+```javascript
+/**
+ * 带降级策略的网络请求封装
+ */
+async function fetchWithFallback(url, options = {}) {
+  const { timeout = 5000, fallbackData, retries = 1 } = options;
+  
+  // 根据网络质量动态调整超时时间
+  const adjustedTimeout = getAdjustedTimeout(timeout);
+  
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), adjustedTimeout);
+    
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timer);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.warn(`请求失败: ${url}`, error.message);
+    
+    // 重试机制
+    if (retries > 0) {
+      console.log(`正在重试... (剩余 ${retries} 次)`);
+      await sleep(1000); // 延迟1秒后重试
+      return fetchWithFallback(url, { ...options, retries: retries - 1 });
+    }
+    
+    // 降级：返回缓存数据或默认值
+    if (fallbackData !== undefined) {
+      console.log('使用降级数据');
+      return typeof fallbackData === 'function' 
+        ? await fallbackData() 
+        : fallbackData;
+    }
+    
+    throw error; // 无降级数据时抛出错误
+  }
+}
+
+function getAdjustedTimeout(baseTimeout) {
+  const connection = navigator.connection;
+  if (!connection) return baseTimeout;
+  
+  const multiplier = {
+    '4g': 1,
+    '3g': 2,
+    '2g': 4,
+    'slow-2g': 8
+  };
+  
+  return baseTimeout * (multiplier[connection.effectiveType] || 1);
+}
+```
+
+---
+
+### 13.5 网络层错误监控上报
+
+完善的错误监控体系对于线上问题定位和用户体验改进至关重要。
+
+#### 13.5.1 监控架构设计
+
+```
+前端应用
+  ├── 网络错误捕获 (fetch/XMLHttpRequest 拦截)
+  ├── 资源加载错误 (img/script/link onerror)
+  ├── Promise 未捕获异常 (unhandledrejection)
+  └── 自定义业务错误
+         ↓
+    错误收集器 (统一格式化、去重、采样)
+         ↓
+    上报队列 (批量上报、失败重试、空闲时发送)
+         ↓
+    监控平台 (Sentry/自建系统)
+         ↓
+    告警 + 分析 + 可视化
+```
+
+#### 13.5.2 网络错误监控实现
+
+```javascript
+/**
+ * 网络层错误监控 SDK
+ * 支持自动捕获和手动上报
+ */
+class NetworkErrorMonitor {
+  constructor(options = {}) {
+    this.options = {
+      reportUrl: options.reportUrl || '/api/errors',
+      maxErrors: options.maxErrors || 20,       // 页面最大上报数
+      sampleRate: options.sampleRate || 1,       // 采样率 0-1
+      batchSize: options.batchSize || 5,         // 批量上报数量
+      batchTimeout: options.batchTimeout || 5000 // 批量上报间隔(ms)
+    };
+    
+    this.errorQueue = [];
+    this.errorCount = 0;
+    this.init();
+  }
+  
+  init() {
+    // 1. 拦截 fetch
+    this.interceptFetch();
+    
+    // 2. 拦截 XMLHttpRequest
+    this.interceptXHR();
+    
+    // 3. 监听资源加载错误
+    window.addEventListener('error', (event) => {
+      if (event.target !== window && event.target instanceof Element) {
+        this.capture({
+          type: 'resource',
+          tagName: event.target.tagName,
+          src: event.target.src || event.target.href,
+          message: `资源加载失败: ${event.target.src || event.target.href}`
+        });
+      }
+    }, true);
+    
+    // 4. 定时批量上报
+    setInterval(() => this.flush(), this.options.batchTimeout);
+    
+    // 5. 页面隐藏时立即上报
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.flush();
+    });
+  }
+  
+  interceptFetch() {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const startTime = performance.now();
+      const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
+      
+      try {
+        const response = await originalFetch(...args);
+        const duration = performance.now() - startTime;
+        
+        // 记录慢请求 (> 3s)
+        if (duration > 3000) {
+          this.capture({
+            type: 'slow-request',
+            url,
+            method: args[1]?.method || 'GET',
+            duration: Math.round(duration),
+            status: response.status
+          });
+        }
+        
+        // 记录非2xx响应
+        if (!response.ok) {
+          this.capture({
+            type: 'http-error',
+            url,
+            method: args[1]?.method || 'GET',
+            status: response.status,
+            statusText: response.statusText
+          });
+        }
+        
+        return response;
+      } catch (error) {
+        this.capture({
+          type: 'network-error',
+          url,
+          method: args[1]?.method || 'GET',
+          error: error.message,
+          duration: Math.round(performance.now() - startTime)
+        });
+        throw error;
+      }
+    };
+  }
+  
+  interceptXHR() {
+    const originalOpen = XMLHttpRequest.prototype.open;
+    const originalSend = XMLHttpRequest.prototype.send;
+    
+    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+      this._monitorInfo = { method, url, startTime: 0 };
+      return originalOpen.call(this, method, url, ...rest);
+    };
+    
+    XMLHttpRequest.prototype.send = function(...args) {
+      if (this._monitorInfo) {
+        this._monitorInfo.startTime = performance.now();
+        
+        this.addEventListener('loadend', () => {
+          const duration = performance.now() - this._monitorInfo.startTime;
+          
+          if (this.status >= 400) {
+            // 上报 XHR 错误（此处省略具体实现）
+          }
+        });
+      }
+      
+      return originalSend.call(this, ...args);
+    };
+  }
+  
+  capture(errorInfo) {
+    // 采样控制
+    if (Math.random() > this.options.sampleRate) return;
+    
+    // 频次限制
+    if (this.errorCount >= this.options.maxErrors) return;
+    
+    // 构造标准化的错误对象
+    const error = {
+      ...errorInfo,
+      timestamp: Date.now(),
+      url: location.href,
+      userAgent: navigator.userAgent,
+      networkInfo: navigator.connection ? {
+        effectiveType: navigator.connection.effectiveType,
+        rtt: navigator.connection.rtt,
+        downlink: navigator.connection.downlink
+      } : null,
+      // 用户标识（脱敏）
+      userId: this.getUserId(),
+      // 会话信息
+      sessionId: this.getSessionId(),
+      // 页面性能
+      performance: {
+        timing: performance.timing ? {
+          navigationStart: performance.timing.navigationStart,
+          loadEventEnd: performance.timing.loadEventEnd
+        } : null
+      }
+    };
+    
+    this.errorQueue.push(error);
+    this.errorCount++;
+    
+    // 达到批次大小时立即上报
+    if (this.errorQueue.length >= this.options.batchSize) {
+      this.flush();
+    }
+  }
+  
+  async flush() {
+    if (this.errorQueue.length === 0) return;
+    
+    const errorsToSend = [...this.errorQueue];
+    this.errorQueue = [];
+    
+    try {
+      // 使用 Beacon API（页面卸载时也能发送）
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(
+          this.options.reportUrl,
+          JSON.stringify({ errors: errorsToSend })
+        );
+      } else {
+        // 降级为 fetch
+        await fetch(this.options.reportUrl, {
+          method: 'POST',
+          body: JSON.stringify({ errors: errorsToSend }),
+          keepalive: true
+        });
+      }
+    } catch (e) {
+      // 上报失败，重新放回队列（限制重试次数）
+      console.error('错误上报失败:', e);
+      this.errorQueue.unshift(...errorsToSend.slice(0, 10));
+    }
+  }
+  
+  getUserId() {
+    // 从 Cookie 或 LocalStorage 获取用户ID（需脱敏）
+    return localStorage.getItem('user_id') || 'anonymous';
+  }
+  
+  getSessionId() {
+    let sessionId = sessionStorage.getItem('session_id');
+    if (!sessionId) {
+      sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      sessionStorage.setItem('session_id', sessionId);
+    }
+    return sessionId;
+  }
+}
+
+// 初始化监控
+const monitor = new NetworkErrorMonitor({
+  reportUrl: 'https://monitor.example.com/api/errors',
+  sampleRate: 1,  // 生产环境可设置为 0.1 (10%采样)
+  maxErrors: 20
+});
+
+// 导出手动上报接口
+window.__NETWORK_MONITOR__ = {
+  capture: (error) => monitor.capture(error),
+  flush: () => monitor.flush()
+};
+```
+
+#### 13.5.3 错误分类与告警规则
+
+| 错误类型 | 严重程度 | 告警阈值 | 处理优先级 | 典型原因 |
+|---------|---------|---------|-----------|---------|
+| **网络断开** | 🔴 P0 | 任意发生 | 立即 | 用户断网、DNS解析失败 |
+| **HTTP 5xx** | 🔴 P0 | 错误率 > 1% | 立即 | 服务器内部错误 |
+| **HTTP 4xx** | 🟡 P2 | 错误率 > 5% | 1小时内 | 参数错误、权限不足 |
+| **请求超时** | 🟠 P1 | 超时率 > 2% | 30分钟内 | 服务器负载高、网络拥堵 |
+| **慢请求** | 🟡 P2 | 平均耗时 > 3s | 2小时内 | 数据库慢查询、外部依赖 |
+| **资源加载失败** | 🟡 P2 | 失败率 > 3% | 1小时内 | CDN 故障、路径错误 |
+| **CORS 错误** | 🟠 P1 | 任意发生 | 30分钟内 | 跨域配置错误 |
+
+---
+
+## 第14章 网络安全专题
+
+### 📚 本章学习目标
+
+- 掌握 **常见安全头配置**及 Nginx 实战示例
+- 理解 **前端安全威胁**及其防护措施
+- 学会构建 **前端安全 Checklist**（开发/上线/运维三阶段）
+- 了解 **常见网络攻击手法**和防御策略
+- 掌握 **敏感数据保护**的最佳实践
+
+---
+
+### 14.1 安全头配置速查表
+
+#### 14.1.1 核心 HTTP 安全响应头
+
+以下安全头应在所有生产环境的 Web 服务器上配置：
+
+| 安全头 | 推荐值 | 作用 | Nginx 配置示例 |
+|-------|-------|------|----------------|
+| **Strict-Transport-Security (HSTS)** | `max-age=31536000; includeSubDomains; preload` | 强制浏览器使用 HTTPS，防止 SSL 剥离攻击 | `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;` |
+| **X-Frame-Options** | `DENY` 或 `SAMEORIGIN` | 防止页面被嵌入 iframe（点击劫持） | `add_header X-Frame-Options "SAMEORIGIN" always;` |
+| **X-Content-Type-Options** | `nosniff` | 禁止浏览器 MIME 嗅探（防 XSS） | `add_header X-Content-Type-Options "nosniff" always;` |
+| **X-XSS-Protection** | `1; mode=block` | 启用浏览器 XSS 过滤器（辅助防护） | `add_header X-XSS-Protection "1; mode=block" always;` |
+| **Referrer-Policy** | `strict-origin-when-cross-origin` | 控制 Referer 头泄露（隐私保护） | `add_header Referrer-Policy "strict-origin-when-cross-origin" always;` |
+| **Content-Security-Policy** | 见下方详细配置 | 白名单机制限制资源加载来源（防 XSS 注入） | `add_header Content-Security-Policy "...";` |
+| **Permissions-Policy** | `camera=(), microphone=(), geolocation=()` | 禁用不必要的浏览器权限 | `add_header Permissions-Policy "camera=(), microphone=()" always;` |
+| **Cross-Origin-Opener-Policy** | `same-origin` | 防止跨窗口攻击（COOP） | `add_header Cross-Origin-Opener-Policy "same-origin" always;` |
+| **Cross-Origin-Embedder-Policy** | `require-corp` | 要求跨域资源显式授权（COEP） | `add_header Cross-Origin-Embedder-Policy "require-corp" always;` |
+| **Cross-Origin-Resource-Policy** | `same-site` | 限制跨域资源共享（CORP） | `add_header Cross-Origin-Resource-Policy "same-site" always;` |
+
+#### 14.1.2 完整 Nginx 安全配置示例
+
+```nginx
+# /etc/nginx/conf.d/security-headers.conf
+
+# ===== 基础安全头 =====
+# 强制 HTTPS（有效期1年，包含子域名）
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+# 防止点击劫持（禁止iframe嵌入）
+add_header X-Frame-Options "DENY" always;
+
+# 禁止 MIME 类型嗅探
+add_header X-Content-Type-Options "nosniff" always;
+
+# XSS 保护（旧版浏览器兼容）
+add_header X-XSS-Protection "1; mode=block" always;
+
+# Referer 策略（仅同源发送完整Referer，跨域仅发送origin）
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+# ===== 内容安全政策 (CSP) =====
+# 根据你的实际情况调整白名单
+add_header Content-Security-Policy "
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.staticfile.org https://analytics.example.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    img-src 'self' data: blob: https://cdn.example.com https://images.example.com;
+    font-src 'self' https://fonts.gstatic.com;
+    connect-src 'self' https://api.example.com wss://ws.example.com;
+    media-src 'self';
+    object-src 'none';
+    frame-ancestors 'none';
+    form-action 'self';
+    base-uri 'self';
+    upgrade-insecure-requests;
+" always;
+
+# ===== 权限策略 =====
+# 禁用不需要的浏览器功能
+add_header Permissions-Policy "
+    camera=(),
+    microphone=(),
+    geolocation=(),
+    payment=(),
+    usb=(),
+    magnetometer=(),
+    gyroscope=(),
+    ambient-light-sensor=()
+" always;
+
+# ===== 跨域隔离（可选，用于启用高性能特性）=====
+# 注意：启用 COOP+COEP 后需要确保所有跨域资源支持 CORS
+# add_header Cross-Origin-Opener-Policy "same-origin" always;
+# add_header Cross-Origin-Embedder-Policy "require-corp" always;
+
+# ===== 其他安全配置 =====
+# 隐藏 Nginx 版本号（在 http 块配置）
+# server_tokens off;
+
+# ===== CORS 配置示例（API 接口）=====
+# location /api/ {
+#     if ($request_method = 'OPTIONS') {
+#         add_header 'Access-Control-Allow-Origin' '$http_origin';
+#         add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS';
+#         add_header 'Access-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization';
+#         add_header 'Access-Control-Max-Age' 1728000;
+#         add_header 'Content-Type' 'text/plain charset=UTF-8';
+#         add_header 'Content-Length' 0;
+#         return 204;
+#     }
+#     
+#     add_header 'Access-Control-Allow-Origin' '$http_origin' always;
+#     add_header 'Access-Control-Allow-Credentials' 'true' always;
+#     
+#     # ... 其他代理配置
+# }
+```
+
+> ⚠️ **CSP 配置注意事项**：
+> 1. **逐步收紧**：先用 `report-only` 模式观察违规报告，再正式启用
+> 2. **避免 `'unsafe-inline'`**：尽量使用 nonce 或 hash 替代
+> 3. **第三方资源**：将 CDN、分析脚本等加入白名单
+> 4. **定期审查**：随着项目迭代及时更新 CSP 规则
+
+#### 14.1.3 CSP Report-Only 模式（调试用）
+
+```nginx
+# 先用此模式收集违规报告，不上报错误
+add_header Content-Security-Policy-Report-Only "
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://cdn.example.com;
+    report-uri /csp-report-endpoint;
+    report-to default
+" always;
+
+# 配置报告接收端点（配合 Reporting API）
+add_header Report-To '{"group":"default","max_age":31536000,"endpoints":[{"url":"https://report.example.com/api/csp"}]}' always;
+```
+
+---
+
+### 14.2 前端安全 Checklist
+
+#### 14.2.1 开发阶段 Checklist（编码时自查）
+
+| # | 检查项 | 详细说明 | 验证方法 |
+|---|-------|---------|---------|
+| ✅ | **XSS 防护** | 所有用户输入必须经过转义/过滤；使用框架内置的自动转义；避免 `dangerouslySetInnerHTML` | Code Review + SAST 工具扫描 |
+| ✅ | **CSRF 防护** | 状态改变请求携带 CSRF Token；使用 SameSite Cookie；敏感操作二次验证 | Postman 模拟跨站请求测试 |
+| ✅ | **SQL 注入防护** | 使用 ORM/参数化查询；绝不拼接 SQL 字符串 | 安全扫描工具（如 SQLMap） |
+| ✅ | **敏感数据保护** | 密码/Token 不在前端代码硬编码；使用环境变量管理密钥；LocalStorage 不存敏感信息 | Git History 扫描 + 代码搜索 |
+| ✅ | **依赖安全** | 定期运行 `npm audit` / `yarn audit`；及时升级有漏洞的包；使用 `npm-lock` 固定版本 | CI/CD 集成安全扫描 |
+| ✅ | **输入校验** | 前后端双重校验；使用 Schema 校验库（Joi/Yup/Zod）；限制输入长度和类型 | 单元测试覆盖边界情况 |
+| ✅ | **错误信息脱敏** | 前端错误不暴露堆栈信息；API 错误不返回内部细节；日志记录详细但用户提示模糊 | 手动触发各种错误查看反馈 |
+| ✅ | **HTTPS 强制使用** | API 请求全部走 HTTPS；混合内容检测（Mixed Content）；HSTS 预加载列表提交 | 浏览器开发者工具 Security 面板 |
+
+#### 14.2.2 上线前 Checklist（发布前必查）
+
+| # | 检查项 | 详细说明 | 工具/命令 |
+|---|-------|---------|----------|
+| 🔒 | **安全头配置** | 确认所有安全响应头已正确配置；CSP 非 Report-Only 模式 | `curl -I https://your-domain.com` 检查响应头 |
+| 🔒 | **HTTPS 证书** | 证书未过期；证书链完整；支持 TLS 1.2+；禁用弱密码套件 | SSL Labs (ssllabs.com/ssltest) 评分 A+ |
+| 🔒 | **CORS 配置** | Access-Control-Allow-Origin 不是 `*`（带凭证时）；仅允许必要的 Methods 和 Headers | 浏览器 Network 面板检查 OPTIONS 响应 |
+| 🔒 | **Cookie 安全属性** | 所有认证 Cookie 设置 HttpOnly、Secure、SameSite=Strict/Lax；Session Cookie 有合理过期时间 | Application 面板查看 Cookie 属性 |
+| 🔒 | **敏感接口鉴权** | 支付/删除/修改等敏感接口有额外验证（短信/邮箱/MFA）；Rate Limiting 已配置 | Postman + Burp Suite 测试 |
+| 🔒 | **错误页面定制** | 404/403/500 页面不泄露服务器信息；错误页包含友好的引导链接 | 访问不存在的路径测试 |
+| 🔒 | **robots.txt 与 sitemap** | 禁止爬取敏感路径（/admin, /api）；搜索引擎只索引公开页面 | Google Search Console 检查 |
+| 🔒 | **Source Map 保护** | 生产环境不上传 Source Map 或需要认证才能访问；构建产物混淆压缩 | 检查 .map 文件是否可公开访问 |
+| 🔒 | **依赖漏洞扫描** | `npm audit production` 无 HIGH/CRITICAL 漏洞；或有明确的例外说明 | `npm audit --production` |
+| 🔒 | **渗透测试** | 核心业务流程经过安全测试；已知漏洞已修复；测试报告归档 | 内部安全团队或第三方审计 |
+
+#### 14.2.3 运维阶段 Checklist（持续监控）
+
+| # | 检查项 | 详细说明 | 监控频率 |
+|---|-------|---------|---------|
+| 🛡️ | **安全告警** | 异常登录、暴力破解、大量 4xx/5xx 错误实时告警；告警渠道畅通（邮件/钉钉/ Slack） | 实时 |
+| 🛡️ | **访问日志审计** | 定期审查访问日志；关注异常 IP、异常 User-Agent、异常时间段访问 | 每日/每周 |
+| 🛡️ | **证书监控** | 证书到期前 30 天提醒续签；自动化证书更新（Let's Encrypt + Certbot） | 每日检查 |
+| 🛡️ | **漏洞情报跟踪** | 关注 CVE 数据库；依赖包出现新漏洞时及时评估影响；订阅安全公告邮件 | 每周 |
+| 🛡️ | **备份与恢复** | 数据库定期备份；备份文件加密存储；定期演练恢复流程 | 每日备份 / 每月演练 |
+| 🛡️ | **WAF 规则更新** | Web 应用防火墙规则库保持最新；针对新型攻击添加自定义规则；定期 review 误报 | 每周 |
+| 🛡️ | **DDoS 防护** | 启用云厂商 DDoS 防护（阿里云 DDoS Basic/Cloudflare）；配置流量清洗阈值；制定应急预案 | 持续监控 |
+| 🛡️ | **合规性检查** | 符合 GDPR/网络安全法等法规要求；隐私政策更新；用户数据导出/删除接口正常 | 每季度 |
+| 🛡️ | **安全培训** | 团队成员定期接受安全意识培训；新员工入职安全培训；分享最新安全事件案例 | 每季度 |
+
+---
+
+### 14.3 常见网络攻击与防御
+
+#### 14.3.1 攻击类型速查表
+
+| 攻击类型 | 攻击原理 | 危害程度 | 防御措施 |
+|---------|---------|---------|---------|
+| **XSS (跨站脚本攻击)** | 注入恶意脚本到网页 | 🔴 高 | 输入转义、CSP、HttpOnly Cookie |
+| **CSRF (跨站请求伪造)** | 诱导用户执行非预期操作 | 🔴 高 | CSRF Token、SameSite Cookie、Referer 校验 |
+| **SQL 注入** | 恶意 SQL 代码注入 | 🔴 高 | 参数化查询、ORM、输入验证 |
+| **DDoS 攻击** | 大量请求耗尽服务器资源 | 🔴 高 | 流量清洗、CDN、限流、黑名单 |
+| **中间人攻击 (MITM)** | 拦截/篡改通信数据 | 🔴 高 | HTTPS/HSTS/证书固定(Pinning) |
+| **点击劫持 (Clickjacking)** | 隐藏 iframe 诱骗点击 | 🟠 中 | X-Frame-Options、CSP frame-ancestors |
+| **SSRF (服务端请求伪造)** | 伪造服务端发起内部请求 | 🟠 中 | 白名单、禁止内网地址、URL 解析规范 |
+
+#### 14.3.2 安全开发原则总结
+
+1. **最小权限原则**：用户和服务仅拥有完成任务所需的最小权限
+2. **纵深防御**：多层安全控制，单一防线失效不影响整体安全
+3. **默认安全**：安全选项默认开启，而非需要时才手动启用
+4. **输入不信任**：所有来自外部的数据都是不可信的，必须验证和清理
+5. **安全左移**：在开发早期就引入安全实践，而非上线后才补救
+6. **透明度**：安全策略和数据处理方式对用户透明（隐私政策）
+7. **持续改进**：安全是一个持续的过程，需要定期评估和更新
+
+由于文件内容较长,我将分段继续追加剩余章节。请允许我继续写入第4章后续内容及第5-14章及附录。

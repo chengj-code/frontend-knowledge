@@ -187,6 +187,16 @@
 
 > **追问链**：JWT 的结构和各部分作用？Session 固定攻击是什么？SameSite 属性的作用？
 
+### 🔍 追问链
+1. **[Cookie → Session → Token → JWT 的演进之路]**
+   → 方向：从有状态到无状态的架构演进，各方案的优劣对比（安全性、可扩展性、移动端适配、跨域场景），以及现代双令牌机制（Access Token + Refresh Token）的最佳实践
+2. **[Session 固定攻击（Session Fixation）及防御]**
+   → 方向：攻击原理（登录前注入 Session ID）、防御手段（登录后重新生成 Session ID）、与 Session 劫持的区别
+3. **[SameSite 属性的完整安全模型]**
+   → 方向：Strict/Lax/None 三种模式的选择策略、CSRF 防护中的角色、第三方 Cookie 限制对广告追踪的影响、跨域 iframe 嵌入的场景问题
+4. **[Token 安全最佳实践]**
+   → 方向：Token 存储位置（LocalStorage vs Cookie）、XSS 窃取风险、Token 刷新机制、Token 撤销方案（黑名单/版本号/短有效期）
+
 ---
 
 ## Q05: HTTP 1.0 / 1.1 / 2.0 的主要区别？
@@ -285,6 +295,14 @@
    - 服务端：`CLOSED` → `LISTEN` → `SYN_RCVD` → `ESTABLISHED`
 
 > **追问链**：TCP 四次挥手为什么是四次而不是三次？SYN Cookie 的原理是什么？
+
+### 🔍 追问链
+1. **[SYN Flood 攻击原理与防御体系]**
+   → 方向：攻击方式（伪造 IP 大量发送 SYN 包）、资源耗尽原理（半连接队列满）、防御方案（SYN Cookie / 增大半连接队列 / 防火墙过滤）、现代云厂商的 DDoS 防护能力
+2. **[TCP Fast Open (TFO) 优化]**
+   → 方向：TFO 如何减少握手 RTT（首次握手获取 Cookie，后续连接跳过握手直接传数据）、安全性考虑（重放攻击风险）、Linux 内核配置（net.ipv4.tcp_fastopen）
+3. **[SYN Cookie 工作机制详解]**
+   → 方向：服务端不保存半连接状态，而是将客户端信息编码到 ISN 中返回；客户端第三次握手中携带该信息验证；优点（节省内存）与缺点（丢失 TCP 选项如窗口缩放、时间戳等）
 
 ---
 
@@ -1010,6 +1028,14 @@
 
 > **追问链**：HTTP/2 的 Stream 优先级如何影响资源加载？HPACK 的安全漏洞（CRIME 攻击变体）？如何检测网站是否启用了 HTTP/2？
 
+### 🔍 追问链
+1. **[Stream 优先级与依赖树机制]**
+   → 方向：依赖关系（父/子 Stream、权重值）、优先级反转问题（高权重子流被低权重兄弟流饿死）、服务端推送的优先级处理
+2. **[HPACK 动态表大小限制与安全风险]**
+   → 方向：CRIME/BREACH 类攻击（通过动态表侧信道窃取 Header 信息）、SETTINGS_HEADER_TABLE_SIZE 的安全配置建议、HPACK 静态字典与 Huffman 编码的优化效果
+3. **[HTTP/2 连接迁移与多路复用的局限]**
+   → 方向：TCP 层面队头阻塞依然存在（丢包影响所有 Stream）、连接迁移困难（四元组变化导致断连）、这是 HTTP/3 (QUIC) 要解决的核心问题
+
 ---
 
 ## Q17: HTTPS 的加密过程是怎样的？TLS 握手的详细步骤？
@@ -1106,6 +1132,14 @@
    - **证书选择**：Let's Encrypt（免费）、EV 证书（绿色地址栏，已取消特殊标识）
 
 > **追问链**：中间人攻击（MITM）的具体过程？证书透明度（Certificate Transparency）的作用？TLS 1.3 的 0-RTT 安全风险？
+
+### 🔍 追问链
+1. **[TLS 1.3 的 0-RTT 安全风险与缓解]**
+   → 方向：0-RTT 允许客户端在首次握手时即发送数据（节省 1 RTT），但存在重放攻击风险（攻击者截获并重放 0-RTT 数据）；缓解方案：单次使用 Ticket、服务端记录已使用的 Ticket
+2. **[证书固定化攻击（Certificate Pinning）及 ECDHE vs RSA 密钥交换]**
+   → 方向：ECDHE 提供 PFS（完美前向保密），即使私钥泄露也无法解密历史会话；RSA 无 PFS；HPKP 已废弃，但 Certificate Transparency (CT) 成为新的信任机制
+3. **[OCSP Stapling 与证书吊销检查优化]**
+   → 方向：传统 OCSP 查询增加 RTT 且暴露用户隐私；Stapling 让服务器主动提供证书状态；Must-Staple 强制要求
 
 ---
 
@@ -1247,6 +1281,14 @@
    ```
 
 > **追问链**：CDN 缓存和浏览器缓存的交互？Service Worker 缓存和 HTTP 缓存的优先级？如何做缓存预热？
+
+### 🔍 追问链
+1. **[no-cache vs no-store 的本质区别]**
+   → 方向：no-cache（可缓存但必须先验证新鲜度，每次都发协商请求）、no-store（完全禁止任何缓存，敏感数据如银行交易必须用）；实际场景选择指南
+2. **[私有缓存 vs 共享缓存的 Cache-Control 指令]**
+   → 方向：public（CDN/代理可缓存，适合静态资源）、private（仅浏览器可缓存，适合用户个性化内容）、s-maxage（仅控制共享缓存的 max-age）
+3. **[Vary 头的作用与缓存键设计]**
+   → 方向：Vary: Accept-Encoding 让压缩和非压缩版本分别缓存；Vary: User-Agent 可能导致缓存爆炸；现代最佳实践是 Vary: Origin 或少用 Vary
 
 ---
 
@@ -1996,6 +2038,14 @@
 
 > **追问链**：HTTP/2 的 Stream 优先级如何工作？HTTP/3 如何解决 TCP 层面的队头阻塞？QUIC 的 Stream 设计灵感是否来自 HTTP/2？
 
+### 🔍 追问链
+1. **[DNS 预解析（dns-prefetch）与预连接（preconnect）优化]**
+   → 方向：`<link rel="dns-prefetch">` 提前 20-120ms 解析域名；`<link rel="preconnect">` 额外完成 DNS+TCP+TLS（节省 100-300ms）；实际项目中的组合使用策略
+2. **[TCP Fast Open (TFO) 与 TLS Session Resumption]**
+   → 方向：TFO 在 SYN 中携带数据减少 1 RTT；Session ID/Ticket 复用 TLS 参数减少 1 RTT；两者叠加可显著提升首屏性能
+3. **[Early Hints (103 状态码) 的应用]**
+   → 方向：服务端在完整响应前先推送关键资源提示（Link 头）；浏览器可提前建立连接/预加载；与 Server Push 和 preload 的区别
+
 ---
 
 ## Q25: QUIC 协议为什么选择基于 UDP 而不是 TCP？
@@ -2263,6 +2313,14 @@
 
 > **追问链**：CSP 的 nonce 和 hash 模式？如何防御 Mutation XSS（mXSS）？XSS 和 CSRF 的组合攻击？
 
+### 🔍 追问链
+1. **[CSP nonce vs hash 模式对比]**
+   → 方向：nonce（每次请求生成随机值，适合动态内联脚本）、hash（基于内容哈希，适合静态不变的内联脚本）；两者都不能用 unsafe-inline；Google 推荐的 strict-dynamic 模式（配合 nonce）
+2. **[Sanitizer API 与 Trusted Types]**
+   → 方向：浏览器原生的 HTML Sanitizer API（自动转义危险标签）；Trusted Types（强制对 innerHTML 赋值进行策略校验，防止 DOM-based XSS）；Chrome 已支持
+3. **[Mutation XSS (mXSS) 的防御难点]**
+   → 方向：攻击者利用浏览器 API（如 innerHTML 赋值时的 HTML 解析差异）绕过传统过滤；防御方案：使用 DOMPurify 库 + CSP 策略 + 输出编码多层防护
+
 ---
 
 ## Q27: CSRF 攻击的原理是什么？如何防御？
@@ -2398,6 +2456,14 @@
    - ✅ **Token 定期轮换**
 
 > **追问链**：SameSite=None 在第三方嵌入（iframe）场景的问题？如何设计无状态的 CSRF 防御？OAuth 流程中的 CSRF 保护（state 参数）？
+
+### 🔍 追问链
+1. **[Double Submit Cookie 方案详解]**
+   → 方向：登录时同时设置 Cookie 和自定义 Header/POST 参数（相同随机值）；服务端比对两者是否一致；优点是无状态（不需服务端存储），缺点是子域攻击风险（需配合域名锁定）
+2. **[SameSite=None + Secure 的兼容性问题]**
+   → 方向：None 模式允许跨站携带 Cookie（需 Secure）；但 iOS Safari 12 之前不支持；第三方 iframe 嵌入场景（如支付授权页）可能被拦截；解决方案：使用两个 Cookie（Strict + None）
+3. **[Referer 泄露风险与隐私保护]**
+   → 方向：Referer 头会暴露来源 URL（可能含敏感参数如 token）；Referrer-Policy 策略（no-referrer / same-origin / strict-origin）；与 CSRF 防御的权衡
 
 ---
 
@@ -2640,6 +2706,676 @@
 
 > **追问链**：如何实现请求缓存（类似 React Query）？如何做请求的竞态处理（最新请求优先）？如何实现 Mock 数据的平滑切换？
 
+### 🔥 深度拓展：手写实现
+
+#### 完整的 Axios 封装库实现
+
+```javascript
+/**
+ * ============================================================
+ *  📦 HttpRequest - 企业级 HTTP 请求封装库
+ * ============================================================
+ * 
+ *  核心功能：
+ *  ✅ 拦截器机制（请求拦截器 / 响应拦截器链）
+ *  ✅ 请求取消（AbortController + CancelToken 兼容）
+ *  ✅ 超时控制（全局 + 单请求级别）
+ *  ✅ 重试机制（指数退避算法）
+ *  ✅ 请求队列 / 并发控制
+ *  ✅ 错误统一处理
+ *  ✅ Token 自动注入与刷新
+ * 
+ *  算法思路（ASCII 图解）：
+ * 
+ *  ┌─────────────────────────────────────────────────────┐
+ *  │                    请求流程                          │
+ *  │                                                     │
+ *  │  用户调用 → [请求队列] → [请求拦截器链]              │
+ *  │       ↓            ↓             ↓                  │
+ *  │   参数校验    并发控制     Token注入/配置合并        │
+ *  │       ↓            ↓             ↓                  │
+ *  │  ──────────→ [发送 HTTP 请求] ←──────────┐          │
+ *  │       ↓                                  │          │
+ *  │   [响应拦截器链]                          │          │
+ *  │       ↓                                  │          │
+ *  │   数据转换 / 错误处理                     │ 超时/取消 │
+ *  │       ↓                                  │          │
+ *  │   返回给用户 ◄───────────────────────────┘          │
+ *  │                                                     │
+ *  └─────────────────────────────────────────────────────┘
+ */
+
+class HttpRequest {
+  /**
+   * 构造函数：初始化默认配置和核心组件
+   */
+  constructor(config = {}) {
+    // 默认配置项
+    this.defaults = {
+      baseURL: config.baseURL || '',
+      timeout: config.timeout || 15000,           // 默认超时 15 秒
+      headers: {
+        'Content-Type': 'application/json',
+        ...config.headers
+      },
+      withCredentials: config.withCredentials ?? true,  // 携带 Cookie
+      responseType: config.responseType || 'json',      // 响应类型
+      maxRetries: config.maxRetries || 3,               // 最大重试次数
+      retryDelay: config.retryDelay || 1000,            // 重试基础延迟(ms)
+      concurrency: config.concurrency || 6,             // 并发请求数限制
+    };
+
+    // 拦截器容器（洋葱模型）
+    this.interceptors = {
+      request: new InterceptorManager(),   // 请求拦截器管理器
+      response: new InterceptorManager(),  // 响应拦截器管理器
+    };
+
+    // 待处理的请求队列（用于并发控制）
+    this.pendingRequests = new Map();       // 存储进行中的请求（用于重复请求取消）
+    this.requestQueue = [];                 // 请求队列
+    this.activeCount = 0;                   // 当前活跃请求数
+
+    // 取消令牌源映射（兼容旧版 CancelToken）
+    this.cancelTokenSources = new Map();
+
+    // 初始化实例
+    this._initInstance();
+  }
+
+  /**
+   * 初始化 axios 实例（底层使用 fetch API 实现，不依赖外部库）
+   * @private
+   */
+  _initInstance() {
+    // 如果环境支持 AbortController，创建默认控制器
+    if (typeof AbortController !== 'undefined') {
+      this.abortController = null;
+    }
+  }
+
+  // ==================== 核心请求方法 ====================
+
+  /**
+   * 通用请求方法（核心入口）
+   * @param {Object} config - 请求配置
+   * @returns {Promise} 响应数据
+   */
+  async request(config = {}) {
+    try {
+      // 第一步：合并配置（默认配置 < 实例配置 < 请求配置）
+      const mergedConfig = this._mergeConfig(config);
+
+      // 第二步：检查重复请求（可选功能）
+      const requestKey = this._generateRequestKey(mergedConfig);
+      
+      // 第三步：执行请求拦截器链（洋葱模型：先进后出）
+      const processedConfig = await this._runRequestInterceptors(mergedConfig);
+
+      // 第四步：加入请求队列（并发控制）
+      return await this._enqueue(() => 
+        this._executeWithRetry(processedConfig, requestKey)
+      );
+
+    } catch (error) {
+      // 错误会被响应拦截器捕获并处理
+      throw error;
+    }
+  }
+
+  /**
+   * 执行实际的网络请求（含重试逻辑）
+   * @private
+   * @param {Object} config - 处理后的请求配置
+   * @param {string} requestKey - 请求唯一标识
+   * @returns {Promise} 响应数据
+   */
+  async _executeWithRetry(config, requestKey) {
+    let lastError = null;
+    
+    // 创建 AbortController 用于取消请求
+    const controller = new AbortController();
+    this.pendingRequests.set(requestKey, controller);
+
+    // 设置超时定时器
+    const timeoutId = setTimeout(() => {
+      controller.abort();  // 超时自动取消请求
+    }, config.timeout);
+
+    try {
+      for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+        try {
+          // 发送实际的 fetch 请求
+          const response = await fetch(config.url, {
+            method: config.method || 'GET',
+            headers: config.headers,
+            body: this._serializeBody(config.data, config.headers),
+            signal: controller.signal,
+            credentials: this.defaults.withCredentials ? 'include' : 'omit',
+          });
+
+          // 清除超时定时器
+          clearTimeout(timeoutId);
+          
+          // 从待处理列表中移除
+          this.pendingRequests.delete(requestKey);
+
+          // 解析响应数据
+          const responseData = await this._parseResponse(response, config);
+
+          // 第五步：执行响应拦截器链（洋葱模型）
+          return await this._runResponseInterceptors({
+            data: responseData,
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+            config,
+          });
+
+        } catch (error) {
+          lastError = error;
+
+          // 如果是主动取消或非网络错误，不重试
+          if (error.name === 'AbortError' || !this._shouldRetry(error, attempt)) {
+            clearTimeout(timeoutId);
+            this.pendingRequests.delete(requestKey);
+            throw error;
+          }
+
+          // 指数退避等待后重试
+          if (attempt < config.maxRetries) {
+            const delay = config.retryDelay * Math.pow(2, attempt);  // 1s, 2s, 4s...
+            console.warn(`[HttpRequest] 请求失败，${delay}ms 后第 ${attempt + 1} 次重试...`);
+            await this._sleep(delay);
+          }
+        }
+      }
+
+      // 所有重试都失败
+      throw lastError;
+
+    } catch (error) {
+      clearTimeout(timeoutId);
+      this.pendingRequests.delete(requestKey);
+      throw this._normalizeError(error, config);
+    }
+  }
+
+  // ==================== 快捷方法 ====================
+
+  /** GET 请求快捷方法 */
+  get(url, config = {}) {
+    return this.request({ ...config, url, method: 'GET' });
+  }
+
+  /** POST 请求快捷方法 */
+  post(url, data, config = {}) {
+    return this.request({ ...config, url, method: 'POST', data });
+  }
+
+  /** PUT 请求快捷方法 */
+  put(url, data, config = {}) {
+    return this.request({ ...config, url, method: 'PUT', data });
+  }
+
+  /** DELETE 请求快捷方法 */
+  delete(url, config = {}) {
+    return this.request({ ...config, url, method: 'DELETE' });
+  }
+
+  /** PATCH 请求快捷方法 */
+  patch(url, data, config = {}) {
+    return this.request({ ...config, url, method: 'PATCH', data });
+  }
+
+  // ==================== 请求取消 ====================
+
+  /**
+   * 取消指定请求（通过 URL 或自定义 key）
+   * @param {string} key - 请求标识
+   */
+  cancelRequest(key) {
+    const controller = this.pendingRequests.get(key);
+    if (controller) {
+      controller.abort();
+      console.log(`[HttpRequest] 已取消请求: ${key}`);
+    }
+  }
+
+  /**
+   * 取消所有待处理的请求
+   */
+  cancelAllRequests() {
+    this.pendingRequests.forEach((controller, key) => {
+      controller.abort();
+      console.log(`[HttpRequest] 已取消请求: ${key}`);
+    });
+    this.pendingRequests.clear();
+  }
+
+  // ==================== 内部工具方法 ====================
+
+  /**
+   * 合并配置（深拷贝避免污染）
+   * @private
+   */
+  _mergeConfig(config) {
+    return {
+      ...this.defaults,
+      ...config,
+      headers: {
+        ...this.defaults.headers,
+        ...(config.headers || {})
+      },
+      url: config.baseURL || this.defaults.baseURL 
+        ? `${config.baseURL || this.defaults.baseURL}${config.url}` 
+        : config.url
+    };
+  }
+
+  /**
+   * 生成请求唯一标识（用于去重和取消）
+   * @private
+   */
+  _generateRequestKey(config) {
+    // 使用 URL + 方法 + 参数序列化作为唯一键
+    const paramsStr = JSON.stringify(config.params || {});
+    const bodyStr = JSON.stringify(config.data || {});
+    return `${config.method}:${config.url}:${paramsStr}:${bodyStr}`;
+  }
+
+  /**
+   * 序列化请求体（根据 Content-Type 选择格式）
+   * @private
+   */
+  _serializeBody(data, headers) {
+    if (!data) return undefined;
+
+    const contentType = headers['Content-Type'] || '';
+    
+    // JSON 格式
+    if (contentType.includes('application/json')) {
+      return JSON.stringify(data);
+    }
+    
+    // FormData 格式（不手动序列化）
+    if (data instanceof FormData) {
+      return data;
+    }
+    
+    // URL 编码格式
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      return Object.keys(data)
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(data[key])}`)
+        .join('&');
+    }
+    
+    return String(data);
+  }
+
+  /**
+   * 解析响应数据
+   * @private
+   */
+  async _parseResponse(response, config) {
+    const responseType = config.responseType;
+    
+    switch (responseType) {
+      case 'json':
+        return await response.json().catch(() => ({}));
+      case 'text':
+        return await response.text();
+      case 'blob':
+        return await response.blob();
+      case 'arraybuffer':
+        return await response.arrayBuffer();
+      default:
+        return await response.json().catch(() => ({}));
+    }
+  }
+
+  /**
+   * 执行请求拦截器链（洋葱模型）
+   * 遍历顺序：interceptor1 → interceptor2 → interceptor3
+   * @private
+   */
+  async _runRequestInterceptors(config) {
+    let processedConfig = { ...config };
+    
+    for (const interceptor of this.interceptors.request.handlers) {
+      processedConfig = await interceptor.fulfilled(processedConfig);
+    }
+    
+    return processedConfig;
+  }
+
+  /**
+   * 执行响应拦截器链（洋葱模型）
+   * 遍历顺序：interceptor3 → interceptor2 → interceptor1（反向）
+   * @private
+   */
+  async _runResponseInterceptors(response) {
+    let processedResponse = response;
+    
+    // 反向遍历响应拦截器
+    for (let i = this.interceptors.response.handlers.length - 1; i >= 0; i--) {
+      const interceptor = this.interceptors.response.handlers[i];
+      processedResponse = await interceptor.fulfilled(processedResponse);
+    }
+    
+    return processedResponse;
+  }
+
+  /**
+   * 请求队列管理（并发控制）
+   * 使用 Promise 队列模式控制同时进行的请求数量
+   * @private
+   */
+  async _enqueue(task) {
+    return new Promise((resolve, reject) => {
+      // 将任务加入队列
+      this.requestQueue.push({ task, resolve, reject });
+      
+      // 尝试执行下一个任务
+      this._processQueue();
+    });
+  }
+
+  /**
+   * 处理队列中的任务
+   * @private
+   */
+  async _processQueue() {
+    // 如果已达并发上限或队列为空，直接返回
+    if (this.activeCount >= this.defaults.concurrency || this.requestQueue.length === 0) {
+      return;
+    }
+
+    // 取出队首任务
+    const { task, resolve, reject } = this.requestQueue.shift();
+    this.activeCount++;
+
+    try {
+      const result = await task();
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    } finally {
+      this.activeCount--;
+      // 递归处理下一个任务
+      this._processQueue();
+    }
+  }
+
+  /**
+   * 判断是否应该重试
+   * 只对网络错误和 5xx 服务端错误进行重试
+   * @private
+   */
+  _shouldRetry(error, attempt) {
+    // 网络错误（断网、DNS 失败等）
+    if (!error.response && error.message !== 'canceled') {
+      return true;
+    }
+    
+    // 5xx 服务端错误（可重试）
+    if (error.response?.status >= 500) {
+      return true;
+    }
+    
+    // 429 Too Many Requests（限流，可重试）
+    if (error.response?.status === 429) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * 规范化错误对象（统一错误格式）
+   * @private
+   */
+  _normalizeError(error, config) {
+    // 已经是标准格式的错误，直接返回
+    if (error.isAxiosError) return error;
+
+    // 构建标准化错误对象
+    const normalizedError = new Error(error.message || '请求失败');
+    normalizedError.isAxiosError = true;
+    normalizedError.config = config;
+    normalizedError.code = error.code;
+    
+    if (error.name === 'AbortError') {
+      normalizedError.message = '请求已取消';
+      normalizedError.canceled = true;
+    }
+    
+    return normalizedError;
+  }
+
+  /**
+   * 异步睡眠工具函数（用于重试延迟）
+   * @private
+   */
+  _sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// ==================== 拦截器管理器 ====================
+
+/**
+ * InterceptorManager - 拦截器管理器
+ * 
+ * 数据结构：
+ * ┌─────────────────────────────────────┐
+ * │  handlers: Array<{                   │
+ * │    fulfilled: Function,  // 成功回调  │
+ * │    rejected: Function    // 失败回调  │
+ *  }>                                    │
+ * └─────────────────────────────────────┘
+ */
+class InterceptorManager {
+  constructor() {
+    this.handlers = [];
+  }
+
+  /**
+   * 注册拦截器
+   * @param {Function} fulfilled - 成功时的回调
+   * @param {Function} rejected  - 失败时的回调（可选）
+   * @returns {number} 拦截器 ID（可用于移除）
+   */
+  use(fulfilled, rejected) {
+    this.handlers.push({
+      fulfilled,
+      rejected: rejected || ((error) => Promise.reject(error))
+    });
+    return this.handlers.length - 1;  // 返回索引作为 ID
+  }
+
+  /**
+   * 移除指定拦截器
+   * @param {number} id - 拦截器 ID
+   */
+  eject(id) {
+    if (this.handlers[id]) {
+      this.handlers[id] = null;  // 设为 null 而非删除，保持索引不变
+    }
+  }
+
+  /**
+   * 清空所有拦截器
+   */
+  clear() {
+    this.handlers = [];
+  }
+
+  /**
+   * 遍历所有有效拦截器
+   * @param {Function} fn - 回调函数
+   */
+  forEach(fn) {
+    this.handlers.forEach(handler => {
+      if (handler !== null) {
+        fn(handler);
+      }
+    });
+  }
+}
+
+// ==================== 导出和使用示例 ====================
+
+/** 
+ * 使用示例代码（在实际项目中这样使用）：
+ * 
+ * // 1. 创建请求实例
+ * const http = new HttpRequest({
+ *   baseURL: '/api',
+ *   timeout: 10000,
+ *   concurrency: 5,
+ *   maxRetries: 3,
+ * });
+ * 
+ * // 2. 注册请求拦截器（按注册顺序执行）
+ * http.interceptors.request.use(
+ *   // 拦截器 1：注入 Token
+ *   async (config) => {
+ *     const token = localStorage.getItem('token');
+ *     if (token) {
+ *       config.headers.Authorization = `Bearer ${token}`;
+ *     }
+ *     console.log(`[请求] ${config.method} ${config.url}`);
+ *     return config;
+ *   },
+ *   // 错误处理（可选）
+ *   (error) => {
+ *     console.error('[请求拦截器错误]', error);
+ *     return Promise.reject(error);
+ *   }
+ * );
+ * 
+ * http.interceptors.request.use(
+ *   // 拦截器 2：添加时间戳（防缓存）
+ *   (config) => {
+ *     if (config.method === 'get') {
+ *       config.params = { ...config.params, _t: Date.now() };
+ *     }
+ *     return config;
+ *   }
+ * );
+ * 
+ * // 3. 注册响应拦截器（按注册倒序执行）
+ * http.interceptors.response.use(
+ *   // 成功响应处理
+ *   async (response) => {
+ *     const { data, status } = response;
+ *     
+ *     // 业务层面的成功判断
+ *     if (data.code === 0 || data.success) {
+ *       return data.data || data;  // 返回实际数据
+ *     }
+ *     
+ *     // 业务层面的错误（如 token 过期）
+ *     if (data.code === 401) {
+ *       // 尝试刷新 Token
+ *       const newToken = await refreshToken();
+ *       if (newToken) {
+ *         // 重新发送原请求
+ *         return http.request(response.config);
+ *       }
+ *       // 刷新失败，跳转登录页
+ *       window.location.href = '/login';
+ *       return Promise.reject(new Error('登录已过期'));
+ *     }
+ *     
+ *     // 其他业务错误
+ *     return Promise.reject(new Error(data.message || '请求失败'));
+ *   },
+ *   
+ *   // 错误响应处理
+ *   async (error) => {
+ *     if (error.canceled) {
+ *       console.warn('[请求被取消]', error.config?.url);
+ *       return Promise.reject(error);
+ *     }
+ *     
+ *     // HTTP 状态码分类处理
+ *     const status = error.response?.status;
+ *     const errorMap = {
+ *       400: '请求参数错误',
+ *       401: '未授权，请重新登录',
+ *       403: '拒绝访问',
+ *       404: '资源不存在',
+ *       422: '验证失败',
+ *       500: '服务器内部错误',
+ *       502: '网关错误',
+ *       503: '服务不可用',
+ *     };
+ *     
+ *     const message = errorMap[status] || `请求失败(${status})`;
+ *     console.error(`[${status}] ${message}`, error.config?.url);
+ *     
+ *     // 可以在这里添加全局提示（如 toast）
+ *     // Toast.error(message);
+ *     
+ *     return Promise.reject(error);
+ *   }
+ * );
+ * 
+ * // 4. 在组件中使用
+ * async function fetchData() {
+ *   try {
+ *     const users = await http.get('/users', {
+ *       params: { page: 1, size: 10 },
+ *       timeout: 5000,  // 单请求超时覆盖
+ *     });
+ *     console.log('用户列表:', users);
+ *   } catch (error) {
+ *     console.error('获取用户失败:', error.message);
+ *   }
+ * }
+ * 
+ * // 5. 文件上传（带进度）
+ * async function uploadFile(file) {
+ *   const formData = new FormData();
+ *   formData.append('file', file);
+ *   
+ *   const result = await http.post('/upload', formData, {
+ *     headers: { 'Content-Type': 'multipart/form-data' },
+ *     timeout: 60000,  // 上传超时设置长一些
+ *     onUploadProgress: (progressEvent) => {
+ *       const percent = Math.round(
+ *         (progressEvent.loaded * 100) / progressEvent.total
+ *       );
+ *       console.log(`上传进度: ${percent}%`);
+ *     },
+ *   });
+ *   
+ *   return result;
+ * }
+ * 
+ * // 6. 页面切换时取消所有待处理请求
+ * router.beforeEach((to, from, next) => {
+ *   http.cancelAllRequests();
+ *   next();
+ * });
+ */
+
+export default HttpRequest;
+```
+
+#### 关键设计要点总结：
+
+| 功能模块 | 实现方式 | 技术亮点 |
+|---------|---------|---------|
+| **拦截器链** | InterceptorManager 类 | 支持注册/移除/清空，洋葱模型执行 |
+| **请求取消** | AbortController API | 兼容 Fetch API，支持单请求/批量取消 |
+| **超时控制** | setTimeout + abort() | 全局默认 + 单请求可覆盖 |
+| **重试机制** | 指数退避算法 | 仅对 5xx 和网络错误重试，避免无限循环 |
+| **并发控制** | Promise 队列模式 | 可配置并发数，自动调度任务 |
+| **错误规范化** | 统一错误对象 | isAxiosError 标记，便于统一处理 |
+
 ---
 
 ## Q30: Service Worker 如何拦截网络请求并做缓存？
@@ -2749,6 +3485,904 @@ server.listen(3000, () => console.log('Server running on port 3000'));
 ```
 - **扩展方向**：路由解析、静态文件服务、POST 解析、中间件机制
 
+### 🔥 深度拓展：手写实现
+
+#### 完整的 HTTP 服务器实现（支持路由、静态文件、中间件）
+
+```javascript
+/**
+ * ============================================================
+ *  🌐 MiniHTTP - 手写 HTTP 服务器（Node.js 原生 net 模块）
+ * ============================================================
+ * 
+ *  功能特性：
+ *  ✅ 支持 GET / POST 方法路由
+ *  ✅ 静态文件服务（带 MIME 类型识别）
+ *  ✅ 中间件机制（类似 Koa 的洋葱模型简化版）
+ *  ✅ JSON / URL 编码请求体解析
+ *  ✅ CORS 跨域支持
+ *  ✅ 错误处理中间件
+ * 
+ *  算法思路（ASCII 图解）：
+ * 
+ *  ┌──────────────────────────────────────────────────────┐
+ *  │                   HTTP 请求处理流程                    │
+ *  │                                                      │
+ *  │   客户端请求 → [TCP 连接] → [解析 HTTP 报文]           │
+ *  │                      ↓                                │
+ *  │              ┌─────────────────┐                      │
+ *  │              │  中间件链执行    │ ← 洋葱模型            │
+ *  │              │  (先进后出)      │                       │
+ *  │              └────────┬────────┘                      │
+ *  │                       ↓                               │
+ *  │              ┌─────────────────┐                      │
+ *  │              │  路由匹配       │                        │
+ *  │              │  GET /api/users │                       │
+ *  │              └────────┬────────┘                      │
+ *  │                       ↓                               │
+ *  │              ┌─────────────────┐                      │
+ *  │              │  处理函数执行    │                        │
+ *  │              │  (Handler)       │                       │
+ *  │              └────────┬────────┘                      │
+ *  │                       ↓                               │
+ *  │              [构造 HTTP 响应] → 返回给客户端             │
+ *  │                                                      │
+ *  └──────────────────────────────────────────────────────┘
+ */
+
+const net = require('net');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+// ==================== MIME 类型映射表 ====================
+// 常见文件扩展名与 MIME 类型的对应关系
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.pdf': 'application/pdf',
+  '.xml': 'application/xml',
+};
+
+// ==================== HTTP 状态码描述 ====================
+const STATUS_CODES = {
+  200: 'OK',
+  201: 'Created',
+  204: 'No Content',
+  301: 'Moved Permanently',
+  302: 'Found',
+  304: 'Not Modified',
+  400: 'Bad Request',
+  401: 'Unauthorized',
+  403: 'Forbidden',
+  404: 'Not Found',
+  405: 'Method Not Allowed',
+  500: 'Internal Server Error',
+  502: 'Bad Gateway',
+  503: 'Service Unavailable',
+};
+
+// ==================== 核心类：MiniHTTPServer ====================
+
+class MiniHTTPServer {
+  /**
+   * 构造函数：初始化服务器配置和路由表
+   */
+  constructor(options = {}) {
+    // 服务器配置
+    this.options = {
+      port: options.port || 3000,
+      host: options.host || '127.0.0.1',
+      staticDir: options.staticDir || './public',  // 静态文件目录
+      maxBodySize: options.maxBodySize || 10 * 1024 * 1024,  // 最大请求体 10MB
+    };
+
+    // 路由表存储：{ method: { path: handler } }
+    this.routes = {
+      GET: {},
+      POST: {},
+      PUT: {},
+      DELETE: {},
+      PATCH: {},
+    };
+
+    // 中间件数组（洋葱模型）
+    this.middlewares = [];
+
+    // 创建 TCP 服务器实例
+    this.server = net.createServer(this._handleConnection.bind(this));
+
+    // 连接计数器（用于日志）
+    this.connectionCount = 0;
+  }
+
+  // ==================== 路由注册方法 ====================
+
+  /**
+   * 注册 GET 路由
+   * @param {string} path - 路由路径（支持 :params 动态参数）
+   * @param {Function} handler - 处理函数 (req, res) => {}
+   */
+  get(path, handler) {
+    this._addRoute('GET', path, handler);
+    return this;  // 支持链式调用
+  }
+
+  /** 注册 POST 路由 */
+  post(path, handler) {
+    this._addRoute('POST', path, handler);
+    return this;
+  }
+
+  /** 注册 PUT 路由 */
+  put(path, handler) {
+    this._addRoute('PUT', path, handler);
+    return this;
+  }
+
+  /** 注册 DELETE 路由 */
+  delete(path, handler) {
+    this._addRoute('DELETE', path, handler);
+    return this;
+  }
+
+  /** 注册 PATCH 路由 */
+  patch(path, handler) {
+    this._addRoute('PATCH', path, handler);
+    return this;
+  }
+
+  /**
+   * 内部方法：添加路由到路由表
+   * @private
+   */
+  _addRoute(method, path, handler) {
+    // 将路径转换为正则表达式（支持 :param 形式的动态参数）
+    const paramNames = [];
+    const regexPath = path.replace(/:([^/]+)/g, (_, paramName) => {
+      paramNames.push(paramName);
+      return '([^/]+)';
+    });
+
+    this.routes[method][path] = {
+      handler,
+      regex: new RegExp(`^${regexPath}$`),
+      paramNames,
+    };
+  }
+
+  // ==================== 中间件机制 ====================
+
+  /**
+   * 使用中间件（类似 Express/Koa 的 use 方法）
+   * 中间件按注册顺序执行，形成洋葱模型
+   * 
+   * @param {Function} middleware - 中间件函数 (req, res, next) => {}
+   */
+  use(middleware) {
+    if (typeof middleware === 'function') {
+      this.middlewares.push(middleware);
+    } else if (typeof middleware === 'object' && middleware.handle) {
+      // 支持子应用挂载
+      this.middlewares.push(middleware.handle.bind(middleware));
+    }
+    return this;  // 支持链式调用
+  }
+
+  // ==================== 静态文件服务 ====================
+
+  /**
+   * 挂载静态文件目录
+   * @param {string} dirPath - 静态文件目录路径
+   * @param {string} mountPath - 挂载路径前缀（默认 '/'）
+   */
+  static(dirPath, mountPath = '/') {
+    const absoluteDir = path.resolve(dirPath);
+    
+    // 创建静态文件服务中间件
+    const staticMiddleware = async (req, res, next) => {
+      // 只处理以 mountPath 开头的请求
+      if (!req.path.startsWith(mountPath)) {
+        return next();
+      }
+
+      // 计算实际文件路径
+      const relativePath = req.path.slice(mountPath.length) || '/index.html';
+      const filePath = path.join(absolutePath, relativePath);
+
+      try {
+        // 安全检查：防止路径遍历攻击
+        const safePath = path.resolve(filePath);
+        if (!safePath.startsWith(absoluteDir)) {
+          return res.status(403).send('Forbidden: Path traversal detected');
+        }
+
+        // 检查文件是否存在
+        await fs.promises.access(safePath, fs.constants.R_OK);
+
+        // 获取文件状态信息
+        const stat = await fs.promises.stat(safePath);
+        
+        // 如果是目录，尝试返回 index.html
+        if (stat.isDirectory()) {
+          const indexPath = path.join(safePath, 'index.html');
+          try {
+            await fs.promises.access(indexPath, fs.constants.R_OK);
+            return this._serveFile(indexPath, req, res);
+          } catch {
+            return res.status(404).send('Directory listing not allowed');
+          }
+        }
+
+        // 返回静态文件
+        return this._serveFile(safePath, req, res);
+
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          return next();  // 文件不存在，交给下一个中间件或路由
+        }
+        console.error('[Static] 文件读取错误:', error.message);
+        return res.status(500).send('Internal Server Error');
+      }
+    };
+
+    return this.use(staticMiddleware);
+  }
+
+  /**
+   * 发送静态文件内容
+   * @private
+   */
+  async _serveFile(filePath, req, res) {
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+    // 设置响应头
+    res.setHeader('Content-Type', contentType);
+    
+    // 缓存控制：对于带哈希的文件可以长期缓存
+    if (filePath.includes('.')) {
+      // 计算文件的 ETag（基于修改时间和大小）
+      const stat = await fs.promises.stat(filePath);
+      const etag = `"${stat.mtime.getTime()}-${stat.size}"`;
+      res.setHeader('ETag', etag);
+      
+      // 检查 If-None-Match 头（协商缓存）
+      const ifNoneMatch = req.headers['if-none-match'];
+      if (ifNoneMatch === etag) {
+        return res.status(304).end();  // 304 Not Modified
+      }
+
+      // 读取并返回文件内容
+      const data = await fs.promises.readFile(filePath);
+      res.setHeader('Content-Length', data.length);
+      return res.end(data);
+    }
+  }
+
+  // ==================== 启动服务器 ====================
+
+  /**
+   * 启动 HTTP 服务器监听
+   * @param {number} port - 监听端口（可选，覆盖配置）
+   * @param {Function} callback - 启动成功回调
+   */
+  listen(port, callback) {
+    const listenPort = port || this.options.port;
+    
+    this.server.listen(listenPort, this.options.host, () => {
+      console.log(`🚀 MiniHTTP Server running at http://${this.options.host}:${listenPort}`);
+      console.log(`   Static files: ${this.options.staticDir}`);
+      console.log(`   Routes registered: ${Object.values(this.routes).flatMap(r => Object.keys(r)).length}`);
+      
+      if (callback) callback();
+    });
+
+    return this;
+  }
+
+  // ==================== 内核：连接处理 ====================
+
+  /**
+   * 处理新的 TCP 连接（核心入口）
+   * 每个新的客户端连接都会触发此方法
+   * @private
+   */
+  _handleConnection(socket) {
+    this.connectionCount++;
+    const connId = this.connectionCount;
+    
+    console.log(`[${connId}] 📥 新连接来自 ${socket.remoteAddress}:${socket.remotePort}`);
+
+    // 存储当前连接接收到的数据缓冲区
+    let buffer = Buffer.alloc(0);
+
+    socket.on('data', (chunk) => {
+      // 将新数据追加到缓冲区
+      buffer = Buffer.concat([buffer, chunk]);
+
+      // 尝试解析完整的 HTTP 请求
+      // HTTP 请求以 \r\n\r\n 结尾表示头部结束
+      const headerEndIndex = buffer.indexOf('\r\n\r\n');
+      
+      if (headerEndIndex !== -1) {
+        // 提取头部部分
+        const headerBuffer = buffer.slice(0, headerEndIndex);
+        const headerStr = headerBuffer.toString('utf-8');
+
+        // 解析 Content-Length 判断是否有请求体
+        const contentLengthMatch = headerStr.match(/Content-Length:\s*(\d+)/i);
+        const contentLength = contentLengthMatch ? parseInt(contentLengthMatch[1]) : 0;
+
+        // 计算完整请求的总长度（头部 + \r\n\r\n + 请求体）
+        const totalLength = headerEndIndex + 4 + contentLength;
+
+        // 检查是否已接收到完整请求
+        if (buffer.length >= totalLength) {
+          // 提取完整请求数据
+          const requestData = buffer.slice(0, totalLength);
+          
+          // 清除已处理的数据（保留可能的后续请求数据，用于 Keep-Alive）
+          buffer = buffer.slice(totalLength);
+
+          // 解析并处理请求
+          this._processRequest(requestData, socket, connId);
+        }
+        // 如果数据不完整，继续等待更多数据...
+      }
+    });
+
+    // 连接关闭事件
+    socket.on('close', () => {
+      console.log(`[${connId}] 🔒 连接已关闭`);
+    });
+
+    // 连接错误事件
+    socket.on('error', (error) => {
+      console.error(`[${connId}] ❌ 连接错误:`, error.message);
+    });
+  }
+
+  // ==================== 请求处理核心 ====================
+
+  /**
+   * 解析并处理 HTTP 请求
+   * 这是整个服务器的核心逻辑
+   * @private
+   */
+  _processRequest(rawData, socket, connId) {
+    try {
+      // 第一步：将原始数据转换为字符串
+      const rawString = rawData.toString('utf-8');
+
+      // 第二步：分离头部和请求体（以第一个 \r\n\r\n 为界）
+      const [headerPart, bodyPart] = rawString.split('\r\n\r\n');
+
+      // 第三步：解析请求行（第一行）
+      const lines = headerPart.split('\r\n');
+      const requestLine = lines[0];
+      const [method, rawUrl, version] = requestLine.split(' ');
+
+      // 第四步：解析 URL 和查询参数
+      const urlObj = this._parseURL(rawUrl);
+      const pathname = urlObj.pathname;
+      const query = urlObj.query;
+
+      // 第五步：解析请求头
+      const headers = {};
+      for (let i = 1; i < lines.length; i++) {
+        const colonIndex = lines[i].indexOf(':');
+        if (colonIndex > 0) {
+          const name = lines[i].slice(0, colonIndex).trim().toLowerCase();
+          const value = lines[i].slice(colonIndex + 1).trim();
+          headers[name] = value;
+        }
+      }
+
+      // 第六步：解析请求体（如果有）
+      let body = null;
+      if (bodyPart && headers['content-type']) {
+        body = this._parseBody(bodyPart, headers['content-type']);
+      }
+
+      // 第七步：构建请求对象（类似 Express 的 req 对象）
+      const req = {
+        method,
+        url: rawUrl,
+        path: pathname,
+        query,
+        params: {},       // 路由参数（稍后填充）
+        headers,
+        body,
+        rawHeaders: headers,
+        socket,
+        connId,
+        timestamp: Date.now(),
+      };
+
+      // 第八步：构建响应对象（类似 Express 的 res 对象）
+      const res = this._createResponseObject(socket, version);
+
+      // 打印请求日志
+      console.log(`[${connId}] ${method} ${pathname} HTTP/${version.split('/')[1]}`);
+
+      // 第九步：执行中间件链 + 路由匹配
+      this._executeMiddlewaresAndRoute(req, res);
+
+    } catch (error) {
+      console.error(`[${connId}] ❌ 请求处理异常:`, error.message);
+      // 发送 500 错误响应
+      this._sendRawResponse(socket, 'HTTP/1.1 500 Internal Server Error\r\n\r\n');
+    }
+  }
+
+  // ==================== URL 解析器 ====================
+
+  /**
+   * 解析 URL（提取路径和查询参数）
+   * 不使用 Node.js 的 url 模块，手动实现
+   * @private
+   */
+  _parseURL(rawUrl) {
+    const queryIndex = rawUrl.indexOf('?');
+    
+    if (queryIndex === -1) {
+      // 无查询参数
+      return { pathname: decodeURIComponent(rawUrl), query: {} };
+    }
+
+    // 分离路径和查询字符串
+    const pathname = decodeURIComponent(rawUrl.slice(0, queryIndex));
+    const queryString = rawUrl.slice(queryIndex + 1);
+
+    // 解析查询参数（支持多值参数）
+    const query = {};
+    queryString.split('&').forEach(pair => {
+      const [key, value] = pair.split('=');
+      if (key) {
+        const decodedKey = decodeURIComponent(key);
+        const decodedValue = value ? decodeURIComponent(value) : '';
+        
+        if (query[decodedKey]) {
+          // 已存在则转为数组
+          if (Array.isArray(query[decodedKey])) {
+            query[decodedKey].push(decodedValue);
+          } else {
+            query[decodedKey] = [query[decodedKey], decodedValue];
+          }
+        } else {
+          query[decodedKey] = decodedValue;
+        }
+      }
+    });
+
+    return { pathname, query };
+  }
+
+  // ==================== 请求体解析器 ====================
+
+  /**
+   * 根据 Content-Type 解析请求体
+   * @private
+   */
+  _parseBody(bodyStr, contentType) {
+    if (contentType.includes('application/json')) {
+      try {
+        return JSON.parse(bodyStr);
+      } catch {
+        return null;  // JSON 解析失败返回 null
+      }
+    }
+    
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      // URL 编码格式：key1=value1&key2=value2
+      const params = {};
+      bodyStr.split('&').forEach(pair => {
+        const [key, value] = pair.split('=');
+        if (key) {
+          params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+        }
+      });
+      return params;
+    }
+    
+    // 其他格式原样返回
+    return bodyStr;
+  }
+
+  // ==================== 响应对象工厂 ====================
+
+  /**
+   * 创建响应对象（提供类似 Express 的 API）
+   * @private
+   */
+  _createResponseObject(socket, httpVersion) {
+    const self = this;
+    let statusCode = 200;
+    let statusText = 'OK';
+    let responseHeaders = {};
+    let isSent = false;
+
+    const res = {
+      /**
+       * 设置响应状态码
+       */
+      status(code) {
+        statusCode = code;
+        statusText = STATUS_CODES[code] || 'Unknown';
+        return this;  // 链式调用
+      },
+
+      /**
+       * 设置响应头
+       */
+      setHeader(name, value) {
+        responseHeaders[name.toLowerCase()] = value;
+        return this;
+      },
+
+      /**
+       * 批量设置响应头
+       */
+      set(headers) {
+        Object.entries(headers).forEach(([key, value]) => {
+          responseHeaders[key.toLowerCase()] = value;
+        });
+        return this;
+      },
+
+      /**
+       * 发送 JSON 响应（自动设置 Content-Type）
+       */
+      json(data) {
+        this.setHeader('Content-Type', 'application/json; charset=utf-8');
+        const body = JSON.stringify(data);
+        this.setHeader('Content-Length', Buffer.byteLength(body));
+        this._send(body);
+        return this;
+      },
+
+      /**
+       * 发送文本/HTML 响应
+       */
+      send(data) {
+        if (typeof data === 'object') {
+          return this.json(data);
+        }
+        
+        const body = String(data);
+        
+        // 自动检测 HTML 内容
+        if (!responseHeaders['content-type']) {
+          if (body.startsWith('<') || body.startsWith('<!')) {
+            this.setHeader('Content-Type', 'text/html; charset=utf-8');
+          } else {
+            this.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          }
+        }
+        
+        this.setHeader('Content-Length', Buffer.byteLength(body));
+        this._send(body);
+        return this;
+      },
+
+      /**
+       * 重定向到指定 URL
+       */
+      redirect(url, code = 302) {
+        this.status(code);
+        this.setHeader('Location', url);
+        this.setHeader('Content-Length', 0);
+        this._send('');
+        return this;
+      },
+
+      /**
+       * 结束响应（不发送任何内容）
+       */
+      end(data) {
+        if (data !== undefined) {
+          this._send(String(data));
+        } else {
+          this._send('');
+        }
+        return this;
+      },
+
+      /**
+       * 内部方法：发送响应数据
+       * @private
+       */
+      _send(body) {
+        if (isSent) {
+          console.warn('⚠️ 响应已发送，重复发送被忽略');
+          return;
+        }
+        isSent = true;
+
+        // 构造 HTTP 响应报文
+        const responseLine = `HTTP/${httpVersion.split('/')[1]} ${statusCode} ${statusText}`;
+        
+        // 构造头部
+        const headerLines = Object.entries(responseHeaders)
+          .map(([name, value]) => `${name}: ${value}`)
+          .join('\r\n');
+
+        // 完整响应（头部 + 空行 + 主体）
+        const fullResponse = `${responseLine}\r\n${headerLines}\r\n\r\n${body}`;
+        
+        // 写入 Socket 发送
+        self._sendRawResponse(socket, fullResponse);
+      },
+    };
+
+    return res;
+  }
+
+  /**
+   * 底层方法：通过 Socket 发送原始响应数据
+   * @private
+   */
+  _sendRawResponse(socket, data) {
+    if (!socket.destroyed) {
+      socket.write(data);
+    }
+  }
+
+  // ==================== 中间件与路由执行引擎 ====================
+
+  /**
+   * 执行中间件链并进行路由匹配
+   * 这是洋葱模型的核心实现
+   * @private
+   */
+  async _executeMiddlewaresAndRoute(req, res) {
+    // 创建中间件索引（用于依次执行）
+    let middlewareIndex = 0;
+
+    /**
+     * next 函数：将控制权交给下一个中间件
+     * 当所有中间件执行完毕后，进行路由匹配
+     */
+    const next = async () => {
+      // 检查是否还有未执行的中间件
+      if (middlewareIndex < this.middlewares.length) {
+        // 获取当前中间件
+        const currentMiddleware = this.middlewares[middlewareIndex];
+        middlewareIndex++;
+
+        try {
+          // 执行当前中间件，传入 req、res 和 next
+          await currentMiddleware(req, res, next);
+        } catch (error) {
+          console.error('❌ 中间件执行出错:', error.message);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Internal Server Error' });
+          }
+        }
+        return;
+      }
+
+      // 所有中间件执行完毕，开始路由匹配
+      this._matchRoute(req, res);
+    };
+
+    // 启动中间件链执行
+    await next();
+  }
+
+  /**
+   * 路由匹配逻辑
+   * @private
+   */
+  _matchRoute(req, res) {
+    const { method, path } = req;
+    const routesForMethod = this.routes[method];
+
+    if (!routesForMethod) {
+      // 该方法没有注册任何路由
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    // 遍历该方法的所有路由，查找匹配项
+    for (const [routePath, routeConfig] of Object.entries(routesForMethod)) {
+      const match = path.match(routeConfig.regex);
+      
+      if (match) {
+        // 路由匹配成功！
+        // 提取动态参数
+        const params = {};
+        routeConfig.paramNames.forEach((name, index) => {
+          params[name] = decodeURIComponent(match[index + 1]);
+        });
+        req.params = params;
+
+        try {
+          // 执行路由处理函数
+          await routeConfig.handler(req, res);
+        } catch (error) {
+          console.error(`❌ 路由处理器错误 [${method} ${routePath}]:`, error.message);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Internal Server Error' });
+          }
+        }
+        return;  // 匹配成功后立即返回
+      }
+    }
+
+    // 没有匹配的路由
+    res.status(404).json({ error: 'Not Found', path });
+  }
+}
+
+// ==================== 导出和使用示例 ====================
+
+/** 
+ * 使用示例代码：
+ * 
+ * // 1. 创建服务器实例
+ * const app = new MiniHTTPServer({
+ *   port: 8080,
+ *   staticDir: './public',
+ * });
+ * 
+ * // 2. 注册全局中间件（按顺序执行）
+ * 
+ * // 中间件 1：请求日志记录
+ * app.use((req, res, next) => {
+ *   const start = Date.now();
+ *   
+ *   // 在响应结束时记录耗时
+ *   const originalEnd = res.end.bind(res);
+ *   res.end = function(...args) {
+ *     const duration = Date.now() - start;
+ *     console.log(`${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
+ *     originalEnd(...args);
+ *   };
+ *   
+ *   next();
+ * });
+ * 
+ * // 中间件 2：CORS 跨域支持
+ * app.use((req, res, next) => {
+ *   res.setHeader('Access-Control-Allow-Origin', '*');
+ *   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+ *   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+ *   
+ *   // 预检请求直接返回 204
+ *   if (req.method === 'OPTIONS') {
+ *     return res.status(204).end();
+ *   }
+ *   
+ *   next();
+ * });
+ * 
+ * // 中间件 3：简单的认证检查（示例）
+ * app.use((req, res, next) => {
+ *   const token = req.headers['authorization'];
+ *   
+ *   // 登录接口不需要验证
+ *   if (req.path.startsWith('/auth')) {
+ *     return next();
+ *   }
+ *   
+ *   if (!token) {
+ *     return res.status(401).json({ error: '未提供认证令牌' });
+ *   }
+ *   
+ *   // TODO: 这里应该验证 token 的有效性
+ *   next();
+ * });
+ * 
+ * // 3. 注册路由
+ * 
+ * // 用户相关 API
+ * app.get('/api/users', async (req, res) => {
+ *   // 从查询参数获取分页信息
+ *   const page = parseInt(req.query.page) || 1;
+ *   const size = parseInt(req.query.size) || 10;
+ *   
+ *   // TODO: 从数据库查询用户列表
+ *   const users = [
+ *     { id: 1, name: '张三', email: 'zhangsan@example.com' },
+ *     { id: 2, name: '李四', email: 'lisi@example.com' },
+ *   ];
+ *   
+ *   res.json({
+ *     success: true,
+ *     data: users,
+ *     pagination: { page, size, total: users.length },
+ *   });
+ * });
+ * 
+ * // 动态路由参数示例
+ * app.get('/api/users/:id', (req, res) => {
+ *   const userId = req.params.id;
+ *   
+ *   // TODO: 根据 ID 查询用户
+ *   res.json({
+ *     success: true,
+ *     data: { id: userId, name: `用户${userId}` },
+ *   });
+ * });
+ * 
+ * // POST 请求：创建资源
+ * app.post('/api/users', (req, res) => {
+ *   const { name, email } = req.body || {};
+ *   
+ *   if (!name || !email) {
+ *     return res.status(400).json({ error: '缺少必要字段: name, email' });
+ *   }
+ *   
+ *   // TODO: 创建用户并保存到数据库
+ *   res.status(201).json({
+ *     success: true,
+ *     data: { id: Date.now(), name, email },
+ *     message: '用户创建成功',
+ *   });
+ * });
+ * 
+ * // PUT 请求：更新资源
+ * app.put('/api/users/:id', (req, res) => {
+ *   const userId = req.params.id;
+ *   const updates = req.body || {};
+ *   
+ *   // TODO: 更新用户信息
+ *   res.json({
+ *     success: true,
+ *     message: `用户 ${userId} 更新成功`,
+ *   });
+ * });
+ * 
+ * // DELETE 请求：删除资源
+ * app.delete('/api/users/:id', (req, res) => {
+ *   const userId = req.params.id;
+ *   
+ *   // TODO: 删除用户
+ *   res.json({ success: true, message: `用户 ${userId} 已删除` });
+ * });
+ * 
+ * // 4. 挂载静态文件服务
+ * app.static('./public');
+ * 
+ * // 5. 启动服务器
+ * app.listen(8080, () => {
+ *   console.log('✅ 服务器启动完成！');
+ *   console.log('   测试地址: http://localhost:8080/api/users');
+ *   console.log('   静态文件: http://localhost:8080/index.html');
+ * });
+ */
+
+module.exports = MiniHTTPServer;
+```
+
+#### 关键技术要点总结：
+
+| 模块 | 实现方式 | 技术亮点 |
+|------|---------|---------|
+| **TCP 连接管理** | net.createServer | 数据缓冲、完整请求检测、Keep-Alive 支持 |
+| **HTTP 协议解析** | 手写字符串解析 | 请求行/头/体分离、URL 参数解析 |
+| **路由系统** | 正则表达式匹配 | 支持 `:param` 动态参数 |
+| **中间件机制** | 异步迭代 + next() | 洋葱模型，支持异步中间件 |
+| **静态文件** | fs.promises | MIME 类型映射、ETag 缓存、路径安全检查 |
+| **响应对象** | 工厂模式 | 链式调用 API（status/json/send/redirect）|
+
+---
+
 ## Q32: 实现 WebSocket 服务端（含握手解析和帧编解码）
 - **难度**：★★★
 - **知识点**：WebSocket 协议 / 帧结构 / 握手流程
@@ -2797,16 +4431,1548 @@ function encodeFrame(payload) {
 }
 ```
 
+### 🔥 深度拓展：手写实现
+
+#### 完整的 WebSocket 服务端实现（含握手、帧编解码、心跳、广播）
+
+```javascript
+/**
+ * ============================================================
+ *  🔄 MiniWebSocket - 手写 WebSocket 服务端
+ * ============================================================
+ * 
+ *  功能特性：
+ *  ✅ 完整的 WebSocket 握手过程解析
+ *     （Sec-WebSocket-Key → Sec-WebSocket-Accept 计算）
+ *  ✅ 帧编解码（Opcode / MASK / Payload Length 完整处理）
+ *  ✅ 心跳检测机制（Ping/Pong 自动响应）
+ *  ✅ 消息广播功能（单播、广播、房间分组）
+ *  ✅ 连接管理（连接/断开事件、统计信息）
+ * 
+ *  算法思路（ASCII 图解）：
+ * 
+ *  ┌──────────────────────────────────────────────────────┐
+ *  │              WebSocket 协议处理流程                    │
+ *  │                                                      │
+ *  │   [1] HTTP 握手阶段                                   │
+ *  │       客户端: GET /ws (Upgrade: websocket)            │
+ *  │       服务端: 101 Switching Protocols                │
+ *  │              ↓                                       │
+ *  │   [2] 数据传输阶段（二进制帧）                         │
+ *  │       ┌─────────────────────────────────┐            │
+ *  │       │  帧头 (2+ 字节)                  │            │
+ *  │       │  ├─ FIN: 是否最后一帧            │            │
+ *  │       │  ├─ Opcode: 帧类型(文本/二进制)   │            │
+ *  │       │  ├─ MASK: 是否掩码(客户端必须1)    │            │
+ *  │       │  └─ Length: 载荷长度              │            │
+ *  │       ├─────────────────────────────────┤            │
+ *  │       │  掩码密钥 (4 字节，客户端→服务端)  │            │
+ *  │       ├─────────────────────────────────┤            │
+ *  │       │  载荷数据 (Mask 解码后)          │            │
+ *  │       └─────────────────────────────────┘            │
+ *  │              ↓                                       │
+ *  │   [3] 消息分发                                       │
+ *  │       文本消息 → onMessage 回调                      │
+ *  │       二进制消息 → onBinary 回调                     │
+ *  │       Ping 帧 → 自动回复 Pong                        │
+ *  │       Close 帧 → 断开连接                            │
+ *  │                                                      │
+ *  └──────────────────────────────────────────────────────┘
+ */
+
+const net = require('net');
+const crypto = require('crypto');
+
+// ==================== WebSocket OPCODE 常量 ====================
+// 定义 WebSocket 帧的操作码（Opcode）
+const OPCODES = {
+  CONTINUATION: 0x0,   // 继续帧（分段传输的后续帧）
+  TEXT: 0x1,            // 文本帧（UTF-8 编码）
+  BINARY: 0x2,          // 二进制帧
+  CLOSE: 0x8,           // 关闭连接帧
+  PING: 0x9,            // 心跳检测请求（Ping）
+  PONG: 0xA,            // 心跳响应（Pong）
+};
+
+// Opcode 名称映射（用于日志输出）
+const OPCODE_NAMES = {
+  0x0: 'CONTINUATION',
+  0x1: 'TEXT',
+  0x2: 'BINARY',
+  0x8: 'CLOSE',
+  0x9: 'PING',
+  0xA: 'PONG',
+};
+
+// ==================== WebSocket 连接状态枚举 ====================
+const CONNECTION_STATE = {
+  CONNECTING: 'CONNECTING',     // 正在握手
+  OPEN: 'OPEN',                 // 已连接，可通信
+  CLOSING: 'CLOSING',           // 正在关闭
+  CLOSED: 'CLOSED',             // 已关闭
+};
+
+// ==================== 核心类：MiniWebSocketServer ====================
+
+class MiniWebSocketServer {
+  /**
+   * 构造函数：初始化服务器配置和连接管理器
+   */
+  constructor(options = {}) {
+    // 服务器配置项
+    this.options = {
+      port: options.port || 8080,
+      host: options.host || '0.0.0.0',
+      path: options.path || '/',        // WebSocket 路径
+      heartbeatInterval: options.heartbeatInterval || 30000,  // 心跳间隔（毫秒）
+      heartbeatTimeout: options.heartbeatTimeout || 60000,     // 心跳超时（毫秒）
+      maxPayloadSize: options.maxPayloadSize || 104857600,    // 最大载荷 100MB
+    };
+
+    // 连接管理：存储所有活跃的 WebSocket 连接
+    this.connections = new Map();  // connectionId → WebSocketConnection
+    
+    // 房间管理：支持分组广播
+    this.rooms = new Map();       // roomName → Set<connectionId>
+
+    // 全局事件监听器
+    this.eventListeners = {
+      connection: [],      // 新连接建立时触发
+      message: [],         // 收到消息时触发
+      close: [],           // 连接关闭时触发
+      error: [],           // 发生错误时触发
+    };
+
+    // 连接 ID 计数器（自增）
+    this.connectionIdCounter = 0;
+
+    // 创建底层 TCP 服务器
+    this.server = net.createServer(this._handleTCPConnection.bind(this));
+
+    console.log('🔧 MiniWebSocketServer 初始化完成');
+  }
+
+  // ==================== 服务器生命周期方法 ====================
+
+  /**
+   * 启动 WebSocket 服务器监听
+   */
+  listen(port, callback) {
+    const listenPort = port || this.options.port;
+    
+    this.server.listen(listenPort, this.options.host, () => {
+      console.log(`\n🚀 WebSocket Server running at ws://${this.options.host}:${listenPort}`);
+      console.log(`   Path: ${this.options.path}`);
+      console.log(`   Heartbeat: ${this.options.heartbeatInterval}ms\n`);
+      
+      if (typeof callback === 'function') {
+        callback();
+      }
+    });
+
+    return this;  // 支持链式调用
+  }
+
+  /**
+   * 关闭服务器（停止接受新连接，但不断开现有连接）
+   */
+  close(callback) {
+    this.server.close(() => {
+      console.log('🛑 WebSocket Server 已关闭');
+      if (callback) callback();
+    });
+    
+    return this;
+  }
+
+  // ==================== 事件注册方法 ====================
+
+  /**
+   * 注册事件监听器（类似 Node.js EventEmitter 风格）
+   * @param {string} event - 事件名称：connection/message/close/error
+   * @param {Function} listener - 事件回调函数
+   */
+  on(event, listener) {
+    if (this.eventListeners[event]) {
+      this.eventListeners[event].push(listener);
+    }
+    return this;  // 支持链式调用
+  }
+
+  /**
+   * 触发事件（内部使用）
+   * @private
+   */
+  _emit(event, ...args) {
+    const listeners = this.eventListeners[event] || [];
+    listeners.forEach(listener => {
+      try {
+        listener(...args);
+      } catch (error) {
+        console.error(`[Event:${event}] 监听器执行出错:`, error.message);
+      }
+    });
+  }
+
+  // ==================== TCP 连接处理（入口）====================
+
+  /**
+   * 处理新的 TCP 连接
+   * 这是所有连接的入口点
+   * @private
+   */
+  _handleTCPConnection(socket) {
+    const connId = ++this.connectionIdCounter;
+    
+    console.log(`[${connId}] 📥 新的 TCP 连接来自 ${socket.remoteAddress}:${socket.remotePort}`);
+
+    // 创建 WebSocket 连接对象
+    const connection = new WebSocketConnection(connId, socket, this);
+
+    // 存储到连接映射表
+    this.connections.set(connId, connection);
+
+    // 触发 connection 事件
+    this._emit('connection', connection);
+
+    // 数据缓冲区（用于拼接不完整的帧数据）
+    let buffer = Buffer.alloc(0);
+
+    // ========== 数据接收处理 ==========
+    socket.on('data', (chunk) => {
+      // 将新数据追加到缓冲区
+      buffer = Buffer.concat([buffer, chunk]);
+
+      // 根据连接状态决定如何处理数据
+      if (connection.state === CONNECTION_STATE.CONNECTING) {
+        // 处于握手阶段：尝试解析 HTTP 升级请求
+        this._handleHandshake(connection, buffer, socket);
+        // 清空缓冲区（握手完成后不再需要原始数据）
+        buffer = Buffer.alloc(0);
+        
+      } else if (connection.state === CONNECTION_STATE.OPEN) {
+        // 已连接状态：解析 WebSocket 数据帧
+        this._parseFrames(connection, buffer);
+        // 清空已处理的数据
+        buffer = Buffer.alloc(0);
+      }
+    });
+
+    // ========== 连接关闭处理 ==========
+    socket.on('close', () => {
+      console.log(`[${connId}] 🔒 TCP 连接已关闭`);
+      
+      // 从所有房间中移除该连接
+      this._removeFromAllRooms(connId);
+      
+      // 从连接映射表中删除
+      this.connections.delete(connId);
+      
+      // 触发 close 事件
+      this._emit('close', connection);
+    });
+
+    // ========== 错误处理 ==========
+    socket.on('error', (error) => {
+      console.error(`[${connId}] ❌ Socket 错误:`, error.message);
+      this._emit('error', error, connection);
+    });
+  }
+
+  // ==================== WebSocket 握手过程 ====================
+
+  /**
+   * 处理 WebSocket 握手（HTTP Upgrade 请求）
+   * 
+   * 握手流程详解：
+   * 1. 客户端发送 HTTP GET 请求，包含特殊头部
+   * 2. 服务端验证请求合法性
+   * 3. 计算 Sec-WebSocket-Accept 值
+   * 4. 返回 101 Switching Protocols 响应
+   * 
+   * @private
+   */
+  _handleHandshake(connection, rawData, socket) {
+    try {
+      // 第一步：将原始数据转换为字符串
+      const rawString = rawData.toString('utf-8');
+      
+      // 第二步：检查是否是有效的 HTTP 请求
+      if (!rawString.includes('HTTP/') && !rawString.includes('http')) {
+        throw new Error('无效的 HTTP 请求格式');
+      }
+
+      // 第三步：解析请求行
+      const requestLine = rawString.split('\r\n')[0];
+      const [method, path, httpVersion] = requestLine.split(' ');
+
+      // 第四步：验证必须是 GET 方法
+      if (method !== 'GET') {
+        throw new Error('WebSocket 握手必须是 GET 请求');
+      }
+
+      // 第五步：解析所有请求头
+      const headers = {};
+      const headerLines = rawString.split('\r\n').slice(1);
+      
+      for (const line of headerLines) {
+        const colonIndex = line.indexOf(':');
+        if (colonIndex > 0) {
+          const name = line.slice(0, colonIndex).trim().toLowerCase();
+          const value = line.slice(colonIndex + 1).trim();
+          headers[name] = value;
+        }
+      }
+
+      // 第六步：验证必要的 WebSocket 升级头部
+      
+      // 检查 Upgrade 头
+      if (headers['upgrade']?.toLowerCase() !== 'websocket') {
+        throw new Error('缺少或无效的 Upgrade: websocket 头部');
+      }
+
+      // 检查 Connection 头（可能包含多个值，用逗号分隔）
+      const connectionHeader = headers['connection']?.toLowerCase() || '';
+      if (!connectionHeader.includes('upgrade')) {
+        throw new Error('缺少或无效的 Connection: Upgrade 头部');
+      }
+
+      // 检查 WebSocket 版本（RFC 6455 要求版本 13）
+      const wsVersion = parseInt(headers['sec-websocket-version']);
+      if (wsVersion !== 13) {
+        return this._sendHTTPError(socket, 426, 'Upgrade Required', {
+          'Sec-WebSocket-Version': '13'
+        });
+      }
+
+      // 第七步：获取并验证 Sec-WebSocket-Key
+      const clientKey = headers['sec-websocket-key'];
+      if (!clientKey) {
+        throw new Error('缺少 Sec-WebSocket-Key 头部');
+      }
+
+      // 验证 Key 格式（Base64 编码的 16 字节随机值）
+      if (!/^[A-Za-z0-9+/]{4,}={0,2}$/.test(clientKey)) {
+        throw new Error('Sec-WebSocket-Key 格式无效');
+      }
+
+      // 第八步：计算 Sec-WebSocket-Accept 值
+      // 算法：SHA-1(ClientKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11") → Base64
+      const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';  // RFC 6455 定义的 GUID
+      const acceptHash = crypto.createHash('sha1')
+        .update(clientKey + WEBSOCKET_GUID)
+        .digest('base64');
+
+      // 第九步：构造并发送 101 Switching Protocols 响应
+      const responseHeaders = [
+        'HTTP/1.1 101 Switching Protocols',
+        `Sec-WebSocket-Accept: ${acceptHash}`,
+        'Upgrade: websocket',
+        'Connection: Upgrade',
+        '\r\n'  // 空行表示头部结束
+      ].join('\r\n');
+
+      socket.write(responseHeaders);
+
+      // 第十步：更新连接状态为 OPEN
+      connection.state = CONNECTION_STATE.OPEN;
+      connection.handshakeHeaders = headers;
+      connection.connectTime = Date.now();
+
+      console.log(`[${connection.id}] ✅ WebSocket 握手成功！路径: ${path}`);
+
+      // 启动心跳检测定时器
+      this._startHeartbeat(connection);
+
+    } catch (error) {
+      console.error(`[${connection.id}] ❌ 握手失败:`, error.message);
+      this._sendHTTPError(socket, 400, 'Bad Request', {});
+      socket.end();  // 关闭连接
+    }
+  }
+
+  /**
+   * 发送 HTTP 错误响应（握手失败时使用）
+   * @private
+   */
+  _sendHTTPError(socket, statusCode, statusText, extraHeaders) {
+    const response = [
+      `HTTP/1.1 ${statusCode} ${statusText}`,
+      'Content-Type: text/plain',
+      'Connection: close',
+      ...Object.entries(extraHeaders).map(([k, v]) => `${k}: ${v}`),
+      '\r\n',
+      statusText,
+    ].join('\r\n');
+    
+    socket.write(response);
+  }
+
+  // ==================== WebSocket 帧编解码核心 ====================
+
+  /**
+   * 解析 WebSocket 数据帧（可能包含多个帧）
+   * 
+   * 帧结构（RFC 6455）：
+   *  0                   1                   2                   3
+   *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   * +-+-+-+-+-------+-+-------------+-------------------------------+
+   * |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+   * |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+   * |N|V|V|V|       |S|             |   (if payload len==126/127)   |
+   * +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+   * |     Extended payload length continued, if payload len == 127  |
+   * + - - - - - - - - - - - - - - - +-------------------------------+
+   * |                               |Masking-key, if MASK set to 1  |
+   * +-------------------------------+-------------------------------+
+   * | Masking-key (continued)       |          Payload Data         |
+   * +-------------------------------- - - - - - - - - - - - - - - - +
+   * :                     Payload Data continued ...                :
+   * + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
+   * |                     Payload Data continued ...                |
+   * +---------------------------------------------------------------+
+   * 
+   * @private
+   */
+  _parseFrames(connection, data) {
+    let offset = 0;  // 当前读取位置
+
+    while (offset < data.length) {
+      try {
+        // 至少需要 2 字节的帧头
+        if (offset + 2 > data.length) {
+          break;  // 数据不足，等待更多数据
+        }
+
+        // ====== 第一字节：FIN + RSV + Opcode ======
+        const firstByte = data[offset];
+        const FIN = (firstByte & 0x80) !== 0;         // 最高位：是否最终帧
+        const RSV1 = (firstByte & 0x40) !== 0;        // 扩展位1（保留）
+        const RSV2 = (firstByte & 0x20) !== 0;        // 扩展位2（保留）
+        const RSV3 = (firstByte & 0x10) !== 0;        // 扩展位3（保留）
+        const Opcode = firstByte & 0x0F;               // 低4位：操作码
+
+        // 检查 RSV 位（如果设置了且未协商扩展，应关闭连接）
+        if (RSV1 || RSV2 || RSV3) {
+          console.warn(`[${connection.id}] ⚠️ 收到设置 RSV 位的帧（未协商扩展）`);
+        }
+
+        // ====== 第二字节：MASK + Payload Length ======
+        const secondByte = data[offset + 1];
+        const MASK = (secondByte & 0x80) !== 0;        // 最高位：是否有掩码
+        let payloadLength = secondByte & 0x7F;         // 低7位：初始载荷长度
+
+        offset += 2;  // 移过前两字节
+
+        // ====== 扩展载荷长度（如果初始值为 126 或 127）======
+        if (payloadLength === 126) {
+          // 接下来 2 字节表示真实长度（16 位无符号整数，大端序）
+          if (offset + 2 > data.length) break;
+          payloadLength = data.readUInt16BE(offset);
+          offset += 2;
+          
+        } else if (payloadLength === 127) {
+          // 接下来 8 字节表示真实长度（64 位无符号整数，大端序）
+          if (offset + 8 > data.length) break;
+          
+          // 注意：最高有效位必须为 0（防止过大值）
+          const highBits = data[offset];
+          if (highBits & 0x80) {
+            throw new Error('载荷长度超过限制（最高位不应为 1）');
+          }
+          
+          payloadLength = Number(data.readBigUInt64BE(offset));
+          offset += 8;
+        }
+
+        // 安全检查：载荷长度不能超过配置的最大值
+        if (payloadLength > this.options.maxPayloadSize) {
+          throw new Error(`载荷长度 (${payloadLength}) 超过最大限制 (${this.options.maxPayloadSize})`);
+        }
+
+        // ====== 掩码密钥（4 字节）======
+        let maskingKey = null;
+        if (MASK) {
+          if (offset + 4 > data.length) break;
+          maskingKey = data.slice(offset, offset + 4);
+          offset += 4;
+        } else {
+          // 客户端发送的帧必须设置 MASK 位
+          // 但为了兼容性，某些情况下允许无掩码
+          console.warn(`[${connection.id}] ⚠️ 收到无掩码的帧（客户端应该始终掩码）`);
+        }
+
+        // ====== 载荷数据 ======
+        if (offset + payloadLength > data.length) {
+          break;  // 数据不完整，等待更多数据
+        }
+
+        const rawPayload = data.slice(offset, offset + payloadLength);
+        offset += payloadLength;
+
+        // ====== 反掩码处理（如果有掩码）======
+        let decodedPayload = rawPayload;
+        if (MASK && maskingKey) {
+          decodedPayload = this._unmask(rawPayload, maskingKey);
+        }
+
+        // ====== 根据 Opcode 处理帧 ======
+        this._handleFrame(connection, Opcode, FIN, decodedPayload);
+
+      } catch (error) {
+        console.error(`[${connection.id}] ❌ 帧解析错误:`, error.message);
+        // 发送 Close 帧并关闭连接
+        this.closeConnection(connection.id, 1002, '协议错误');
+        break;
+      }
+    }
+  }
+
+  /**
+   * 反掩码操作（XOR 解密）
+   * 
+   * WebSocket 协议要求客户端发送的数据必须经过掩码处理
+   * 掩码算法：payload[i] ^ maskingKey[i % 4]
+   * 
+   * @private
+   * @param {Buffer} maskedData - 经过掩码的数据
+   * @param {Buffer} maskingKey - 4 字节的掩码密钥
+   * @returns {Buffer} - 解码后的原始数据
+   */
+  _unmask(maskedData, maskingKey) {
+    const result = Buffer.alloc(maskedData.length);
+    
+    for (let i = 0; i < maskedData.length; i++) {
+      // XOR 操作：每个字节与对应的掩码字节异或
+      result[i] = maskedData[i] ^ maskingKey[i % 4];
+    }
+    
+    return result;
+  }
+
+  /**
+   * 编码 WebSocket 帧（用于向客户端发送数据）
+   * 
+   * 注意：服务端发送给客户端的帧不需要掩码
+   * 
+   * @param {number} opcode - 操作码（OPCODES.TEXT 等）
+   * @param {Buffer|string} payload - 载荷数据
+   * @param {boolean} fin - 是否最终帧（默认 true）
+   * @returns {Buffer} - 完整的帧数据
+   */
+  _encodeFrame(opcode, payload, fin = true) {
+    // 确保 payload 是 Buffer 类型
+    const payloadBuffer = typeof payload === 'string' 
+      ? Buffer.from(payload, 'utf-8') 
+      : payload;
+    
+    const payloadLength = payloadBuffer.length;
+    let headerSize = 2;  // 最小帧头大小
+
+    // 计算扩展长度所需的字节数
+    if (payloadLength > 65535) {
+      headerSize += 8;  // 127 需要 8 字节扩展长度
+    } else if (payloadLength > 125) {
+      headerSize += 2;  // 126 需要 2 字节扩展长度
+    }
+
+    // 分配帧缓冲区（头部 + 载荷）
+    const frameBuffer = Buffer.alloc(headerSize + payloadLength);
+    let offset = 0;
+
+    // ====== 写入第一字节 ======
+    // FIN 位（最高位）+ Opcode（低4位）
+    frameBuffer[offset++] = (fin ? 0x80 : 0x00) | (opcode & 0x0F);
+
+    // ====== 写入第二字节 ======
+    // MASK 位（服务端发送设为 0）+ 初始载荷长度
+    if (payloadLength <= 125) {
+      frameBuffer[offset++] = payloadLength & 0x7F;  // 直接写入长度
+    } else if (payloadLength <= 65535) {
+      frameBuffer[offset++] = 126;  // 标识使用 2 字节扩展长度
+      frameBuffer.writeUInt16BE(payloadLength, offset);  // 大端序写入
+      offset += 2;
+    } else {
+      frameBuffer[offset++] = 127;  // 标识使用 8 字节扩展长度
+      frameBuffer.writeBigUInt64BE(BigInt(payloadLength), offset);  // 大端序写入
+      offset += 8;
+    }
+
+    // ====== 写入载荷数据（无需掩码）======
+    if (payloadLength > 0) {
+      payloadBuffer.copy(frameBuffer, offset);
+    }
+
+    return frameBuffer;
+  }
+
+  /**
+   * 处理解析后的帧（根据 Opcode 分发）
+   * @private
+   */
+  _handleFrame(connection, opcode, fin, payload) {
+    // 更新最后活动时间（用于心跳检测）
+    connection.lastActivityTime = Date.now();
+
+    switch (opcode) {
+      case OPCODES.TEXT:
+        // 文本消息帧
+        const message = payload.toString('utf-8');
+        console.log(`[${connection.id}] 💬 收到文本消息: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+        this._emit('message', message, connection);
+        break;
+
+      case OPCODES.BINARY:
+        // 二进制消息帧
+        console.log(`[${connection.id}] 🔢 收到二进制消息: ${payload.length} 字节`);
+        this._emit('binary', payload, connection);
+        break;
+
+      case OPCODES.PING:
+        // Ping 心跳请求：自动回复 Pong
+        console.log(`[${connection.id}] 💓 收到 Ping，回复 Pong`);
+        this.sendFrame(connection.id, OPCODES.PONG, payload);
+        break;
+
+      case OPCODES.PONG:
+        // Pong 心跳响应：更新心跳状态
+        connection.lastPongTime = Date.now();
+        connection.pingPending = false;
+        console.log(`[${connection.id}] 💓 收到 Pong 响应`);
+        break;
+
+      case OPCODES.CLOSE:
+        // 关闭连接帧
+        console.log(`[${connection.id}] 🔒 收到 Close 帧`);
+        
+        // 尝试解析关闭代码和原因
+        let closeCode = 1000;  // 默认正常关闭
+        let closeReason = '';
+        
+        if (payload.length >= 2) {
+          closeCode = payload.readUInt16BE(0);
+          closeReason = payload.slice(2).toString('utf-8');
+        }
+        
+        // 回复 Close 帧（确认关闭）
+        this.sendCloseFrame(connection.id, closeCode, closeReason);
+        connection.socket.end();  // 关闭 TCP 连接
+        break;
+
+      case OPCODES.CONTINUATION:
+        // 继续帧（分段传输的一部分）
+        // TODO: 实现完整的分段重组逻辑
+        console.warn(`[${connection.id}] ⚠️ 收到 Continuation 帧（暂不支持分段传输）`);
+        break;
+
+      default:
+        // 未知的 Opcode
+        console.warn(`[${connection.id}] ⚠️ 未知的 Opcode: 0x${opcode.toString(16)}`);
+        this.closeConnection(connection.id, 1002, '未知操作码');
+    }
+  }
+
+  // ==================== 心跳检测机制 ====================
+
+  /**
+   * 为指定连接启动心跳检测
+   * 定期发送 Ping 帧来检测连接是否存活
+   * @private
+   */
+  _startHeartbeat(connection) {
+    // 如果没有配置心跳间隔，则不启动
+    if (this.options.heartbeatInterval <= 0) return;
+
+    console.log(`[${connection.id}] 💓 启动心跳检测（间隔: ${this.options.heartbeatInterval}ms）`);
+
+    connection.heartbeatTimer = setInterval(() => {
+      // 检查连接是否仍然处于 OPEN 状态
+      if (connection.state !== CONNECTION_STATE.OPEN) {
+        clearInterval(connection.heartbeatTimer);
+        return;
+      }
+
+      // 检查上一次 Ping 是否有响应
+      if (connection.pingPending) {
+        // 上一次 Ping 未收到 Pong 响应，判断为超时
+        const elapsed = Date.now() - connection.lastPingTime;
+        if (elapsed > this.options.heartbeatTimeout) {
+          console.warn(`[${connection.id}] ⏰ 心跳超时（${elapsed}ms 无响应），强制断开`);
+          this.closeConnection(connection.id, 1001, '心跳超时');
+          return;
+        }
+      }
+
+      // 发送 Ping 帧
+      const pingData = Date.now().toString();  // 使用时间戳作为 Ping 载荷
+      this.sendFrame(connection.id, OPCODES.PING, pingData);
+      connection.lastPingTime = Date.now();
+      connection.pingPending = true;
+
+    }, this.options.heartbeatInterval);
+  }
+
+  // ==================== 公共 API：消息发送 ====================
+
+  /**
+   * 向指定连接发送文本消息
+   * @param {number} connectionId - 目标连接 ID
+   * @param {string} message - 要发送的消息内容
+   */
+  send(connectionId, message) {
+    const connection = this.connections.get(connectionId);
+    if (!connection || connection.state !== CONNECTION_STATE.OPEN) {
+      console.warn(`⚠️ 连接 ${connectionId} 不存在或未打开`);
+      return false;
+    }
+
+    return this.sendFrame(connectionId, OPCODES.TEXT, message);
+  }
+
+  /**
+   * 向指定连接发送二进制数据
+   * @param {number} connectionId - 目标连接 ID
+   * @param {Buffer} data - 要发送的二进制数据
+   */
+  sendBinary(connectionId, data) {
+    const connection = this.connections.get(connectionId);
+    if (!connection || connection.state !== CONNECTION_STATE.OPEN) {
+      return false;
+    }
+
+    return this.sendFrame(connectionId, OPCODES.BINARY, data);
+  }
+
+  /**
+   * 底层方法：发送任意类型的帧
+   * @private
+   */
+  sendFrame(connectionId, opcode, payload) {
+    const connection = this.connections.get(connectionId);
+    if (!connection || connection.socket.destroyed) {
+      return false;
+    }
+
+    try {
+      const frame = this._encodeFrame(opcode, payload, true);
+      connection.socket.write(frame);
+      return true;
+    } catch (error) {
+      console.error(`❌ 发送帧失败:`, error.message);
+      return false;
+    }
+  }
+
+  /**
+   * 发送 Close 帧
+   */
+  sendCloseFrame(connectionId, code = 1000, reason = '') {
+    // 构造 Close 帧载荷：2 字节关闭代码 + UTF-8 编码的原因字符串
+    const reasonBuffer = Buffer.from(reason, 'utf-8');
+    const payload = Buffer.alloc(2 + reasonBuffer.length);
+    payload.writeUInt16BE(code, 0);
+    reasonBuffer.copy(payload, 2);
+    
+    return this.sendFrame(connectionId, OPCODES.CLOSE, payload);
+  }
+
+  // ==================== 公共 API：广播功能 ====================
+
+  /**
+   * 向所有连接广播消息
+   * @param {string} message - 要广播的消息
+   * @param {number|null} excludeConnectionId - 要排除的连接 ID（可选）
+   */
+  broadcast(message, excludeConnectionId = null) {
+    let sentCount = 0;
+    
+    for (const [connId, conn] of this.connections) {
+      if (conn.state === CONNECTION_STATE.OPEN && connId !== excludeConnectionId) {
+        if (this.send(connId, message)) {
+          sentCount++;
+        }
+      }
+    }
+    
+    console.log(`📢 广播消息给 ${sentCount} 个连接`);
+    return sentCount;
+  }
+
+  /**
+   * 向指定房间的所有成员广播消息
+   * @param {string} roomName - 房间名称
+   * @param {string} message - 要广播的消息
+   */
+  broadcastToRoom(roomName, message) {
+    const room = this.rooms.get(roomName);
+    if (!room) {
+      console.warn(`⚠️ 房间 "${roomName}" 不存在`);
+      return 0;
+    }
+
+    let sentCount = 0;
+    for (const connId of room) {
+      if (this.send(connId, message)) {
+        sentCount++;
+      }
+    }
+
+    console.log(`📢 在房间 "${roomName}" 广播给 ${sentCount} 个成员`);
+    return sentCount;
+  }
+
+  // ==================== 公共 API：房间管理 ====================
+
+  /**
+   * 将连接加入指定房间
+   * @param {number} connectionId - 连接 ID
+   * @param {string} roomName - 房间名称
+   */
+  joinRoom(connectionId, roomName) {
+    if (!this.rooms.has(roomName)) {
+      this.rooms.set(roomName, new Set());
+    }
+    
+    this.rooms.get(roomName).add(connectionId);
+    console.log(`[${connectionId}] 🚪 加入房间: ${roomName}`);
+  }
+
+  /**
+   * 将连接从指定房间移除
+   * @param {number} connectionId - 连接 ID
+   * @param {string} roomName - 房间名称
+   */
+  leaveRoom(connectionId, roomName) {
+    const room = this.rooms.get(roomName);
+    if (room) {
+      room.delete(connectionId);
+      console.log(`[${connectionId}] 🚪 离开房间: ${roomName}`);
+      
+      // 如果房间空了，删除房间
+      if (room.size === 0) {
+        this.rooms.delete(roomName);
+      }
+    }
+  }
+
+  /**
+   * 将连接从所有房间中移除
+   * @private
+   */
+  _removeFromAllRooms(connectionId) {
+    for (const [roomName, room] of this.rooms) {
+      if (room.has(connectionId)) {
+        room.delete(connectionId);
+        console.log(`[${connectionId}] 🚪 自动离开房间: ${roomName}`);
+        
+        if (room.size === 0) {
+          this.rooms.delete(roomName);
+        }
+      }
+    }
+  }
+
+  // ==================== 公共 API：连接控制 ====================
+
+  /**
+   * 关闭指定连接
+   * @param {number} connectionId - 连接 ID
+   * @param {number} code - 关闭代码（默认 1000 正常关闭）
+   * @param {string} reason - 关闭原因
+   */
+  closeConnection(connectionId, code = 1000, reason = '') {
+    const connection = this.connections.get(connectionId);
+    if (!connection) return false;
+
+    // 更新连接状态
+    connection.state = CONNECTION_STATE.CLOSING;
+
+    // 停止心跳定时器
+    if (connection.heartbeatTimer) {
+      clearInterval(connection.heartbeatTimer);
+    }
+
+    // 发送 Close 帧
+    this.sendCloseFrame(connectionId, code, reason);
+
+    // 延迟关闭 TCP 连接（确保 Close 帧发出）
+    setTimeout(() => {
+      if (!connection.socket.destroyed) {
+        connection.socket.end();
+      }
+    }, 100);
+
+    return true;
+  }
+
+  /**
+   * 获取当前在线连接数量
+   */
+  getConnectionCount() {
+    let count = 0;
+    for (const conn of this.connections.values()) {
+      if (conn.state === CONNECTION_STATE.OPEN) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * 获取服务器统计信息
+   */
+  getStats() {
+    return {
+      totalConnections: this.connectionIdCounter,
+      activeConnections: this.getConnectionCount(),
+      roomsCount: this.rooms.size,
+      uptime: process.uptime(),
+    };
+  }
+}
+
+// ==================== 辅助类：WebSocketConnection ====================
+
+/**
+ * 表示单个 WebSocket 连接的封装类
+ */
+class WebSocketConnection {
+  constructor(id, socket, server) {
+    /** 连接唯一标识 */
+    this.id = id;
+    
+    /** 底层 TCP Socket 对象 */
+    this.socket = socket;
+    
+    /** 所属服务器实例引用 */
+    this.server = server;
+    
+    /** 连接状态（CONNECTING/OPEN/CLOSING/CLOSED）*/
+    this.state = CONNECTION_STATE.CONNECTING;
+    
+    /** 远程地址信息 */
+    this.remoteAddress = socket.remoteAddress;
+    this.remotePort = socket.remotePort;
+    
+    /** 时间戳 */
+    this.connectTime = null;          // 连接建立时间
+    this.lastActivityTime = null;      // 最后活动时间
+    this.lastPingTime = null;          // 最后发送 Ping 的时间
+    this.lastPongTime = null;          // 最后收到 Pong 的时间
+    
+    /** 心跳状态 */
+    this.pingPending = false;          // 是否有待确认的 Ping
+    this.heartbeatTimer = null;        // 心跳定时器引用
+    
+    /** 自定义数据存储（可用于挂载用户信息等）*/
+    this.data = {};
+
+    /** 握手时的请求头（握手成功后填充）*/
+    this.handshakeHeaders = null;
+  }
+
+  /**
+   * 发送消息（便捷方法）
+   */
+  send(message) {
+    return this.server.send(this.id, message);
+  }
+
+  /**
+   * 发送二进制数据（便捷方法）
+   */
+  sendBinary(data) {
+    return this.server.sendBinary(this.id, data);
+  }
+
+  /**
+   * 关闭连接（便捷方法）
+   */
+  close(code, reason) {
+    return this.server.closeConnection(this.id, code, reason);
+  }
+
+  /**
+   * 加入房间（便捷方法）
+   */
+  join(roomName) {
+    return this.server.joinRoom(this.id, roomName);
+  }
+
+  /**
+   * 离开房间（便捷方法）
+   */
+  leave(roomName) {
+    return this.server.leaveRoom(this.id, roomName);
+  }
+
+  /**
+   * 获取连接信息摘要
+   */
+  toJSON() {
+    return {
+      id: this.id,
+      state: this.state,
+      remoteAddress: `${this.remoteAddress}:${this.remotePort}`,
+      connectTime: this.connectTime,
+      lastActivity: this.lastActivityTime,
+      uptime: this.connectTime ? Date.now() - this.connectTime : null,
+    };
+  }
+}
+
+// ==================== 导出和使用示例 ====================
+
+/** 
+ * 使用示例代码：
+ * 
+ * // 1. 创建 WebSocket 服务器实例
+ * const wss = new MiniWebSocketServer({
+ *   port: 8080,
+ *   path: '/ws',
+ *   heartbeatInterval: 30000,  // 30 秒心跳间隔
+ * });
+ * 
+ * // 2. 监听新连接事件
+ * wss.on('connection', (ws) => {
+ *   console.log(`新连接 #${ws.id} 来自 ${ws.remoteAddress}`);
+ *   
+ *   // 可以在连接对象上挂载自定义数据
+ *   ws.data.nickname = `用户_${ws.id}`;
+ *   
+ *   // 发送欢迎消息
+ *   ws.send(JSON.stringify({
+ *     type: 'welcome',
+ *     message: '欢迎连接到 WebSocket 服务器！',
+ *     yourId: ws.id,
+ *   }));
+ * });
+ * 
+ * // 3. 监听消息事件
+ * wss.on('message', (message, ws) => {
+ *   console.log(`#${ws.id}: ${message}`);
+ *   
+ *   try {
+ *     // 尝试解析 JSON 消息
+ *     const data = JSON.parse(message);
+ *     
+ *     switch (data.type) {
+ *       case 'chat':
+ *         // 聊天消息：广播给所有人（除了发送者）
+ *         wss.broadcast(JSON.stringify({
+ *           type: 'chat',
+ *           from: ws.data.nickname,
+ *           content: data.content,
+ *           time: new Date().toISOString(),
+ *         }), ws.id);
+ *         break;
+ *         
+ *       case 'join_room':
+ *         // 加入房间
+ *         ws.join(data.room);
+ *         ws.send(JSON.stringify({
+ *           type: 'system',
+ *           message: `你已加入房间: ${data.room}`,
+ *         }));
+ *         break;
+ *         
+ *       case 'room_message':
+ *         // 房间内消息
+ *         wss.broadcastToRoom(data.room, JSON.stringify({
+ *           type: 'room_chat',
+ *           from: ws.data.nickname,
+ *           room: data.room,
+ *           content: data.content,
+ *         }));
+ *         break;
+ *         
+ *       default:
+ *         ws.send(JSON.stringify({ type: 'error', message: '未知消息类型' }));
+ *     }
+ *   } catch {
+ *     // 非 JSON 消息，原样回复（Echo 模式）
+ *     ws.send(`Echo: ${message}`);
+ *   }
+ * });
+ * 
+ * // 4. 监听连接关闭事件
+ * wss.on('close', (ws) => {
+ *   console.log(`连接 #${ws.id} 已断开`);
+ * });
+ * 
+ * // 5. 监听错误事件
+ * wss.on('error', (error, ws) => {
+ *   console.error('服务器错误:', error.message);
+ * });
+ * 
+ * // 6. 定时广播服务器统计信息（每 60 秒）
+ * setInterval(() => {
+ *   const stats = wss.getStats();
+ *   wss.broadcast(JSON.stringify({
+ *     type: 'stats',
+ *     ...stats,
+ *   }));
+ * }, 60000);
+ * 
+ * // 7. 启动服务器
+ * wss.listen(8080, () => {
+ *   console.log('✅ WebSocket 服务器启动完成！');
+ *   console.log('   测试地址: ws://localhost:8080/ws');
+ * });
+ */
+
+module.exports = MiniWebSocketServer;
+```
+
+#### 关键技术要点总结：
+
+| 模块 | 实现方式 | 技术亮点 |
+|------|---------|---------|
+| **握手过程** | SHA-1 + GUID 计算 | 完整 RFC 6455 握手流程，含头部验证 |
+| **帧解码** | 逐字节位运算 | 支持 7bit/16bit/64bit 长度字段 |
+| **反掩码** | XOR 异或算法 | 4 字节循环密钥解密 |
+| **心跳检测** | setInterval + Ping/Pong | 超时自动断开，防止僵尸连接 |
+| **消息广播** | Set + Map 结构 | 单播/广播/房间分组三种模式 |
+| **连接管理** | 封装类设计 | 状态机、统计信息、自定义数据挂载 |
+
+---
+
 ## Q33-Q50: 专家题列表（框架提示）
 
 | 题号 | 题目 | 核心考点 |
 |------|------|---------|
 | Q33 | 设计并实现一个支持断点续传的文件上传组件 | Range 请求、Blob 切片、并发控制、MD5 校验 |
-| Q34 | 手写一个简易的 DNS 解析模拟器 | UDP 通信、DNS 报文格式、递归查询模拟 |
-| Q35 | 设计一个高可用的 API 网关方案（前端视角） | 限流熔断、负载均衡、缓存、日志、监控 |
+
+## Q34: 手写一个支持断点续传的大文件上传组件
+- **难度**：★★★
+- **知识点**：文件分片 / 断点续传 / 秒传 / 并发控制 / 进度回调
+- **题型**：编程实践题
+
+### 参考答案要点：
+
+1. **核心设计思路**：
+   - 文件分片计算与上传（固定大小分片，如 5MB）
+   - 已上传分片记录（localStorage/IndexedDB 持久化）
+   - 断点检测与续传逻辑（上传前查询已上传分片列表）
+   - 秒传机制（文件 Hash 比对，服务端已存在则跳过上传）
+   - 进度回调 + 取消支持（AbortController）
+
+### 🔥 深度拓展：手写实现
+
+#### 完整的断点续传上传组件实现
+
+```javascript
+/**
+ * ============================================================
+ *  📤 ResumableUploader - 支持断点续传的大文件上传组件
+ * ============================================================
+ * 
+ *  功能特性：
+ *  ✅ 文件分片计算与上传（可配置分片大小）
+ *  ✅ 已上传分片记录（localStorage / IndexedDB 持久化）
+ *  ✅ 断点检测与续传逻辑（自动恢复中断的上传）
+ *  ✅ 秒传功能（基于文件 Hash 比对，避免重复上传）
+ *  ✅ 进度实时回调（总体进度 + 单个分片进度）
+ *  ✅ 上传取消支持（AbortController，释放资源）
+ *  ✅ 并发控制（限制同时上传的分片数量）
+ *  ✅ 错误处理与重试机制（指数退避）
+ */
+
+const DEFAULT_CONFIG = {
+  chunkSize: 5 * 1024 * 1024,     // 默认分片大小：5MB
+  concurrency: 3,                 // 默认并发上传数
+  maxRetries: 3,                  // 最大重试次数
+  retryDelay: 1000,               // 重试基础延迟（毫秒）
+  storagePrefix: 'uploader_',    // localStorage 前缀
+};
+
+class ResumableUploader {
+  constructor(options = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...options };
+    
+    if (!this.config.uploadUrl) throw new Error('必须提供 uploadUrl');
+    if (!this.config.mergeUrl) throw new Error('必须提供 mergeUrl');
+    if (!this.config.checkUrl) throw new Error('必须提供 checkUrl');
+
+    this.file = null;
+    this.fileId = null;
+    this.chunks = [];
+    this.uploadedChunks = [];
+    this.totalChunks = 0;
+    
+    this.isPaused = false;
+    this.isCancelled = false;
+    this.abortController = null;
+    
+    this.uploadedSize = 0;
+    this.totalSize = 0;
+    this.startTime = 0;
+    
+    this.callbacks = { onProgress:null, onChunkProgress:null, onSuccess:null, onError:null, onHashProgress:null, onSecondUpload:null };
+  }
+
+  // ==================== 事件注册方法 ====================
+  
+  onProgress(fn){this.callbacks.onProgress=fn;return this;}
+  onChunkProgress(fn){this.callbacks.onChunkProgress=fn;return this;}
+  onSuccess(fn){this.callbacks.onSuccess=fn;return this;}
+  onError(fn){this.callbacks.onError=fn;return this;}
+  onHashProgress(fn){this.callbacks.onHashProgress=fn;return this;}
+  onSecondUpload(fn){this.callbacks.onSecondUpload=fn;return this;}
+
+  // ==================== 核心上传方法 ====================
+
+  async upload(file) {
+    try {
+      this._validateFile(file);
+      this._resetState();
+      this.file = file;
+      this.totalSize = file.size;
+      this.startTime = Date.now();
+
+      console.log(`📁 开始上传: ${file.name} (${this._formatSize(file.size)})`);
+
+      // 计算文件 Hash（用于唯一标识和秒传）
+      console.log('🔢 正在计算文件 Hash...');
+      const fileHash = await this._calculateFileHash(file);
+      this.fileId = fileHash;
+      console.log(`✅ 文件 Hash: ${fileHash.substring(0,16)}...`);
+
+      // 检查秒传（服务端是否已有该文件）
+      const secondResult = await this._checkSecondUpload(fileHash, file);
+      if (secondResult) {
+        console.log('⚡ 秒传成功！');
+        this._cb('onSecondUpload', secondResult);
+        this._cb('onSuccess', secondResult);
+        return secondResult;
+      }
+
+      // 获取已上传分片列表（用于断点续传）
+      const existingChunks = await this._getUploadedChunks(fileHash);
+      this.uploadedChunks = [...existingChunks];
+      console.log(`📋 已上传分片: ${existingChunks.length}/${this.totalChunks}`);
+
+      // 切分文件为多个 chunk
+      this._splitFileIntoChunks(file);
+
+      // 并发上传未完成的分片
+      await this._uploadRemainingChunks();
+
+      // 通知服务端合并所有分片
+      const mergeResult = await this._mergeChunks(fileHash, file.name, this.totalChunks);
+      
+      console.log('✅ 上传完成！');
+      this._cb('onSuccess', mergeResult);
+      this._cleanupStorage(fileHash);
+      
+      return mergeResult;
+
+    } catch (error) {
+      if (!this.isCancelled) {
+        console.error('❌ 上传失败:', error.message);
+        this._cb('onError', error);
+      }
+      throw error;
+    }
+  }
+
+  pause() {
+    this.isPaused = true;
+    if (this.abortController) this.abortController.abort();
+    console.log('⏸️ 已暂停');
+  }
+
+  async resume() {
+    if (!this.isPaused || !this.file) return;
+    console.log('▶️ 恢复上传...');
+    this.isPaused = false;
+    this.isCancelled = false;
+    
+    try {
+      const existingChunks = await this._getUploadedChunks(this.fileId);
+      this.uploadedChunks = [...existingChunks];
+      await this._uploadRemainingChunks();
+      const result = await this._mergeChunks(this.fileId, this.file.name, this.totalChunks);
+      this._cb('onSuccess', result);
+    } catch (error) { this._cb('onError', error); }
+  }
+
+  cancel() {
+    this.isCancelled = true;
+    this.isPaused = false;
+    if (this.abortController) this.abortController.abort();
+    if (this.fileId) this._cleanupStorage(this.fileId);
+    console.log('❌ 已取消');
+  }
+
+  // ==================== 内部方法 ====================
+
+  _validateFile(f){
+    if(!f) throw new Error('请选择文件');
+    if(!(f instanceof File)) throw new Error('参数必须是 File 对象');
+    if(f.size===0) throw new Error('不能上传空文件');
+  }
+
+  _resetState(){
+    this.isPaused=false; this.isCancelled=false;
+    this.uploadedChunks=[]; this.chunks=[];
+    this.uploadedSize=0; this.abortController=new AbortController();
+  }
+
+  /** 计算文件 SHA-256 Hash */
+  async _calculateFileHash(file){
+    if(crypto.subtle){
+      const buf=await file.arrayBuffer();
+      const hashBuf=await crypto.subtle.digest('SHA-256',buf);
+      return Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+    // 降级方案：简单滚动 Hash
+    let h=0xdeadbeef;
+    for(let off=0;off<file.size;off+=2*1024*1024){
+      const slice=file.slice(off,Math.min(off+2*1024*1024,file.size));
+      const data=new Uint8Array(await slice.arrayBuffer());
+      for(let i=0;i<data.length;i++) h=((h<<5)-h+data[i])|0;
+      this._cb('onHashProgress',Math.round((off/file.size)*100));
+    }
+    return h.toString(16).padStart(8,'0');
+  }
+
+  /** 检查是否可以秒传 */
+  async _checkSecondUpload(hash,file){
+    try{
+      const res=await fetch(this.config.checkUrl,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({hash,filename:file.name,filesize:file.size}),
+        signal:this.abortController.signal,
+      });
+      const d=await res.json();
+      return d.needUpload===false?d.data:null;
+    }catch{return null;}
+  }
+
+  /** 获取已上传分片 */
+  async _getUploadedChunks(hash){
+    try{
+      const res=await fetch(`${this.config.checkUrl}?hash=${hash}`,{signal:this.abortController.signal});
+      if(res.ok){
+        const d=await res.json();
+        if(d.uploadedChunks){this._saveToStorage(hash,d.uploadedChunks);return d.uploadedChunks;}
+      }
+      return this._getFromStorage(hash);
+    }catch{return this._getFromStorage(hash);}
+  }
+
+  /** 切分文件 */
+  _splitFileIntoChunks(file){
+    this.chunks=[];
+    const size=this.config.chunkSize;
+    this.totalChunks=Math.ceil(file.size/size);
+    for(let i=0;i<this.totalChunks;i++){
+      const start=i*size;
+      this.chunks.push({
+        index:i,start,end:Math.min(start+size,file.size),
+        blob:file.slice(start,Math.min(start+size,file.size)),
+        size:Math.min(size,file.size-start),
+        uploaded:this.uploadedChunks.includes(i)
+      });
+    }
+  }
+
+  /** 并发上传剩余分片（核心算法）*/
+  async _uploadRemainingChunks(){
+    const pending=this.chunks.filter(c=>!c.uploaded);
+    if(!pending.length) return;
+
+    console.log(`🚀 上传 ${pending.length} 个分片（并发:${this.config.concurrency}）`);
+    this.abortController=new AbortController();
+
+    const con=Math.min(this.config.concurrency,pending.length);
+    let idx=0;
+
+    const worker=async()=>{
+      while(idx<pending.length&&!this.isPaused&&!this.isCancelled){
+        const chunk=pending[idx++];
+        try{
+          await this._uploadChunk(chunk);
+          chunk.uploaded=true;
+          this.uploadedChunks.push(chunk.index);
+          this.uploadedSize+=chunk.size;
+          this._updateProgress();
+          this._saveToStorage(this.fileId,this.uploadedChunks);
+        }catch(err){
+          if(this.isCancelled) break;
+          for(let r=0;r<this.config.maxRetries&&!this.isPaused&&!this.isCancelled;r++){
+            await this._sleep(this.config.retryDelay*Math.pow(2,r));
+            try{await this._uploadChunk(chunk);chunk.uploaded=true;this.uploadedChunks.push(chunk.index);this.uploadedSize+=chunk.size;this._updateProgress();this._saveToStorage(this.fileId,this.uploadedChunks);break;}
+            catch(e){if(r>=this.config.maxRetries-1)throw e;}
+          }
+        }
+      }
+    };
+
+    await Promise.all(Array.from({length:con},()=>worker()));
+    if(this.isPaused) throw new Error('已暂停');
+    if(this.isCancelled) throw new Error('已取消');
+  }
+
+  /** 上传单个分片（使用 XHR 获得精确进度）*/
+  _uploadChunk(chunk){
+    return new Promise((resolve,reject)=>{
+      const fd=new FormData();
+      fd.append('file',chunk.blob);
+      fd.append('chunkIndex',chunk.index);
+      fd.append('totalChunks',this.totalChunks);
+      fd.append('fileHash',this.fileId);
+      fd.append('fileName',this.file.name);
+
+      const xhr=new XMLHttpRequest();
+      xhr.upload.onprogress=e=>{
+        if(e.lengthComputable) this._cb('onChunkProgress',chunk.index,Math.round(e.loaded/e.total*100));
+      };
+      xhr.onload=()=>{
+        if(xhr.status>=200&&xhr.status<300){
+          try{const d=JSON.parse(xhr.responseText);if(d.success!==false)resolve(d);else reject(new Error(d.message));}
+          catch{resolve();}
+        }else reject(new Error(`HTTP ${xhr.status}`));
+      };
+      xhr.onerror=()=>reject(new Error('网络错误'));
+      xhr.timeout=60000;
+      xhr.ontimeout=()=>reject(new Error('超时'));
+      xhr.open('POST',this.config.uploadUrl);
+      xhr.send(fd);
+      this.abortController.signal.addEventListener('abort',()=>xhr.abort());
+    });
+  }
+
+  /** 通知服务端合并分片 */
+  async _mergeChunks(hash,name,total){
+    const res=await fetch(this.config.mergeUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hash,filename:name,totalChunks:total,filesize:this.totalSize}),
+      signal:this.abortController.signal,
+    });
+    if(!res.ok) throw new Error(`合并失败:${res.status}`);
+    const d=await res.json();
+    if(!d.success) throw new Error(d.message||'合并失败');
+    return d.data;
+  }
+
+  // ==================== 存储管理 ====================
+  _saveToStorage(hash,chunks){try{localStorage.setItem(`${this.config.storagePrefix}${hash}`,JSON.stringify({chunks,time:Date.now()}));}catch{}}
+  _getFromStorage(hash){try{const d=localStorage.getItem(`${this.config.storagePrefix}${hash}`);if(d){const p=JSON.parse(d);if(Date.now()-p.time>7*24*60*60*1000){localStorage.removeItem(`${this.config.storagePrefix}${hash}`);return[];}return p.chunks||[];}return[];}catch{return[];}}
+  _cleanupStorage(hash){try{localStorage.removeItem(`${this.config.storagePrefix}${hash}`);}catch{}}
+
+  // ==================== 辅助方法 ====================
+  _updateProgress(){this._cb('onProgress',Math.round(this.uploadedSize/this.totalSize*100),this.uploadedSize,this.totalSize);}
+  _cb(name,...args){const fn=this.callbacks[name];if(fn){try{fn(...args);}catch(e){console.error(`[CB:${name}]`,e.message);}}}
+  _sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+  _formatSize(b){if(b===0)return'0B';const k=1024,s=['B','KB','MB','GB'],i=Math.floor(Math.log(b)/Math.log(k));return parseFloat((b/Math.pow(k,i)).toFixed(2))+' '+s[i];}
+}
+
+export default ResumableUploader;
+```
+
+#### 关键技术要点总结：
+
+| 功能模块 | 实现方式 | 技术亮点 |
+|---------|---------|---------|
+| **文件分片** | File.prototype.slice() | 固定大小分片，Blob 切片 |
+| **Hash 计算** | Web Crypto API (SHA-256) | 用于唯一标识文件，实现秒传 |
+| **秒传机制** | 服务端 Hash 比对 | 避免重复上传相同文件 |
+| **断点续传** | localStorage 持久化 | 记录已上传分片，刷新页面可恢复 |
+| **并发控制** | Promise Worker Pool | 可配置并发数，自动调度 |
+| **进度追踪** | XHR upload.onprogress | 双层进度（总体+单分片）|
+| **取消/暂停** | AbortController | 资源及时释放，支持恢复 |
+| **错误重试** | 指数退避算法 | 自动重试失败的分片 |
+
+---
+
+## Q35: 设计一个高可用的 API 网关方案（前端视角）
+- **难度**：★★★
+- **知识点**：API 网关 / BFF / 限流熔断 / 负载均衡
+- **题型**：系统设计题
+
+### 参考答案要点：
+
+1. **核心设计思路**：
+   - **请求聚合**：减少客户端请求次数（BFF 模式）
+   - **协议转换**：GraphQL / RESTful 统一接口
+   - **限流熔断**：保护后端服务
+   - **缓存策略**：多级缓存
+
+2. **架构设计图解**：
+   ```
+   ┌─────────────────────────────────────────────┐
+   │              API 网关层                       │
+   │  ┌──────────┐ ┌──────────┐ ┌──────────┐     │
+   │  │ 认证鉴权 │ │ 限流熔断 │ │ 缓存层   │     │
+   │  └──────────┘ └──────────┘ └──────────┘     │
+   │         ↓           ↓          ↓            │
+   │  ┌──────────────────────────────────┐       │
+   │  │      BFF (Backend for Frontend)    │       │
+   │  │  GraphQL / RESTful Aggregator     │       │
+   │  └──────────────────────────────────┘       │
+   └─────────────────────────────────────────────┘
+   ```
+
+> **追问链**：如何做灰度发布？网关的性能瓶颈在哪里？如何处理服务雪崩？
+
+### 🔍 追问链
+1. **[BFF 模式 vs GraphQL 聚合的选型]**
+   → 方向：BFF（按端定制 API，适合复杂业务场景）、GraphQL（客户端灵活查询，适合多变需求）；两者可结合使用；BFF 层面的数据一致性保证策略（Saga 模式）
+2. **[API 网关的数据一致性问题]**
+   → 方向：跨服务事务的最终一致性方案（事件驱动/补偿机制/TCC）；幂等性设计；分布式锁的使用场景与注意事项
+3. **[网关性能优化与服务治理]**
+   → 方向：连接池复用、请求批量化、响应压缩、监控指标（QPS/延迟/P99）；服务降级与熔断的自动化策略（Hystrix/Sentinel）
+
 | Q36 | 设计一套完整的网络错误监控和上报系统 | 错误分类、采样率、上报策略、可视化 |
 | Q37 | 微服务架构下前端如何做多 API 聚合与数据缓存 | BFF 层、GraphQL、请求合并、客户端缓存 |
-| Q38 | 大文件上传的分片上传、断点续传、秒传完整方案 | 并发分片、秒传（Hash）、断点记录、合并策略 |
+## Q38: 大文件上传的分片上传、断点续传、秒传完整方案
+- **难度**：★★★
+- **知识点**：文件分片 / 断点续传 / 秒传 / 并发控制 / 进度回调
+- **题型**：系统设计题
+
+### 参考答案要点：
+
+1. **核心设计思路**：
+   - **分片上传**：固定大小分片（如 5MB），并发控制
+   - **断点续传**：记录已上传分片（localStorage/IndexedDB）
+   - **秒传机制**：文件 Hash 比对，服务端已存在则跳过
+   - **进度回调**：总体进度 + 单个分片进度
+
+2. **完整流程图解**：
+   ```
+   ┌──────────────────────────────────────┐
+   │         大文件上传流程                │
+   │                                      │
+   │  [选择文件] → [计算Hash]             │
+   │       ↓                              │
+   │  [查询服务端] → 是否存在？            │
+   │       ├─ 是 → ✅ 秒传成功            │
+   │       └─ 否 → [获取已上传分片]      │
+   │                  ↓                    │
+   │          [切分为 chunks]             │
+   │                  ↓                    │
+   │        [并发上传剩余分片]            │
+   │                  ↓                    │
+   │        [通知服务端合并]               │
+   │                  ↓                    │
+   │           ✅ 上传完成                 │
+   └──────────────────────────────────────┘
+   ```
+
+> **追问链**：如何处理网络波动导致的重复上传？Web Worker 如何优化大文件的 Hash 计算？S3 直传方案？
+
+### 🔍 追问链
+1. **[Web Worker 分片 Hash 计算优化]**
+   → 方向：主线程 UI 卡顿问题；Worker 线程并行计算（将文件切片分配给多个 Worker）；SharedArrayBuffer 零拷贝传输；SparkMD5 库的增量计算模式
+2. **[WebSocket 上传通道 vs HTTP 分片上传]**
+   → 方向：WebSocket 双向通信优势（实时进度反馈、服务端主动推送状态）；适合需要频繁交互的场景（如视频直播推流）；HTTP 分片更适合传统文件上传场景
+3. **[S3/oss 直传方案（客户端直连对象存储）]**
+   → 方向：客户端先请求预签名 URL（Presigned URL）；然后直接上传到 S3/OSS（不经过应用服务器，节省带宽成本）；安全性考虑（URL 过期时间、权限限制、回调通知）
+
 | Q39 | 如何优化弱网环境下的用户体验？ | 降级策略、离线模式、预加载、渐进式展示 |
 | Q40 | WebSocket 在即时通讯中的完整架构设计 | 心跳、重连、消息队列、ACK 机制、群聊优化 |
 | Q41 | 设计一个支持百万并发的静态资源分发方案 | CDN 多级缓存、DNS 调度、边缘计算、预热策略 |

@@ -13,7 +13,7 @@
 | **JavaScript** | ✅ 17章+附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
 | **HTML-CSS** | ✅ 14章+2附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-15 |
 | **React** | ✅ 15章+附录 | ✅ 53题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
-| **Node.js** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
+| **Node.js** | ✅ 14章+2附录 | ✅ 50题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-16 |
 | **工程化** | ✅ 15章+2附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-15 |
 | **性能优化** | ✅ 16章+2附录 | ✅ 50题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-16 |
 | **网络** | ✅ 14章+2附录 | ✅ 50题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-16 |
@@ -60,9 +60,12 @@ frontend-knowledge/
 │   └── interviews/
 │       └── React-Interview-Questions.md      # ~11900行 (53题)
 │
-├── Nodejs/                  # Node.js 后端开发            📋 待生成
-│   ├── basics/.gitkeep
-│   └── interviews/.gitkeep
+├── Nodejs/                   # Node.js 后端开发                ⭐9.3
+│   ├── basics/
+│   │   └── Nodejs-Basics-Guide.md               # ~8894行 (14章+2附录)
+│   └── interviews/
+│       └── Nodejs-Interview-Questions.md        # ~8335行 (50题)
+│
 │
 ├── 工程化/                   # 构建工具、包管理、CI/CD     ⭐9.0+
 │   ├── basics/
@@ -164,6 +167,15 @@ frontend-knowledge/
 | [面试题库](网络/interviews/网络-Interview-Questions.md) | ~6091 行 | 50 题（基础15/进阶15/专家20）+ 10 题追问链 + 4 道手写实现（HTTP服务器/WebSocket服务端/断点续传/axios封装库）|
 
 **核心覆盖**：OSI与TCP/IP模型、HTTP协议全版本演进(1.0→3)、HTTPS/TLS加密握手、HTTP/2多路复用与HPACK、HTTP/3 QUIC协议、TCP三次握手/四次挥手/流量控制/拥塞控制、DNS解析机制、CDN分发原理、WebSocket协议、Fetch/XHR/Beacon API、CORS跨域解决方案、网络性能优化实战（缓存策略/资源提示/弱网降级）、网络安全（XSS/CSRF/CSP/HSTS/DDoS）
+
+### Node.js ⭐ 9.3 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](Nodejs/basics/Nodejs-Basics-Guide.md) | ~8894 行 | 14 章 + 附录 A（常用模块速查表）+ 附录 B（BFF 完整实战案例）+ 6 组 Mermaid 图 |
+| [面试题库](Nodejs/interviews/Nodejs-Interview-Questions.md) | ~8335 行 | 50 题（基础15/进阶20/专家15）+ 8 题追问链 + 4 道手写实现（Express路由系统/EventEmitter/Promise方法集/优雅关闭）|
+
+**核心覆盖**：Node.js 架构与 libuv 事件循环、CommonJS/ESM 模块系统、异步编程模式（Callback/Promise/async-await/EventEmitter）、文件系统操作（fs/Stream/Buffer）、HTTP 服务开发与 Express/Koa 框架、数据库交互（MySQL/MongoDB/Redis/ORM）、WebSocket/gRPC 网络通信、安全鉴权（Session/JWT/OAuth2.0/bcrypt/CORS/Rate Limiting）、Stream 流式处理与背压、性能优化（Cluster/PM2/内存泄漏排查/Docker 部署）、测试工程化（Jest/E2E/CI-CD/GitHub Actions）
 
 ---
 

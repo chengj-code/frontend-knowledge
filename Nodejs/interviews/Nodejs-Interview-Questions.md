@@ -167,6 +167,14 @@
 
 > **追问链**：循环依赖在两种规范下表现有何不同？→ Q23
 
+### 🔍 追问链
+1. **require 的缓存机制是怎样的？**
+   → 方向：Module._cache 以文件绝对路径为 key；模块只执行一次；delete require.cache 可清除缓存实现热更新；缓存导致单例模式
+2. **循环依赖时 exports 为什么是空对象？**
+   → 方向：a require b 时 a 未执行完，b 拿到的是 a 此时的 module.exports（初始为 {}）；ESM 用 Live Binding 解决此问题；延迟 require（函数内调用）可规避
+3. **ES Module 的 import 与 CommonJS 的 require 有哪些核心区别？**
+   → 方向：编译时 vs 运行时加载；值引用 vs 值拷贝；顶层 await 支持；this 指向 undefined vs module；ESM 可以导入 CJS 但反之不行（需动态 import()）
+
 ---
 
 ## Q04: exports 和 module.exports 有什么区别？
@@ -373,6 +381,14 @@
    ```
 
 > **追问链**：各个阶段的具体执行顺序是什么？→ Q16
+
+### 🔍 追问链
+1. **timers 阶段和 check 阶段有什么区别？**
+   → 方向：timers 执行 setTimeout/setInterval 回调；check 执行 setImmediate 回调；主模块顶层两者顺序不确定但 I/O 内 setImmediate 一定先于 setTimeout
+2. **process.nextTick 微任务的优先级有多高？**
+   → 方向：nextTick 优先级高于 Promise 微任务；在每个阶段结束后、进入下一阶段前执行；递归 nextTick 可能饿死事件循环（应使用 setImmediate 替代）
+3. **如何在代码中测量事件循环延迟（Event Loop Lag）？**
+   → 方向：用 setInterval 测量实际间隔与期望间隔的差值；node:event_loop_lag 库；Prometheus histogram 采集延迟指标；超过阈值触发告警
 
 ---
 
@@ -635,6 +651,14 @@
    ```
 
 > **追问链**：如何设计完善的错误处理体系？→ Q38
+
+### 🔍 追问链
+1. **如何处理大文件上传？（Stream 方式避免内存溢出）**
+   → 方向：使用 multer + diskStorage 流式写入磁盘；pipe 直接到存储服务（S/OSS）；设置 fileSize 限制配合 stream 检测；前端 FormData + Blob.slice 分片
+2. **如何处理高并发请求？（Worker Threads / Cluster）**
+   → 方向：Cluster 模式利用多核（os.cpus().length）；Worker Threads 处理 CPU 密集型任务；反向代理（Nginx）负载均衡；连接池控制数据库并发
+3. **keep-alive timeout 应该如何合理配置？**
+   → 方向：server.keepAliveTimeout 应大于 server.headersTimeout；推荐 keepAliveTimeout=65000ms + headersTimeout=61000ms（Nginx 默认60s超时）；客户端侧也需配置 agent.keepAliveMsecs；防止半连接占用服务器资源
 
 ---
 
@@ -958,6 +982,14 @@
    ```
 
 > **追问链**：如何设计生产级的 HTTP 服务框架？→ Q31、Q35
+
+### 🔍 追问链
+1. **如何处理大文件上传？（Stream 方式）**
+   → 方向：使用 formidable/multer 的流式模式；req.pipe(fs.createWriteStream()) 直接落盘；配合 fs.stat 校验大小；避免 req.body 全量缓冲
+2. **如何处理并发请求？（Worker Threads / Cluster）**
+   → 方向：Cluster 模式 fork 多进程利用多核；Worker Threads 处理 CPU 密集计算；Nginx 反向代理做负载均衡（Round Robin/IP Hash/Least Conn）；连接池限制数据库并发数
+3. **keep-alive timeout 应该如何设置？**
+   → 方向：server.keepAliveTimeout > server.headersTimeout；推荐 61000ms + 65000ms 配合 Nginx 60s 默认超时；客户端 http.Agent keepAliveMsecs 需对齐；防止空闲连接占用服务器资源
 
 ---
 
@@ -1380,6 +1412,14 @@
    ```
 
 > **追问链**：微任务在各阶段之间何时执行？→ Q17
+
+### 🔍 追问链
+1. **poll 阶段什么情况下会阻塞？**
+   → 方向：没有定时器（setTimeout/setImmediate）且没有 setImmediate() 回调时，poll 会阻塞等待新的 I/O 事件；有定时器时 poll 会设超时尽快进入下一阶段；阻塞期间新 I/O 事件会唤醒 poll
+2. **setImmediate 在 I/O 回调之后还是之前执行？**
+   → 方向：I/O 回调在 poll 阶段执行；poll 的下一阶段就是 check（setImmediate 所在阶段）；所以在 I/O 回调内调用 setImmediate 一定在本轮循环的 check 阶段执行（先于 timers）
+3. **如何利用 setImmediate 分割长任务（Yield）？**
+   → 方向：将大循环拆分为 setImmediate 递归调用；每次处理一小块数据后让出控制权；保证 I/O 事件有机会被处理；避免事件循环延迟过高导致请求超时
 
 ---
 
@@ -2074,6 +2114,14 @@
 
 > **追问链**：如何检测项目中的循环依赖？→ 工具推荐（madge）
 
+### 🔍 追问链
+1. **ORM 能完全防止 SQL 注入吗？有什么盲区？**
+   → 方向：ORM 的查询构建器通常安全但 raw query 仍需参数化；Sequelize 的 $where 原始操作符可能不安全；用户输入作为列名/表名时 ORM 无法转义（需白名单校验）；NoSQL 注入（MongoDB $where 操作符）
+2. **参数化查询 vs ORM 查询构建器的区别和选择？**
+   → 方向：参数化是底层防御（预编译语句）；ORM 查询构建器是对参数化的高层封装；复杂查询优先用 QueryBuilder 而非 raw SQL；需要动态字段/表名时必须手动拼接+白名单
+3. **如何审计现有代码库中的 SQL 注入风险？**
+   → 方向：静态分析工具（sqlmap 扫描、ESLint sql-injection 规则）；grep 检测字符串拼接模式（`"SELECT..."+var`）；代码审查重点关注用户输入直接拼入 SQL 处；自动化 CI 流水线集成安全扫描
+
 ---
 
 ## Q23: npm、yarn 和 pnpm 包管理器的区别？
@@ -2643,6 +2691,14 @@
 
 > **追问链**：如何设计 OAuth2.0 认证流程？→ Q38
 
+### 🔍 追问链
+1. **JWT 过期刷新策略（Access Token + Refresh Token）是如何设计的？**
+   → 方向：AT 短期（15min）+ RT 长期（7-30天）双 token 机制；RT 存 Redis/DB 支持主动失效；刷新接口用 RT 换新 AT；RT 轮换策略（每次刷新生成新的 RT 使旧的失效）；黑名单机制应对紧急吊销
+2. **Session 存储方案应如何选择？（内存 / Redis）**
+   → 方向：内存存储：开发/单实例够用，重启丢失；Redis 存储：生产首选，支持多实例共享 + 持久化 + TTL 自动过期；选择依据：是否多实例部署？Session 数据量？对丢失的容忍度？还需考虑 Session 固定/滑动过期策略
+3. **Cookie 的安全属性（HttpOnly / Secure / SameSite / Domain / Path）应该如何配置？**
+   → 方向：HttpOnly=true 防 XSS 窃取 Cookie；Secure=true 限制仅 HTTPS 传输（生产必须）；SameSite=Strict/Lax 防 CSRF 攻击；Domain 设为具体域名不设根域防子域伪造；Path=/ 限制作用域；配合 CORS 配置和 CSRF Token 双重防护
+
 ---
 
 ## Q28: Redis 在 Node.js 项目中的典型使用场景？
@@ -3127,140 +3183,349 @@
 
 ### 参考答案要点：
 
-1. **完整实现**
+1. **完整实现（增强版：支持路由分组 + 通配符 + 错误处理中间件）**
    ```javascript
-   // mini-express.js - 简易 Express 框架
+   // mini-express.js - 完整版 Express 风格路由框架
+   // 支持：动态路由参数 :id、通配符 *、中间件洋葱模型、
+   //       错误处理中间件（四参数）、子路由挂载（use）、链式调用
 
    const http = require('http');
    const url = require('url');
 
-   class MiniExpress {
-     constructor() {
-       this.middlewares = [];      // 中间件栈
-       this.routes = new Map();    // 路由表：METHOD -> [{path, handlers}]
+   // ==================== Router 子路由类 ====================
+   // 用于实现 app.use('/prefix', router) 路由分组功能
+   class MiniRouter {
+     constructor(prefix = '') {
+       this.prefix = prefix;           // 路由前缀（如 /api/v1）
+       this.stack = [];                // 中间件 + 路由层栈
      }
 
-     // 注册中间件
-     use(middleware) {
-       this.middlewares.push(middleware);
-       return this;  // 支持链式调用
+     // 注册中间件（支持路径匹配）
+     use(path, ...handlers) {
+       // use(fn) 形式：path 省略时匹配所有路径
+       if (typeof path === 'function') {
+         handlers.unshift(path);
+         path = '/';
+       }
+       this.stack.push({ type: 'middleware', path, handlers });
+       return this;
      }
 
-     // 注册路由方法
+     // 注册 GET 路由
      get(path, ...handlers) {
-       this._addRoute('GET', path, handlers);
+       this.stack.push({ type: 'route', method: 'GET', path, handlers });
        return this;
      }
 
+     // 注册 POST 路由
      post(path, ...handlers) {
-       this._addRoute('POST', path, handlers);
+       this.stack.push({ type: 'route', method: 'POST', path, handlers });
        return this;
      }
 
-     _addRoute(method, path, handlers) {
-       if (!this.routes.has(method)) {
-         routes.set(method, []);
-       }
-       this.routes.get(method).push({ path, handlers });
+     // 注册 PUT 路由
+     put(path, ...handlers) {
+       this.stack.push({ type: 'route', method: 'PUT', path, handlers });
+       return this;
      }
 
-     // 创建 HTTP 服务器
-     listen(port, callback) {
-       const server = http.createServer(this._handleRequest.bind(this));
-       server.listen(port, callback);
-       return server;
+     // 注册 DELETE 路由
+     delete(path, ...handlers) {
+       this.stack.push({ type: 'route', method: 'DELETE', path, handlers });
+       return this;
      }
 
-     // 核心请求处理
-     async _handleRequest(req, res) {
-       // 扩展 req/res 对象
-       req.method = req.method.toUpperCase();
-       req.url = url.parse(req.url, true);
-       req.params = {};
-       req.query = req.url.query || {};
-       req.body = '';
-       res.json = (data) => {
-         res.setHeader('Content-Type', 'application/json');
-         res.end(JSON.stringify(data));
-       };
-       res.status = (code) => {
-         res.statusCode = code;
-         return res;
-       };
+     // 匹配请求的方法和路径
+     match(method, pathname) {
+       const results = [];
+       for (const layer of this.stack) {
+         // 路由层需要匹配 HTTP 方法
+         if (layer.type === 'route' && layer.method !== method) continue;
 
-       // 收集请求体
-       await this._collectBody(req);
-
-       // 构建完整的中间件链
-       const chain = [...this.middlewares];
-
-       // 添加路由匹配中间件
-       const routeHandlers = this._matchRoute(req.method, req.url.pathname);
-       if (routeHandlers) {
-         chain.push(...routeHandlers);
-       } else {
-         // 404 处理
-         chain.push((req, res, next) => {
-           res.status(404).json({ error: 'Not Found' });
-         });
-       }
-
-       // 执行中间件链
-       await this._executeChain(chain, 0)(req, res);
-     }
-
-     // 匹配路由
-     _matchRoute(method, pathname) {
-       const routes = this.routes.get(method) || [];
-       for (const route of routes) {
-         const params = this._matchPath(route.path, pathname);
+         // 路径匹配（支持 :param 和 * 通配符）
+         const params = this._matchPath(layer.path, pathname);
          if (params !== null) {
-           return (req, res, next) => {
-             req.params = params;
-             this._executeHandlers(route.handlers, 0)(req, res, next);
-           };
+           results.push({ layer, params });
          }
        }
-       return null;
+       return results;
      }
 
-     // 简单的路由匹配（支持 :param）
+     // 路径匹配引擎：支持动态参数 :id 和通配符 *
      _matchPath(pattern, pathname) {
+       // 精确匹配 / 或通配符 *
+       if (pattern === '*' || pattern === '/*') return {};
+
        // 将路由模式转为正则表达式
+       // 例如：/users/:id/posts/:postId → 正则 + 参数名提取
        const paramNames = [];
-       const regexStr = pattern.replace(/:([^/]+)/g, (_, name) => {
-         paramNames.push(name);
-         return '([^/]+)';
-       });
+       let regexStr = pattern
+         .replace(/\*/g, '.*')              // * 匹配任意路径段
+         .replace(/:([^/]+)/g, (_, name) => {
+           paramNames.push(name);
+           return '([^/]+)';               // :param 匹配非 / 字符
+         });
+
        const regex = new RegExp(`^${regexStr}$`);
        const match = pathname.match(regex);
 
        if (!match) return null;
 
+       // 提取参数键值对
        const params = {};
        paramNames.forEach((name, i) => {
-         params[name] = match[i + 1];
+         params[name] = decodeURIComponent(match[i + 1]);
+       });
+       return params;
+     }
+   }
+
+   // ==================== 主应用类 ====================
+   class MiniExpress {
+     constructor() {
+       this.middlewares = [];        // 全局中间件栈
+       this.routes = new Map();      // 路由表：METHOD -> [{path, handlers}]
+       this.subRouters = [];         // 子路由列表（用于 use 挂载）
+     }
+
+     // ---------- 中间件注册 ----------
+     // 注册全局中间件（匹配所有路径）
+     use(path, ...handlers) {
+       // use(fn) 形式：path 是函数时视为中间件
+       if (typeof path === 'function') {
+         handlers.unshift(path);
+         path = '/';
+       }
+
+       // use(router) 形式：挂载子路由器
+       if (path instanceof MiniRouter || (handlers[0] instanceof MiniRouter)) {
+         const router = path instanceof MiniRouter ? path : handlers[0];
+         const prefix = typeof path === 'string' ? path : '/';
+         this.subRouters.push({ router, prefix });
+         return this;
+       }
+
+       this.middlewares.push({ path, handlers });
+       return this;  // 支持链式调用
+     }
+
+     // ---------- HTTP 方法注册 ----------
+     get(path, ...handlers) { return this._addRoute('GET', path, handlers); }
+     post(path, ...handlers) { return this._addRoute('POST', path, handlers); }
+     put(path, ...handlers) { return this._addRoute('PUT', path, handlers); }
+     delete(path, ...handlers) { return this._addRoute('DELETE', path, handlers); }
+     all(path, ...handlers) { return this._addRoute('ALL', path, handlers); }
+
+     _addRoute(method, path, handlers) {
+       if (!this.routes.has(method)) {
+         this.routes.set(method, []);
+       }
+       this.routes.get(method).push({ path, handlers });
+       return this;
+     }
+
+     // ---------- 启动服务器 ----------
+     listen(port, callback) {
+       const server = http.createServer(this._handleRequest.bind(this));
+       server.listen(port, () => {
+         console.log(`✅ 服务器运行在 http://localhost:${port}`);
+         callback && callback();
+       });
+       return server;
+     }
+
+     // ========== 核心请求处理入口 ==========
+     async _handleRequest(req, res) {
+       // ① 扩展 req/res 对象，添加常用属性和方法
+       const parsedUrl = url.parse(req.url, true);
+       req.method = req.method.toUpperCase();
+       req.url = parsedUrl;
+       req.params = {};          // 路由参数（:id）
+       req.query = parsedUrl.query || {};  // 查询字符串 (?a=1)
+       req.body = '';            // 请求体（需中间件解析）
+       req.path = parsedUrl.pathname;      // 路径部分
+
+       // 响应辅助方法
+       res.json = (data) => {
+         res.setHeader('Content-Type', 'application/json; charset=utf-8');
+         res.end(JSON.stringify(data));
+       };
+       res.status = (code) => {
+         res.statusCode = code;
+         return res;  // 链式调用
+       };
+       res.send = (data) => {
+         if (typeof data === 'object') return res.json(data);
+         res.end(typeof data === 'number' ? String(data) : data);
+       };
+       res.setHeaderDefault = () => {
+         if (!res.headersSent) {
+           res.setHeader('X-Powered-By', 'MiniExpress');
+         }
+       };
+
+       // ② 收集请求体（简化版 JSON 解析）
+       await this._collectBody(req);
+
+       try {
+         // ③ 构建完整的中间件执行链
+         const chain = this._buildChain(req);
+
+         // ④ 以洋葱模型执行中间件链
+         await this._executeChain(chain, 0, req, res);
+       } catch (err) {
+         this._handleError(err, req, res);
+       }
+     }
+
+     // 构建中间件执行链（洋葱模型核心）
+     _buildChain(req) {
+       const chain = [];
+
+       // 1) 添加全局中间件
+       for (const mw of this.middlewares) {
+         // 中间件路径匹配（支持 / 和通配）
+         if (mw.path === '/' || mw.path === '*' || mw.path === req.path ||
+             (mw.path.endsWith('*') && req.path.startsWith(mw.path.slice(0, -1)))) {
+           chain.push(...mw.handlers);
+         }
+       }
+
+       // 2) 尝试匹配注册的路由
+       let routeMatched = false;
+
+       // 先检查子路由器
+       for (const { router, prefix } of this.subRouters) {
+         // 判断请求路径是否以该子路由前缀开头
+         if (req.path.startsWith(prefix)) {
+           const subPath = req.path.slice(prefix.length) || '/';
+           const matches = router.match(req.method, subPath);
+           if (matches.length > 0) {
+             routeMatched = true;
+             for (const { layer, params } of matches) {
+               // 合并路由参数
+               Object.assign(req.params, params);
+               chain.push(...layer.handlers);
+             }
+           }
+         }
+       }
+
+       // 再检查主路由
+       if (!routeMatched) {
+         const routes = this.routes.get(req.method) || [];
+         const allRoutes = this.routes.get('ALL') || [];
+
+         for (const route of [...routes, ...allRoutes]) {
+           const params = this._matchPath(route.path, req.path);
+           if (params !== null) {
+             routeMatched = true;
+             Object.assign(req.params, params);
+             chain.push(...route.handlers);
+             break;  // 只匹配第一个路由
+           }
+         }
+       }
+
+       // 3) 如果没有匹配到任何路由，添加 404 处理
+       if (!routeMatched) {
+         chain.push((req, res) => {
+           res.status(404).json({ error: 'Not Found', path: req.path });
+         });
+       }
+
+       return chain;
+     }
+
+     // 路径匹配（支持 :param 动态参数）
+     _matchPath(pattern, pathname) {
+       const paramNames = [];
+       const regexStr = pattern
+         .replace(/\*/g, '.*')
+         .replace(/:([^/]+)/g, (_, name) => {
+           paramNames.push(name);
+           return '([^/]+)';
+         });
+
+       const regex = new RegExp(`^${regexStr}$`);
+       const match = pathname.match(regex);
+       if (!match) return null;
+
+       const params = {};
+       paramNames.forEach((name, i) => {
+         params[name] = decodeURIComponent(match[i + 1]);
        });
        return params;
      }
 
-     // 执行中间件链
-     _executeChain(chain, index) {
-       return async (req, res) => {
+     // ========== 洋葱模型中间件执行引擎 ==========
+     // 核心思想：每个中间件接收 next()，调用 next() 将控制权交给下一个中间件
+     // 下一个中间件完成后返回，形成"进入→离开"的洋葱结构
+     _executeChain(chain, index, req, res) {
+       return async () => {
+         // 所有中间件已执行完毕
          if (index >= chain.length) return;
 
-         const middleware = chain[index];
-         const next = await this._executeChain(chain, index + 1);
+         const handler = chain[index];
+
+         // ====== 关键：错误处理中间件识别 ======
+         // Express 规范：4 个参数 (err, req, res, next) 的函数是错误处理中间件
+         // 错误处理中间件只在发生错误时被调用
+         if (handler.length === 4) {
+           // 错误处理中间件在此处跳过（由 _handleError 统一调度）
+           return this._executeChain(chain, index + 1, req, res)();
+         }
+
+         // 创建 next 函数：调用它将控制权交给下一个中间件
+         const next = async (err) => {
+           if (err) {
+             // 如果传入了错误，跳过剩余正常中间件，查找错误处理中间件
+             await this._dispatchError(chain, index + 1, err, req, res);
+             return;
+           }
+           // 正常流程：执行下一个中间件
+           await this._executeChain(chain, index + 1, req, res)();
+         };
 
          try {
-           await middleware(req, res, next);
+           await handler(req, res, next);
          } catch (err) {
-           console.error('中间件错误:', err);
-           if (!res.headersSent) {
-             res.status(500).json({ error: 'Internal Server Error' });
-           }
+           // 同步错误也通过错误处理管道
+           await this._dispatchError(chain, index + 1, err, req, res);
          }
        };
+     }
+
+     // 查找并执行最近的错误处理中间件
+     async _dispatchError(chain, startIndex, err, req, res) {
+       for (let i = startIndex; i < chain.length; i++) {
+         if (chain[i].length === 4) {  // 错误处理中间件（4个参数）
+           const next = async (e) => {
+             if (e) await this._dispatchError(chain, i + 1, e, req, res);
+             else await this._executeChain(chain, i + 1, req, res)();
+           };
+           try {
+             await chain[i](err, req, res, next);
+           } catch (e) {
+             await this._dispatchError(chain, i + 1, e, req, res);
+           }
+           return;
+         }
+       }
+       // 没有找到错误处理中间件，使用默认处理
+       this._handleError(err, req, res);
+     }
+
+     // 默认错误处理器
+     _handleError(err, req, res) {
+       if (res.headersSent) return;  // 响应已发送，无法修改
+       const status = err.status || err.statusCode || 500;
+       res.status(status).json({
+         error: process.env.NODE_ENV === 'production'
+           ? 'Internal Server Error'
+           : err.message,
+         stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
+       });
      }
 
      // 收集请求体
@@ -3280,58 +3545,159 @@
      }
    }
 
-   // 导出工厂函数
-   function createApp() {
-     return new MiniExpress();
-   }
-
-   module.exports = createApp;
+   // 导出
+   module.exports = { MiniExpress, MiniRouter };
    ```
 
-2. **使用示例**
+2. **完整使用示例**
    ```javascript
-   const app = require('./mini-express')();
+   const { MiniExpress, MiniRouter } = require('./mini-express');
+   const app = new MiniExpress();
 
-   // ① 日志中间件
+   // ========== ① 全局中间件 ==========
+   // 日志中间件（记录所有请求）
    app.use((req, res, next) => {
-     console.log(`${new Date().toISOString()} ${req.method} ${req.url.pathname}`);
+     const start = Date.now();
+     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+
+     // 在响应结束时打印耗时（洋葱模型"离开"阶段）
+     res.on('finish', () => {
+       console.log(`${req.method} ${req.path} → ${res.statusCode} (${Date.now() - start}ms)`);
+     });
      next();
    });
 
-   // ② CORS 中间件
+   // CORS 跨域中间件
    app.use((req, res, next) => {
      res.setHeader('Access-Control-Allow-Origin', '*');
+     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+     if (req.method === 'OPTIONS') return res.end('');
      next();
    });
 
-   // ③ 路由定义
+   // 简易 JSON Body 解析中间件
+   app.use(async (req, res, next) => {
+     if (req.method !== 'GET' && req.method !== 'HEAD' && !req.body) {
+       // body 已在 _collectBody 中预收集
+     }
+     next();
+   });
+
+   // ========== ② 路由定义 ==========
+   // 基础路由
    app.get('/', (req, res) => {
-     res.json({ message: 'Hello World' });
+     res.json({ message: 'Hello World!' });
    });
 
+   // 动态参数路由 :id
    app.get('/users/:id', (req, res) => {
-     res.json({ userId: req.params.id });
+     // req.params.id 自动从 URL 提取
+     res.json({ userId: req.params.id, query: req.query });
    });
 
+   // 多参数路由
+   app.get('/users/:userId/posts/:postId', (req, res) => {
+     res.json({
+       userId: req.params.userId,
+       postId: req.params.postId
+     });
+   });
+
+   // POST 路由
    app.post('/users', (req, res) => {
-     res.status(201).json({ created: req.body });
+     res.status(201).json({ created: true, data: req.body });
    });
 
-   // ④ 启动服务器
-   app.listen(3000, () => {
-     console.log('服务器运行在 http://localhost:3000');
+   // 通配符路由（兜底）
+   app.get('*', (req, res) => {
+     res.json({ message: '通配符匹配成功', path: req.path });
    });
+
+   // ========== ③ 子路由挂载（use 方法）==========
+   const apiRouter = new MiniRouter();
+
+   // API 版本 v1 路由组
+   apiRouter.get('/list', (req, res) => {
+     res.json([{ id: 1, name: 'API V1 用户列表' }]);
+   });
+
+   apiRouter.post('/create', (req, res) => {
+     res.status(201).json({ created: true, version: 'v1' });
+   });
+
+   apiRouter.get('/:id', (req, res) => {
+     res.json({ id: req.params.id, version: 'v1' });
+   });
+
+   // 将路由组挂载到 /api/v1 前缀下
+   app.use('/api/v1', apiRouter);
+
+   // 另一组子路由
+   const adminRouter = new MiniRouter();
+   adminRouter.get('/dashboard', (req, res) => {
+     res.json({ role: 'admin', data: '管理面板数据' });
+   });
+   app.use('/admin', adminRouter);
+
+   // ========== ④ 错误处理中间件（必须放在最后！）==========
+   // 四参数形式：(err, req, res, next)
+   app.use((err, req, res, next) => {
+     console.error('❌ 全局错误捕获:', err.message);
+
+     // 根据错误类型返回不同状态码
+     if (err.name === 'ValidationError') {
+       return res.status(400).json({ error: '参数验证失败', details: err.message });
+     }
+     if (err.name === 'UnauthorizedError') {
+       return res.status(401).json({ error: '未授权' });
+     }
+
+     // 默认 500
+     res.status(500).json({
+       error: '服务器内部错误',
+       message: process.env.NODE_ENV === 'development' ? err.message : undefined
+     });
+   });
+
+   // 自定义错误抛出测试
+   app.get('/error-test', (req, res, next) => {
+     const err = new Error('测试错误');
+     err.status = 400;  // 自定义状态码
+     next(err);  // 传递给错误处理中间件
+   });
+
+   // ========== ⑤ 启动服务器 ==========
+   app.listen(3000);
    ```
 
 3. **核心设计要点**
    ```javascript
-   // ① 中间件是一个函数 (req, res, next) => {}
-   // ② next() 将控制权交给下一个中间件
-   // ③ 中间件可以提前终止（不调用 next()）
-   // ④ 异步中间件需要使用 async/await
-   // ⑤ 路由匹配支持参数（:id）
-   // ⑥ 错误处理中间件接收四个参数 (err, req, res, next)
+   // ① 中间件签名：function(req, res, next) {}
+   //    - next() 将控制权交给下一个中间件
+   //    - 不调用 next() 则终止后续中间件执行
+
+   // ② 洋葱模型执行顺序：
+   //    中间件1进入 → 中间件2进入 → ... → 业务处理 → ... → 中间件2离开 → 中间件1离开
+
+   // ③ 错误处理中间件识别：
+   //    - function(err, req, res, next) {} ← 4个参数 = 错误处理
+   //    - 必须放在正常中间件之后注册
+
+   // ④ 路由参数：/users/:id → req.params.id
+   // ⑤ 通配符：/api/* 匹配 /api 下所有路径
+   // ⑥ 子路由：app.use('/prefix', router) 实现路由分组
+
+   // ⑦ 链式调用：app.use(mw1).get('/', handler).post('/', handler2)
    ```
+
+### 🔍 追问链
+1. **如何实现路由缓存？**
+   → 方向：LRU 缓存路由匹配结果；编译正则为函数避免重复解析；Trie 树前缀匹配优化
+2. **如何支持 WebSocket 中间件？**
+   → 方向：HTTP 升级检测（Upgrade 头）；WebSocket 握手协议；在中间件链中插入 upgrade 事件
+3. **如何实现类似 Koa 的 async/await 洋葱模型？**
+   → 方向：使用 Promise.compose；async 函数自动等待 next()；上下文对象 ctx 封装 req/res
 
 > **追问链**：如何支持子路由（Router）？→ 如何实现 Express.Router()
 
@@ -3344,234 +3710,485 @@
 
 ### 参考答案要点：
 
-1. **完整实现**
+1. **完整实现（增强版：含 DOM 风格别名 + 完善的内存泄漏检测）**
    ```javascript
-   // mini-event-emitter.js
+   // mini-event-emitter.js - 完整版 EventEmitter
+   // 符合 Node.js EventEmitter 规范，额外提供 DOM 风格别名
+   // 特性：maxListeners 限制、prependListener/prependOnceListener、
+   //       listeners()/eventNames() 工具方法、内存泄漏警告、DOM 风格别名
+
+   const { SymbolDispose, SymbolAsyncDispose } = globalThis;
 
    class MyEventEmitter {
+     // 默认最大监听器数量（与 Node.js 原生一致）
+     static defaultMaxListeners = 10;
+
      constructor() {
-       this._events = new Map();  // 事件名称 -> 监听器数组
-       this._maxListeners = 10;   // 最大监听器数量
+       this._events = new Map();      // 事件名称 -> 监听器数组
+       this._maxListeners = 10;       // 当前实例的最大监听器数
+       this._eventsCount = 0;        // 事件类型计数（用于快速判断）
+       this._errorHandled = false;   // 是否已注册 error 监听器
      }
 
-     // 注册事件监听器
+     // ==================== 核心注册方法 ====================
+
+     /**
+      * on / addEventListener - 注册事件监听器
+      * @param {string} event - 事件名
+      * @param {Function} listener - 监听函数
+      * @returns {this} 支持链式调用
+      */
      on(event, listener) {
-       this._addListener(event, listener, false);
-       return this;
+       return this._addListener(event, listener, false);
      }
 
-     // 注册一次性监听器
+     /**
+      * once / addEventListener(..., { once: true }) - 注册一次性监听器
+      * 触发一次后自动移除
+      */
      once(event, listener) {
-       this._addListener(event, listener, true);
+       return this._addListener(event, listener, true);
+     }
+
+     /**
+      * off / removeEventListener - 移除事件监听器
+      */
+     off(event, listener) {
+       return this.removeListener(event, listener);
+     }
+
+     // ==================== 内部添加逻辑 ====================
+
+     _addListener(event, listener, isOnce) {
+       this._checkListenerType(listener);
+
+       // 获取或创建该事件的监听器数组
+       let listeners = this._events.get(event);
+
+       if (!listeners) {
+         listeners = [];
+         this._events.set(event, listeners);
+         this._eventsCount++;
+
+         // 检查是否是 error 事件的第一个监听器
+         if (event === 'error') {
+           this._errorHandled = true;
+         }
+       } else {
+        // ====== 内存泄漏警告机制 ======
+        // 当单个事件的监听器数量超过 maxListeners 时发出警告
+        // 这是 Node.js 原生 EventEmitter 的标准行为
+        if (listeners.length >= this.getMaxListeners()) {
+          this._emitWarning(
+            `Possible EventEmitter memory leak detected. ${listeners.length + 1} ` +
+            `${String(event)} listeners added to ${this.constructor ? this.constructor.name : 'MyEventEmitter'}. ` +
+            `Use emitter.setMaxListeners() to increase limit`
+          );
+        }
+       }
+
+       // 创建包装对象，保存元信息
+       const wrapper = {
+         listener: listener,       // 原始监听函数
+         rawListener: listener,    // 用于移除时的引用比对
+         once: !!isOnce,          // 是否为一次性监听器
+       };
+
+       listeners.push(wrapper);
        return this;
      }
 
-     // 内部添加监听器
-     _addListener(event, listener, once) {
+     _checkListenerType(listener) {
        if (typeof listener !== 'function') {
-         throw new TypeError('listener must be a function');
-       }
-
-       if (!this._events.has(event)) {
-         this._events.set(event, []);
-       }
-
-       const listeners = this._events.get(event);
-
-       // 检查最大监听器数量
-       if (listeners.length >= this._maxListeners) {
-         console.warn(
-           `警告: Possible EventEmitter memory leak detected. ` +
-           `${listeners.length + 1} ${event} listeners added. ` +
-           `Use emitter.setMaxListeners() to increase limit`
+         throw new TypeError(
+           `The "listener" argument must be of type Function. Received type ${typeof listener}`
          );
        }
-
-       listeners.push({
-         listener,
-         once,  // 标记是否为一次性监听器
-         rawListener: listener  // 保存原始引用，用于移除
-       });
      }
 
-     // 移除事件监听器
-     off(event, listener) {
-       if (!this._events.has(event)) return this;
+     // 内部内存泄漏警告（可被子类覆盖以自定义行为）
+     _emitWarning(warning) {
+       console.warn(warning);
+     }
 
+     // ==================== 移除监听器 ====================
+
+     /**
+      * removeListener - 移除指定监听器
+      * @param {string} event - 事件名
+      * @param {Function} listener - 要移除的函数引用
+      */
+     removeListener(event, listener) {
        const listeners = this._events.get(event);
+       if (!listeners) return this;
+
+       // 查找并移除匹配的监听器
        const index = listeners.findIndex(
-         item => item.rawListener === listener || item.listener === listener
+         item => item.listener === listener || item.rawListener === listener
        );
 
        if (index !== -1) {
-         listeners.splice(index, 1);
-       }
+         // 如果正在遍历中移除，标记为待删除（避免跳过元素）
+         if (this._isIterating) {
+           listeners[index] = null;  // 延迟清理
+         } else {
+           listeners.splice(index, 1);
+         }
 
-       // 如果没有监听器了，删除该事件
-       if (listeners.length === 0) {
-         this._events.delete(event);
+         // 如果数组为空，清理事件条目
+         if (listeners.length === 0 || listeners.every(item => item === null)) {
+           this._events.delete(event);
+           this._eventsCount--;
+           if (event === 'error') this._errorHandled = false;
+         }
        }
 
        return this;
      }
 
-     // 触发事件
+     /**
+      * removeAllListeners - 移除所有监听器（或指定事件的所有监听器）
+      * @param {string} [event] - 可选，指定事件名；不传则清空所有
+      */
+     removeAllListeners(event) {
+       if (event) {
+         // 只清除指定事件
+         if (this._events.has(event)) {
+           this._events.delete(event);
+           this._eventsCount--;
+           if (event === 'error') this._errorHandled = false;
+         }
+       } else {
+         // 清空所有事件
+         this._events.clear();
+         this._eventsCount = 0;
+         this._errorHandled = false;
+       }
+       return this;
+     }
+
+     // ==================== 事件触发 ====================
+
+     /**
+      * emit - 触发事件，执行所有已注册的监听器
+      * @param {string} event - 事件名
+      * @param {...any} args - 传递给监听器的参数
+      * @returns {boolean} 是否有监听器处理了该事件
+      */
      emit(event, ...args) {
-       if (!this._events.has(event)) {
-         // error 事件如果没有监听器，抛出异常
+       const listeners = this._events.get(event);
+
+       // 没有该事件的监听器
+       if (!listeners || listeners.length === 0) {
+         // error 事件特殊处理：没有监听器时抛出异常（Node.js 规范）
          if (event === 'error') {
-           const err = args[0] || new Error('Unhandled error.');
+           const err = args.length > 0 && args[0] instanceof Error
+             ? args[0]
+             : new Error(`Unhandled error. ${args[0] instanceof Error ? args[0].message : args[0]}`);
            throw err;
          }
          return false;  // 表示没有监听器
        }
 
-       const listeners = [...this._events.get(event)];  // 复制数组，防止修改
+       // 处理 null 元素（之前延迟删除的）
+       const activeListeners = listeners.filter(item => item !== null);
 
-       for (const item of listeners) {
-         try {
-           // 执行监听器
-           item.listener.apply(this, args);
+       // 标记正在迭代（用于安全删除）
+       this._isIterating = true;
 
-           // 如果是一次性监听器，移除它
-           if (item.once) {
-             this.off(event, item.rawListener);
+       try {
+         // 按顺序执行每个监听器
+         for (const wrapper of activeListeners) {
+           try {
+             // 执行监听函数，绑定 this 为当前 emitter
+             wrapper.listener.apply(this, args);
+
+             // 如果是一次性监听器，执行后自动移除
+             if (wrapper.once) {
+               this.removeListener(event, wrapper.rawListener);
+             }
+           } catch (err) {
+             // 监听器内部抛出错误 → 触发 error 事件
+             this.emit('error', err);
            }
-         } catch (err) {
-           // 捕获监听器中的错误
-           this.emit('error', err);
+         }
+       } finally {
+         this._isIterating = false;
+
+         // 清理 null 元素（延迟删除的）
+         if (this._events.has(event)) {
+           const remaining = this._events.get(event).filter(item => item !== null);
+           if (remaining.length === 0) {
+             this._events.delete(event);
+             this._eventsCount--;
+           } else {
+             this._events.set(event, remaining);
+           }
          }
        }
 
-       return true;  // 表示有监听器处理
+       return true;  // 表示有监听器处理了事件
      }
 
-     // 获取指定事件的监听器数量
-     listenerCount(event) {
-       if (!this._events.has(event)) return 0;
-       return this._events.get(event).length;
-     }
+     // ==================== 工具查询方法 ====================
 
-     // 获取指定事件的所有监听器
+     /**
+      * listeners - 返回指定事件的所有监听器副本（原始函数数组）
+      */
      listeners(event) {
-       if (!this._events.has(event)) return [];
-       return this._events.get(event).map(item => item.rawListener);
+       const arr = this._events.get(event);
+       if (!arr) return [];
+       return arr.filter(item => item !== null).map(item => item.rawListener);
      }
 
-     // 设置最大监听器数量
-     setMaxListeners(n) {
-       this._maxListeners = n;
-       return this;
+     /**
+      * rawListeners - 返回包含元信息的监听器（包含 once 包装）
+      */
+     rawListeners(event) {
+       const arr = this._events.get(event);
+       if (!arr) return [];
+       return arr.filter(item => item !== null).map(item => item.listener);
      }
 
-     // 获取最大监听器数量
-     getMaxListeners() {
-       return this._maxListeners;
+     /**
+      * listenerCount - 获取指定事件的监听器数量
+      */
+     listenerCount(event) {
+       const arr = this._events.get(event);
+       if (!arr) return 0;
+       return arr.filter(item => item !== null).length;
      }
 
-     // 获取所有注册的事件名
+     /**
+      * eventNames - 返回所有已注册的事件名数组
+      */
      eventNames() {
        return Array.from(this._events.keys());
      }
 
-     // 移除所有监听器（或指定事件的所有监听器）
-     removeAllListeners(event) {
-       if (event) {
-         this._events.delete(event);
-       } else {
-         this._events.clear();
+     // ==================== maxListeners 管理 ====================
+
+     /**
+      * setMaxListeners - 设置此实例的最大监听器数量限制
+      * @param {number} n - 最大数量（Infinity 表示不限制）
+      */
+     setMaxListeners(n) {
+       if (typeof n !== 'number' || n < 0 || !Number.isFinite(n)) {
+         throw new RangeError('The value of "n" is out of range. It must be a non-negative number.');
        }
+       this._maxListeners = n;
        return this;
      }
 
-     // 在监听器数组头部添加（prepend）
+     /**
+      * getMaxListeners - 获取当前实例的最大监听器数量
+      */
+     getMaxListeners() {
+       return this._maxListeners;
+     }
+
+     // 静态方法：设置所有 EventEmitter 实例的默认最大监听器数
+     static setDefaultMaxListeners(n) {
+       if (typeof n !== 'number' || n < 0 || !Number.isFinite(n)) {
+         throw new RangeError('The value of "n" is out of range.');
+       }
+       MyEventEmitter.defaultMaxListeners = n;
+     }
+
+     static getDefaultMaxListeners() {
+       return MyEventEmitter.defaultMaxListeners;
+     }
+
+     // ==================== Prepend 方法 ====================
+     // 将监听器插入到队列头部（而非默认的尾部）
+
+     /**
+      * prependListener - 在头部添加普通监听器
+      */
      prependListener(event, listener) {
-       if (!this._events.has(event)) {
-         this._events.set(event, []);
+       this._checkListenerType(listener);
+       let arr = this._events.get(event);
+       if (!arr) {
+         arr = [];
+         this._events.set(event, arr);
+         this._eventsCount++;
        }
-       this._events.get(event).unshift({
-         listener,
-         once: false,
-         rawListener: listener
-       });
+       arr.unshift({ listener, rawListener: listener, once: false });
        return this;
      }
 
+     /**
+      * prependOnceListener - 在头部添加一次性监听器
+      */
      prependOnceListener(event, listener) {
-       if (!this._events.has(event)) {
-         this._events.set(event, []);
+       this._checkListenerType(listener);
+       let arr = this._events.get(event);
+       if (!arr) {
+         arr = [];
+         this._events.set(event, arr);
+         this._eventsCount++;
        }
-       this._events.get(event).unshift({
-         listener,
-         once: true,
-         rawListener: listener
-       });
+       arr.unshift({ listener, rawListener: listener, once: true });
        return this;
+     }
+
+     // ==================== DOM 风格别名 ====================
+     // 兼容浏览器 addEventListener/removeEventListener API
+
+     /**
+      * addEventListener - DOM 风格的事件注册别名
+      * 支持 options 参数：{ once: boolean, capture: boolean }
+      */
+     addEventListener(event, listener, options) {
+       if (options && typeof options === 'object' && options.once) {
+         return this.once(event, listener);
+       }
+       return this.on(event, listener);
+     }
+
+     /**
+      * removeEventListener - DOM 风格的事件移除别名
+      */
+     removeEventListener(event, listener) {
+       return this.off(event, listener);
+     }
+
+     // ==================== 辅助方法 ====================
+
+     // 检查是否有指定事件的监听器
+     hasListeners(event) {
+       const arr = this._events.get(event);
+       return !!arr && arr.some(item => item !== null);
+     }
+
+     // 获取事件总数（调试用）
+     get eventCount() {
+       return this._eventsCount;
      }
    }
 
    module.exports = MyEventEmitter;
    ```
 
-2. **使用示例与测试**
+2. **完整使用示例与测试**
    ```javascript
    const EventEmitter = require('./mini-event-emitter');
-
    const emitter = new EventEmitter();
 
-   // 基本使用
-   emitter.on('greet', (name) => {
-     console.log(`Hello, ${name}!`);
-   });
+   // ========== 基本功能测试 ==========
 
-   emitter.emit('greet', 'World');  // Hello, World!
+   // ① 基础 on / emit
+   emitter.on('greet', (name) => console.log(`Hello, ${name}!`));
+   emitter.emit('greet', 'World');  // → Hello, World!
 
-   // 一次性监听器
-   emitter.once('init', () => {
-     console.log('只执行一次');
-   });
+   // ② once - 一次性监听器
+   emitter.once('init', () => console.log('初始化完成（只执行一次）'));
+   emitter.emit('init');  // → 初始化完成（只执行一次）
+   emitter.emit('init');  // （无输出）
 
-   emitter.emit('init');  // 只执行一次
-   emitter.emit('init');  // 无输出
-
-   // 多个监听器
-   emitter.on('count', () => console.log('监听器1'));
-   emitter.on('count', () => console.log('监听器2'));
-   emitter.on('count', () => console.log('监听器3'));
+   // ③ 多监听器按序执行
+   emitter.on('count', () => console.log('  监听器A'));
+   emitter.on('count', () => console.log('  监听器B'));
+   emitter.on('count', () => console.log('  监听器C'));
    emitter.emit('count');
-   // 输出：监听器1 → 监听器2 → 监听器3
+   // → 监听器A → 监听器B → 监听器C
 
-   // 移除监听器
-   const handler = () => console.log('会被移除');
-   emitter.on('test', handler);
-   emitter.off('test', handler);
-   emitter.emit('test');  // 无输出
+   // ④ 移除监听器
+   const handler = () => console.log('我会被移除');
+   emitter.on('test-remove', handler);
+   emitter.off('test-remove', handler);
+   emitter.emit('test-remove');  // （无输出）
 
-   // 错误处理
-   emitter.on('error', (err) => {
-     console.error('捕获错误:', err.message);
-   });
+   // ========== 错误处理 ==========
+   // 必须监听 error 事件，否则未捕获的 error 会抛出异常导致崩溃
+   emitter.on('error', (err) => console.error('✅ 错误已被捕获:', err.message));
+   emitter.emit('error', new Error('测试错误'));  // → ✅ 错误已被捕获: 测试错误
 
-   // emitter.emit('error', new Error('测试'));  // 不会崩溃
+   // ========== maxListeners 与内存泄漏警告 ==========
+   console.log('\n--- 内存泄漏警告演示 ---');
+   console.log('默认 maxListeners:', emitter.getMaxListeners());  // 10
 
-   // 监听器数量
-   console.log(emitter.listenerCount('count'));  // 3
-   console.log(emitter.eventNames());  // ['greet', 'count']
+   // 添加超过 10 个监听器会触发警告
+   for (let i = 0; i <= 11; i++) {
+     emitter.on('leak-test', () => {});
+     // 第 11 次时会输出 Possible EventEmitter memory leak detected...
+   }
 
-   // 最大监听器限制
+   // 修改限制
    emitter.setMaxListeners(20);
+   console.log('修改后 maxListeners:', emitter.getMaxListeners());  // 20
+
+   // ========== prepend 系列方法 ==========
+   console.log('\n--- prepend 测试 ---');
+   emitter.prependListener('order', () => console.log('  [头部] 先注册但先执行'));
+   emitter.on('order', () => console.log('  [尾部] 后注册后执行'));
+   emitter.emit('order');
+   // → [头部] 先注册但先执行
+   // → [尾部] 后注册后执行
+
+   // ========== 工具方法 ==========
+   console.log('\n--- 工具方法 ---');
+   console.log('eventNames():', emitter.eventNames());
+   // → ['greet', 'count', 'leak-test', 'order', 'error'] 等
+   console.log('listenerCount("leak-test"):', emitter.listenerCount('leak-test'));  // 12
+   console.log('listeners("count"):', emitter.listeners('count').length);  // 3
+   console.log('hasListeners("greet"):', emitter.hasListeners('greet'));  // true
+
+   // removeAllListeners
+   emitter.removeAllListeners('leak-test');
+   console.log('removeAllListeners 后 count:', emitter.listenerCount('leak-test'));  // 0
+
+   // ========== DOM 风格别名 ==========
+   console.log('\n--- DOM 风格 API ---');
+   const domStyle = new EventEmitter();
+
+   domStyle.addEventListener('click', (e) => console.log('clicked!', e));
+   domStyle.emit('click', { x: 100, y: 200 });  // → clicked! { x: 100, y: 200 }
+
+   // DOM 的 { once: true } 选项
+   domStyle.addEventListener('load', () => console.log('loaded!'), { once: true });
+   domStyle.emit('load');  // → loaded!
+   domStyle.emit('load');  // （无输出）
+
+   domStyle.removeEventListener('click', /* handler */);
+
+   // ========== 静态方法 ==========
+   console.log('\n--- 静态方法 ---');
+   console.log('全局默认值:', EventEmitter.getDefaultMaxListeners());  // 10
+   EventEmitter.setDefaultMaxListeners(15);
+   console.log('修改后:', EventEmitter.getDefaultMaxListeners());  // 15
+
+   console.log('\n✅ 所有测试通过！');
    ```
 
-3. **与 Node.js 原生 EventEmitter 的差异**
+3. **与原生 EventEmitter 的对比**
    ```javascript
-   // 原生 EventEmitter 的额外功能：
-   // 1. target.addEventListener / removeEventListener（DOM 风格）
-   // 2. captureRejections 选项
-   // 3. 更多的事件检查和边界情况处理
-   // 4. Symbol.for('nodejs.util.inspect.custom') 支持
+   // 已实现的功能（与原生一致）：
+   // ✅ on / off / once / emit
+   // ✅ removeListener / removeAllListeners
+   // ✅ setMaxListeners / getMaxListeners（含静态版本）
+   // ✅ listeners / rawListeners / listenerCount / eventNames
+   // ✅ prependListener / prependOnceListener
+   // ✅ error 事件特殊处理（无监听器时抛出异常）
+   // ✅ 内存泄漏警告（超过 maxListeners 时）
+   // ✅ DOM 风格别名：addEventListener / removeEventListener（支持 { once } 选项）
+   // ✅ emit 中同步错误的 error 事件转发
+   // ✅ 迭代期间安全移除监听器
 
-   // 我们实现的版本涵盖了核心功能和面试考察点
+   // 原生额外功能（面试了解即可）：
+   // - captureRejections 选项（Promise rejection 自动捕获）
+   // - Symbol.for('nodejs.util.inspect.custom') 自定义检查
+   // - emitter[Symbol.for('nodejs.eventemitter.maxlisteners')] 符号属性
+   // - 更多边界情况处理（如特殊事件名、原型链污染防护等）
    ```
+
+### 🔍 追问链
+1. **如何实现异步事件触发？如何支持 async/await 监听器？**
+   → 方向：将 emit 改为 async；收集 Promise.all 等待所有异步监听器完成；考虑超时控制
+2. **如何在微前端/多框架场景中使用 EventEmitter？**
+   → 方向：全局事件总线设计；命名空间隔离；跨 iframe 通信适配
+3. **EventEmitter 如何结合 TypeScript 泛型做类型安全的发布订阅？**
+   → 方向：定义事件映射接口 type Events = { click: { x: number }; data: string }；泛型约束事件名和参数类型
 
 > **追问链**：如何实现异步事件触发？→ 如何支持 async/await 监听器？
 
@@ -3584,103 +4201,158 @@
 
 ### 参考答案要点：
 
-1. **Promise.all 实现**
+1. **Promise.all 实现 — 全部 resolve 返回结果数组，任一 reject 则立即 reject**
    ```javascript
    /**
-    * Promise.all - 所有 Promise 成功才成功，任一失败则失败
+    * myPromiseAll - 所有 Promise 成功才成功，任一失败则立即失败
+    *
+    * 核心行为：
+    * - 传入空数组 → 立即 resolve([])
+    * - 全部完成 → resolve(结果数组)，保持原始顺序（与输入一一对应）
+    * - 任一 reject → 立即 reject（不等待其他 Promise）
+    * - 非 Promise 值 → 用 Promise.resolve() 包装后处理
+    * - 微任务调度：通过 .then() 回调实现异步返回（符合规范）
+    *
     * @param {Iterable} promises - Promise 可迭代对象
-    * @returns {Promise} 返回新 Promise
+    * @returns {Promise<Array>} 新的 Promise 实例
     */
-   function myAll(promises) {
+   function myPromiseAll(promises) {
      return new Promise((resolve, reject) => {
-       // ① 边界情况：空数组
+       // ① 边界情况：空数组立即 resolve
+       // （注意：Promise.all([]) 是同步 resolve 的特例，但结果仍通过微任务返回）
+       promises = Array.from(promises);  // 转为数组以便多次遍历
+
        if (promises.length === 0) {
-         resolve([]);
+         // 使用微任务模拟原生行为：resolve 在下一个微任务中执行
+         Promise.resolve().then(() => resolve([]));
          return;
        }
 
-       const results = [];       // 存储所有结果
-       let completedCount = 0;   // 完成的计数
+       const results = new Array(promises.length);  // 预分配固定长度数组
+       let completedCount = 0;                      // 已完成的计数器
        const total = promises.length;
 
        promises.forEach((promise, index) => {
-         // ② 使用 Promise.resolve 包装，支持非 Promise 值
+         // ② 使用 Promise.resolve 包装每个元素
+         // 支持非 Promise 值（数字、字符串、普通对象等）
          Promise.resolve(promise).then(
            value => {
-             results[index] = value;  // 保持顺序！
+             // ③ 按索引存入结果（保持顺序！这是关键！）
+             results[index] = value;
              completedCount++;
 
-             // ③ 全部完成时 resolve
+             // ④ 全部完成时 resolve（使用微任务确保异步性）
              if (completedCount === total) {
-               resolve(results);
+               // 模拟微任务调度：将 resolve 推入微任务队列
+               queueMicrotask ? queueMicrotask(() => resolve(results))
+                               : Promise.resolve().then(() => resolve(results));
              }
            },
-           // ④ 任一失败立即 reject
-           reason => reject(reason)
+           // ⑤ 任一失败立即 reject（短路行为）
+           reason => {
+             reject(reason);
+           }
          );
        });
      });
    }
 
-   // 使用示例
-   myAll([
+   // ====== 基础使用示例 ======
+   myPromiseAll([
      Promise.resolve(1),
      Promise.resolve(2),
      Promise.resolve(3)
    ]).then(console.log);  // [1, 2, 3]
 
-   myAll([
-     Promise.resolve(1),
-     Promise.reject('错误'),
-     Promise.resolve(3)
-   ]).catch(console.error);  // '错误'
+   myPromiseAll([
+     Promise.resolve('OK'),
+     Promise.reject('出错了'),
+     Promise.resolve('不会到达')
+   ]).catch(console.error);  // '出错了'
+
+   // 非Promise值自动包装
+   myPromiseAll([1, 2, 3]).then(console.log);  // [1, 2, 3]
    ```
 
-2. **Promise.race 实现**
+2. **Promise.race 实现 — 返回最快完成的 Promise 结果（竞态）**
    ```javascript
    /**
-    * Promise.race - 返回最先settled（完成或拒绝）的Promise的结果
+    * myPromiseRace - 返回最先 settled（完成或拒绝）的 Promise 结果
+    *
+    * 核心行为：
+    * - 空数组 → 永远 pending（与原生一致！不会 resolve 也不会 reject）
+    * - 第一个 settle（无论 fulfilled 还是 rejected）的结果就是最终结果
+    * - 其他 Promise 的结果被忽略（但它们仍会继续执行，不会被取消）
+    * - 典型应用：超时控制、多源竞速
+    *
+    * @param {Iterable} promises - Promise 可迭代对象
+    * @returns {Promise} 最先完成的 Promise 的结果
     */
-   function myRace(promises) {
+   function myPromiseRace(promises) {
      return new Promise((resolve, reject) => {
+       promises = Array.from(promises);
+
+       // 空数组：永远 pending（原生行为）
        if (promises.length === 0) {
-         return;  // 永远 pending（与原生一致）
+         return;  // 不调用 resolve 也不调用 reject
        }
 
        promises.forEach(promise => {
+         // 第一个 settle 的结果决定最终结果
          Promise.resolve(promise).then(
-           value => resolve(value),   // 第一个成功
-           reason => reject(reason)   // 第一个失败
+           value => resolve(value),   // 第一个成功 → resolve
+           reason => reject(reason)   // 第一个失败 → reject
          );
        });
      });
    }
 
-   // 使用示例：超时控制
-   function fetchWithTimeout(url, ms) {
-     return myRace([
-       fetch(url),
-       new Promise((_, reject) =>
-         setTimeout(() => reject(new Error('超时')), ms)
+   // ====== 经典应用：请求超时控制 ======
+   function fetchWithTimeout(url, ms = 5000) {
+     return myPromiseRace([
+       fetch(url),                                    // 实际请求
+       new Promise((_, reject) =>                     // 超时定时器
+         setTimeout(() => reject(new Error(`请求超时 (${ms}ms)`)), ms)
        )
      ]);
    }
+
+   // 使用
+   fetchWithTimeout('https://api.example.com/data', 3000)
+     .then(res => res.json())
+     .catch(err => console.error(err.message));
+
+   // ====== 多源竞速：从多个 CDN 加载资源 ======
+   function loadFromFastestCDN(urls) {
+     return myPromiseRace(urls.map(url => fetch(url)));
+   }
    ```
 
-3. **Promise.allSettled 实现**
+3. **Promise.allSettled 实现 — 等待全部完成，返回状态+结果/原因**
    ```javascript
    /**
-    * Promise.allSettled - 等待所有 Promise 完成（无论成功或失败）
-    * 返回每个 Promise 的状态和结果
+    * myPromiseAllSettled - 等待所有 Promise 完成（无论成功或失败）
+    *
+    * 核心行为：
+    * - 永远不会 reject！（这是与 all 的关键区别）
+    * - 空数组 → resolve([])
+    * - 每个 Promise 的结果包装为 { status: 'fulfilled' | 'rejected', value? | reason? }
+    * - 保持输入顺序
+    * - 适用场景：并行多个互不依赖的操作，需要知道每个的结果
+    *
+    * @param {Iterable} promises - Promise 可迭代对象
+    * @returns {Promise<Array<{status, value?, reason?}>>}
     */
-   function myAllSettled(promises) {
+   function myPromiseAllSettled(promises) {
      return new Promise((resolve) => {
+       promises = Array.from(promises);
+
        if (promises.length === 0) {
-         resolve([]);
+         Promise.resolve().then(() => resolve([]));
          return;
        }
 
-       const results = [];
+       const results = new Array(promises.length);
        let completedCount = 0;
        const total = promises.length;
 
@@ -3697,54 +4369,237 @@
          );
        });
 
+       // 统一的完成检查函数
        function checkComplete() {
          completedCount++;
          if (completedCount === total) {
-           resolve(results);
+           // 微任务调度模拟
+           queueMicrotask ? queueMicrotask(() => resolve(results))
+                           : Promise.resolve().then(() => resolve(results));
          }
        }
      });
    }
 
-   // 使用示例
-   myAllSettled([
-     Promise.resolve('成功'),
-     Promise.reject('失败'),
-     Promise.resolve('也成功')
+   // ====== 使用示例 ======
+   myPromiseAllSettled([
+     Promise.resolve('✅ 成功'),
+     Promise.reject('❌ 失败'),
+     Promise.resolve('✅ 也成功')
    ]).then(console.log);
    // [
-   //   { status: 'fulfilled', value: '成功' },
-   //   { status: 'rejected', reason: '失败' },
-   //   { status: 'fulfilled', value: '也成功' }
+   //   { status: 'fulfilled', value: '✅ 成功' },
+   //   { status: 'rejected', reason: '❌ 失败' },
+   //   { status: 'fulfilled', value: '✅ 也成功' }
    // ]
+
+   // 实际场景：批量操作后统计成功率
+   async function batchRequest(urls) {
+     const results = await myPromiseAllSettled(
+       urls.map(url => fetch(url).then(r => r.json()))
+     );
+
+     const succeeded = results.filter(r => r.status === 'fulfilled');
+     const failed = results.filter(r => r.status === 'rejected');
+
+     console.log(`总计: ${results.length}, 成功: ${succeeded.length}, 失败: ${failed.length}`);
+     return { data: succeeded.map(r => r.value), errors: failed.map(r => r.reason) };
+   }
    ```
 
-4. **进阶：Promise 并发控制**
+4. **微任务调度机制详解**
    ```javascript
    /**
-    * 并发控制 - 同时最多运行 n 个 Promise
-    * @param {number} concurrency - 并发数
-    * @param {Array} tasks - 任务数组（返回 Promise 的函数）
-    * @returns {Promise}
+    * 为什么 Promise 回调是"微任务"？
+    *
+    * JavaScript 事件循环中有两种异步队列：
+    * - 微任务队列（Microtask Queue）：Promise.then/catch/finally, process.nextTick, queueMicrotask
+    * - 宏任务队列（Macrotask Queue）：setTimeout, setInterval, setImmediate, I/O回调
+    *
+    * 执行时机差异：
+    * 每个宏任务执行完后，会清空所有微任务，然后再取下一个宏任务
+    *
+    * 这就是为什么 Promise.all/race/allSettled 的回调总能在 setTimeout 之前执行
+    */
+
+   // ========== 微任务 vs 宏任务 对比演示 ==========
+   console.log('=== 微任务调度演示 ===');
+
+   console.log('1. 同步代码开始');
+
+   // Promise 创建时，executor 是同步执行的
+   const p = myPromiseAll([
+     Promise.resolve('A'),
+     Promise.resolve('B')
+   ]);
+
+   console.log('2. Promise.all 已创建（但 .then 回调尚未执行）');
+
+   p.then(results => {
+     console.log('4. Promise.all then 回调（微任务）:', results);
+   });
+
+   setTimeout(() => {
+     console.log('5. setTimeout 回调（宏任务）');
+   }, 0);
+
+   console.log('3. 同步代码结束');
+
+   // 执行顺序：
+   // 1 → 2 → 3 → 4（微任务，在当前宏任务结束后立即执行）→ 5（下一个宏任务）
+
+   // ========== 自定义微任务调度模拟 ==========
+   // 如果环境不支持 queueMicrotask，可以用以下方式模拟
+   function microtask(fn) {
+     if (typeof queueMicrotask === 'function') {
+       queueMicrotask(fn);
+     } else {
+       // 兼容方案：利用 Promise.resolve().then() 创建微任务
+       Promise.resolve().then(fn);
+     }
+   }
+
+   // 验证微任务优先级
+   microtask(() => console.log('A: microtask'));
+   setTimeout(() => console.log('B: macrotask (setTimeout)'), 0);
+   // 输出：A → B（微任务总是先于同级的宏任务执行）
+   ```
+
+5. **完整测试套件**
+   ```javascript
+   // ========== 测试框架（简易版）==========
+   async function runTests() {
+     let passed = 0;
+     let failed = 0;
+
+     function test(name, fn) {
+       fn()
+         .then(() => { passed++; console.log(`  ✅ ${name}`); })
+         .catch(err => { failed++; console.error(`  ❌ ${name}: ${err.message}`); });
+     }
+
+     function assert(condition, message) {
+       if (!condition) throw new Error(message || '断言失败');
+     }
+
+     console.log('\n========== Promise.all 测试 ==========');
+
+     test('空数组应返回 []', async () => {
+       const result = await myPromiseAll([]);
+       assert(Array.isArray(result) && result.length === 0, '应为空数组');
+     });
+
+     test('全部成功应返回有序结果', async () => {
+       const result = await myPromiseAll([
+         Promise.resolve(1),
+         new Promise(r => setTimeout(() => r(2), 50)),
+         Promise.resolve(3)
+       ]);
+       assert(result[0] === 1 && result[1] === 2 && result[2] === 3, '顺序或值不对');
+     });
+
+     test('任一失败应 reject', async () => {
+       try {
+         await myPromiseAll([
+           Promise.resolve(1),
+           Promise.reject('错误'),
+           Promise.resolve(3)
+         ]);
+         throw new Error('应该抛出异常');
+       } catch (e) {
+         assert(e === '错误', `错误信息不匹配: ${e}`);
+       }
+     });
+
+     test('非 Promise 值应自动包装', async () => {
+       const result = await myPromiseAll([42, 'hello', null]);
+       assert(result[0] === 42 && result[1] === 'hello' && result[2] === null);
+     });
+
+     console.log('\n========== Promise.race 测试 ==========');
+
+     test('最快的成功应获胜', async () => {
+       const result = await myPromiseRace([
+         new Promise(r => setTimeout(() => r('慢'), 100)),
+         Promise.resolve('快')
+       ]);
+       assert(result === '快');
+     });
+
+     test('最快的失败也应触发 reject', async () => {
+       try {
+         await myPromiseRace([
+           new Promise(r => setTimeout(() => r('慢'), 100)),
+           Promise.reject('快失败')
+         ]);
+         throw new Error('应该抛出异常');
+       } catch (e) {
+         assert(e === '快失败');
+       }
+     });
+
+     console.log('\n========== Promise.allSettled 测试 ==========');
+
+     test('永不 reject', async () => {
+       const result = await myPromiseAllSettled([
+         Promise.resolve('ok'),
+         Promise.reject('fail')
+       ]);
+       assert(result.length === 2);
+       assert(result[0].status === 'fulfilled' && result[0].value === 'ok');
+       assert(result[1].status === 'rejected' && result[1].reason === 'fail');
+     });
+
+     test('混合类型保持顺序', async () => {
+       const result = await myPromiseAllSettled([
+         Promise.reject('a'),
+         Promise.resolve('b'),
+         Promise.reject('c')
+       ]);
+       assert(result[0].reason === 'a' && result[1].value === 'b' && result[2].reason === 'c');
+     });
+
+     console.log('\n========== 测试汇总 ==========');
+     console.log(`通过: ${passed}, 失败: ${failed}, 总计: ${passed + failed}`);
+
+     if (failed > 0) process.exit(1);
+   }
+
+   runTests();
+   ```
+
+6. **进阶：Promise 并发控制池**
+   ```javascript
+   /**
+    * promisePool - 并发控制：同时最多运行 n 个 Promise
+    *
+    * 应用场景：限制同时发出的 HTTP 请求数量，避免打垮服务器
+    *
+    * @param {number} concurrency - 最大并发数
+    * @param {Array<Function>} tasks - 任务数组（每个元素是返回 Promise 的函数）
+    * @returns {Promise<Array>} 所有结果的数组（保持顺序）
     */
    async function promisePool(concurrency, tasks) {
      const results = [];
-     const executing = new Set();
+     const executing = new Set();  // 正在执行的 Promise 集合
 
      for (const task of tasks) {
+       // 创建并启动任务
        const promise = task().then(result => {
-         executing.delete(promise);
+         executing.delete(promise);  // 完成后从集合中移除
          return result;
        });
 
        executing.add(promise);
        results.push(promise);
 
+       // 如果并发数已满，等待任意一个完成后再继续
        if (executing.size >= concurrency) {
-         await Promise.race(executing);
+         await Promise.race(executing);  // 等待最快完成的那个
        }
      }
 
+     // 等待所有剩余的任务完成
      return Promise.all(results);
    }
 
@@ -3752,6 +4607,14 @@
    const urls = Array(10).fill('https://api.example.com/data');
    const results = await promisePool(3, urls.map(url => () => fetch(url)));
    ```
+
+### 🔍 追问链
+1. **如何手写 Promise.any 和 Promise.finally？**
+   → 方向：any = 取第一个 fulfilled（全部 rejected 才 AggregateError）；finally = 无论成败都执行的回调
+2. **如何实现可取消的 Promise（AbortController 模式）？**
+   → 方向：结合 AbortSignal；在 race 中检测 abort 事件；清理资源和订阅
+3. **Promise.all 与 allSettled 的性能差异？何时选哪个？**
+   → 方向：all 有短路优化（fail-fast）；allSettled 无短路需等全部；互不依赖选 allSettled
 
 > **追问链**：如何实现 Promise.any 和 finally？→ ES2021 新特性
 
@@ -4405,6 +5268,14 @@
 
 > **追问链**：如何实现自动化的内存监控告警？→ Q43
 
+### 🔍 追问链
+1. **Cluster 模式的负载均衡策略是怎样的？**
+   → 方向：默认 Round Robin（轮询）—— 除 Windows 外；Windows 使用共享 socket 的方式（由 OS 调度）；可配合 session affinity（sticky session）保证同一用户请求到同一 worker；Nginx upstream 也可做二次负载均衡
+2. **多进程间如何共享状态？（Redis / Sticky Session）**
+   → 方向：方案一：外部存储 Redis 共享 Session/缓存（推荐）；方案二：Sticky Session（IP Hash 保证同一用户到同一进程）；方案三：IPC 消息通信（master 进程广播状态变更）；避免使用进程内内存存储状态
+3. **如何做 Node.js 服务的水平扩展？**
+   → 方向：K8s HPA 基于 CPU/内存/自定义指标自动扩缩容；Pod 反亲和性避免单点故障；多可用区部署 + DNS 轮询；数据库读写分离 + 缓存层减轻 DB 压力；CDN 分担静态资源
+
 ---
 
 ## Q38: 设计一个完善的日志系统（分级/格式化/输出目标/采样）
@@ -4834,6 +5705,14 @@
 
 > **追问链**：如何实现上传进度条和断点恢复？→ 前端状态管理
 
+### 🔍 追问链
+1. **文件 Hash 计算如何不阻塞主线程？（Web Worker / Stream hash）**
+   → 方向：浏览器端使用 Web Worker 在后台线程计算 SHA-256（crypto.subtle.digest）；服务端使用 Stream 模式分块读取+增量计算 hash（避免 fs.readFile 全量加载）；SparkMD5 库支持流式 MD5 计算
+2. **断点续传的记录应该存储在哪里更可靠？**
+   → 方向：IndexedDB（浏览器端，大容量、异步、持久化，优于 localStorage 的 5MB 限制和同步阻塞）；localStorage 仅适合小量元数据（文件名、总大小）；服务端记录最可靠但需额外 API；推荐 IndexedDB 存断点信息 + 服务端校验双重保障
+3. **秒传的完整流程是什么？**
+   → 方向：①客户端计算文件完整 hash → ②发送 hash 给服务端检查是否已存在 → ③存在则直接返回 URL（秒传成功）→ ④不存在则返回已上传的分片列表 → ⑤客户端跳过已有分片继续上传剩余分片 → ⑥全部完成后通知合并 → ⑦服务端校验文件完整性（hash + size）；关键点：hash 算法需前后端一致
+
 ---
 
 ## Q40: Node.js 服务的优雅关闭（Graceful Shutdown）怎么实现？
@@ -4846,198 +5725,609 @@
 1. **为什么需要优雅关闭？**
    ```javascript
    // ❌ 直接 kill -9（强制终止）的问题：
-   // - 正在处理的请求会失败
-   // - 数据库连接未关闭（可能数据丢失）
-   // - 文件操作可能损坏
+   // - 正在处理的请求会失败（客户端收到 ECONNRESET）
+   // - 数据库连接未关闭 → 可能数据丢失或连接池泄漏
+   // - 文件操作可能损坏（写入到一半被截断）
    // - 客户端收到错误而非正常响应
-   // - 健康检查可能还未标记为不健康
+   // - 健康检查可能还未标记为不健康 → 负载均衡器继续转发流量
+   // - Redis/MQ 等中间件的连接未释放
    ```
 
-2. **完整实现**
+2. **核心实现（完整版：含请求计数器 + 数据库/Redis清理 + 定时器清理）**
    ```javascript
-   // graceful-shutdown.js
+   // graceful-shutdown.js - Node.js 服务完整版优雅关闭方案
+   //
+   // 核心流程：
+   // 1. 收到 SIGTERM/SIGINT 信号
+   // 2. 立即标记服务为"正在关闭"状态
+   // 3. 停止接受新请求（server.close()）
+   // 4. 等待进行中的请求完成（计数器 + 超时强制关闭）
+   // 5. 关闭数据库连接池、Redis 连接等外部资源
+   // 6. 清理所有定时器和 interval
+   // 7. 进程退出
 
    const http = require('http');
 
    class GracefulShutdown {
+     /**
+      * @param {http.Server} server - HTTP 服务器实例
+      * @param {Object} options - 配置选项
+      * @param {number} options.timeout - 最大等待时间（毫秒），默认 30000
+      * @param {boolean} options.forceExit - 超时后是否强制退出，默认 true
+      */
      constructor(server, options = {}) {
        this.server = server;
-       this.timeout = options.timeout || 30000;  // 30秒超时
-       this.isShuttingDown = false;
-       this.activeConnections = new Set();
-       this.cleanupCallbacks = [];
+       this.timeout = options.timeout || 30000;    // 默认30秒超时
+       this.forceExit = options.forceExit !== false; // 默认超时强制退出
 
+       // ====== 状态追踪 ======
+       this.isShuttingDown = false;           // 是否正在关闭
+       this.shutdownStartTime = 0;            // 关闭开始时间戳
+       this.activeConnections = new Set();     // 活跃的 TCP 连接集合
+       this.inFlightRequests = new Map();      // 进行中的 HTTP 请求（socket → 请求信息）
+       this.cleanupCallbacks = [];             // 自定义清理回调数组
+       this.timers = new Set();                // 需要清理的定时器 ID 集合
+
+       // 初始化各模块
        this._setupSignalHandlers();
        this._trackConnections();
+       this._setupHealthCheck();
      }
 
-     // 注册清理回调
+     // ==================== 公共 API ====================
+
+     /**
+      * onCleanup - 注册资源清理回调
+      * 按注册顺序依次执行，支持 async 函数
+      * @param {Function} callback - 清理函数（可以是异步函数）
+      */
      onCleanup(callback) {
-       this.cleanupCallbacks.push(callback);
-       return this;
+       if (typeof callback !== 'function') {
+         throw new TypeError('callback must be a function');
+       }
+       this.cleanupCallbacks.push({
+         name: callback.name || 'anonymous',
+         fn: callback,
+         executed: false,        // 是否已执行
+         error: null              // 执行时的错误
+       });
+       return this;  // 支持链式调用
      }
 
-     // 设置信号处理器
+     /**
+      * registerTimer - 注册需要清理的定时器
+      * 用于追踪 setInterval / setTimeout，关闭时自动清除
+      * @param {number} timerId - 定时器 ID
+      */
+     registerTimer(timerId) {
+       this.timers.add(timerId);
+       return timerId;
+     }
+
+     /**
+      * getStats - 获取当前状态统计（用于监控和调试）
+      */
+     getStats() {
+       return {
+         isShuttingDown: this.isShuttingDown,
+         activeConnections: this.activeConnections.size,
+         inFlightRequests: this.inFlightRequests.size,
+         pendingTimers: this.timers.size,
+         registeredCleanupCallbacks: this.cleanupCallbacks.length,
+         uptime: this.isShuttingDown ? Date.now() - this.shutdownStartTime : null
+       };
+     }
+
+     // ==================== 信号处理 ====================
+
      _setupSignalHandlers() {
-       // SIGTERM - Docker/K8s 默认终止信号
-       process.on('SIGTERM', () => this.shutdown('SIGTERM'));
+       // SIGTERM - Docker/K8s 发送的默认终止信号（最常用）
+       process.on('SIGTERM', () => this._handleSignal('SIGTERM'));
 
-       // SIGINT - Ctrl+C
-       process.on('SIGINT', () => this.shutdown('SIGINT'));
+       // SIGINT - 用户按 Ctrl+C 时发送
+       process.on('SIGINT', () => this._handleSignal('SIGINT'));
+
+       // 可选：处理 SIGHUP（配置重载）— 通常不退出而是重载配置
+       // process.on('SIGHUP', () => { /* 重载配置 */ });
      }
 
-     // 追踪活跃连接
-     _trackConnections() {
-       this.server.on('connection', (socket) => {
-         const connection = { socket, createdAt: Date.now() };
-         this.activeConnections.add(connection);
+     _handleSignal(signal) {
+       // 防止重复触发
+       if (this.isShuttingDown) {
+         console.log(`⚠️ 已在关闭中，忽略重复的 ${signal} 信号`);
+         return;
+       }
+       this.shutdown(signal);
+     }
 
+     // ==================== 连接追踪 ====================
+
+     /**
+      * 追踪所有活跃的 TCP 连接和进行中的 HTTP 请求
+      *
+      * 为什么需要两层追踪？
+      * - activeConnections: TCP 层面的连接（一个连接可以承载多个 HTTP 请求）
+      * - inFlightRequests: 应用层面的请求（用于精确等待业务逻辑完成）
+      */
+     _trackConnections() {
+       // ① 追踪每个新的 TCP 连接
+       this.server.on('connection', (socket) => {
+         // 如果已经在关闭中，直接拒绝新连接
+         if (this.isShuttingDown) {
+           socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+           return;
+         }
+
+         const connInfo = {
+           socket,
+           createdAt: Date.now(),
+           remoteAddress: socket.remoteAddress,
+           requestCount: 0  // 该连接上的请求数
+         };
+
+         this.activeConnections.add(connInfo);
+
+         // 监听连接关闭事件
          socket.on('close', () => {
-           this.activeConnections.delete(connection);
+           this.activeConnections.delete(connInfo);
+           this.inFlightRequests.delete(socket);
+         });
+
+         // 监听连接错误
+         socket.on('error', (err) => {
+           console.error('Socket 错误:', err.message);
+           this.activeConnections.delete(connInfo);
          });
        });
+
+       // ② 通过中间件追踪进行中的请求
+       // （需要在应用层配合使用 requestTracker 中间件）
      }
 
-     // 执行关闭
-     async shutdown(signal) {
-       if (this.isShuttingDown) return;
-       this.isShuttingDown = true;
+     /**
+      * requestTracker - HTTP 请求追踪中间件
+      * 使用方式：app.use(gracefulShutdown.requestTracker)
+      */
+     requestTracker(req, res, next) {
+       const socket = req.socket;
 
-       console.log(`\n收到 ${signal} 信号，开始优雅关闭...`);
-       console.log(`活跃连接数: ${this.activeConnections.size}`);
+       // 如果已在关闭中且不是健康检查请求，返回 503
+       if (this.isShuttingDown && req.url !== '/health') {
+         res.setHeader('Connection', 'close');
+         res.status(503).json({ error: 'Server is shutting down' });
+         return;
+       }
 
-       // ① 停止接受新连接
-       this.server.close(() => {
-         console.log('HTTP 服务器已停止接受新连接');
+       // 记录请求开始
+       const reqInfo = {
+         method: req.method,
+         url: req.url,
+         startedAt: Date.now()
+       };
+       this.inFlightRequests.set(socket, reqInfo);
+
+       // 请求结束时移除记录
+       res.on('finish', () => {
+         this.inFlightRequests.delete(socket);
        });
 
-       // ② 设置强制退出定时器
-       const forceExitTimeout = setTimeout(() => {
-         console.error('超时，强制退出！');
-         process.exit(1);
-       }, this.timeout);
+       next();
+     }
+
+     // ==================== 健康检查端点 ====================
+
+     _setupHealthCheck() {
+       // 创建内置的健康检查路由
+       // 注意：这需要与实际框架集成，此处仅展示思路
+       this._healthCheckHandler = (req, res) => {
+         if (req.url === '/health' && req.method === 'GET') {
+           const stats = this.getStats();
+           const status = stats.isShuttingDown ? 503 : 200;
+           res.writeHead(status, { 'Content-Type': 'application/json' });
+           res.end(JSON.stringify({
+             status: status === 200 ? 'ok' : 'shutting_down',
+             ...stats,
+             timestamp: new Date().toISOString()
+           }));
+           return true;  // 表示已处理
+         }
+         return false;  // 未处理
+       };
+     }
+
+     // ==================== 核心关闭逻辑 ====================
+
+     /**
+      * shutdown - 执行完整的优雅关闭流程
+      * @param {string} signal - 触发关闭的信号名称
+      */
+     async shutdown(signal) {
+       this.isShuttingDown = true;
+       this.shutdownStartTime = Date.now();
+
+       console.log('\n' + '='.repeat(60));
+       console.log(`🛑 收到 ${signal} 信号，开始优雅关闭...`);
+       console.log(`   时间: ${new Date().toISOString()}`);
+       console.log(`   活跃连接: ${this.activeConnections.size}`);
+       console.log(`   进行中的请求: ${this.inFlightRequests.size}`);
+       console.log('='.repeat(60));
+
+       // ========== 第一步：停止接受新连接 ==========
+       // server.close() 会：
+       // - 停止监听端口
+       // - 不再接受新的 TCP 连接
+       // - 但已有的连接仍可正常工作
+       await new Promise((resolve) => {
+         this.server.close(() => {
+           console.log('✅ [1/5] HTTP 服务器已停止接受新连接');
+           resolve();
+         });
+         // 如果服务器已经关闭（防御性编程）
+         if (!this.server.listening) {
+           resolve();
+         }
+       });
+
+       // ========== 第二步：设置超时保护 ==========
+       let forceExitTimer = null;
+       if (this.timeout > 0) {
+         forceExitTimer = setTimeout(() => {
+           console.error(`\n⏰ [!!] 超时 (${this.timeout}ms)，准备${this.forceExit ? '强制' : '跳过'}退出`);
+           console.error(`   剩余连接: ${this.activeConnections.size}`);
+           console.error(`   剩余请求: ${this.inFlightRequests.size}`);
+
+           if (this.forceExit) {
+             this._forceExit('timeout');
+           }
+         }, this.timeout);
+       }
 
        try {
-         // ③ 执行自定义清理回调
-         for (const callback of this.cleanupCallbacks) {
-           await callback();
-         }
-
-         // ④ 关闭活跃连接（通知客户端）
+         // ========== 第三步：通知客户端并等待进行中的请求完成 ==========
+         // 向所有活跃连接发送 "Connection: close" 头
+         // 提示客户端此连接即将关闭
          for (const conn of this.activeConnections) {
-           conn.socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+           try {
+             // 不直接销毁连接，而是让现有请求完成后自然关闭
+             // 如果连接空闲超过阈值，则主动断开
+             const idleTime = Date.now() - conn.createdAt;
+             if (idleTime > 5000) {  // 空闲超过5秒的连接直接关闭
+               conn.socket.end();
+             } else {
+               // 设置短超时，让正在进行的请求有时间完成
+               conn.socket.setTimeout(5000, () => {
+                 conn.socket.destroy();  // 强制销毁
+               });
+             }
+           } catch (e) {
+             // 忽略单个连接的错误
+           }
          }
 
-         // ⑤ 等待连接关闭或超时
-         if (this.activeConnections.size > 0) {
-           console.log(`等待 ${this.activeConnections.size} 个连接关闭...`);
-           await this._waitForConnectionsToClose();
+         // 等待进行中的请求完成（轮询检测）
+         if (this.inFlightRequests.size > 0 || this.activeConnections.size > 0) {
+           console.log(`⏳ [2/5] 等待 ${this.inFlightRequests.size} 个请求完成...`);
+           await this._waitForPendingRequests();
+           console.log('✅ [2/5] 所有请求已处理完毕');
+         } else {
+           console.log('✅ [2/5] 无待处理的请求');
          }
 
-         clearTimeout(forceExitTimeout);
-         
-         console.log('✅ 优雅关闭完成');
+         // ========== 第四步：执行自定义清理回调 ==========
+         console.log(`🧹 [3/5] 执行 ${this.cleanupCallbacks.length} 个清理回调...`);
+         for (const cb of this.cleanupCallbacks) {
+           try {
+             const start = Date.now();
+             await cb.fn();
+             cb.executed = true;
+             console.log(`   ✅ "${cb.name}" 完成 (${Date.now() - start}ms)`);
+           } catch (err) {
+             cb.error = err;
+             console.error(`   ❌ "${cb.name}" 出错:`, err.message);
+           }
+         }
+         console.log('✅ [3/5] 所有清理回调执行完毕');
+
+         // ========== 第五步：清理定时器 ==========
+         this._clearAllTimers();
+         console.log('✅ [4/5] 定时器已清理');
+
+         // ========== 第六步：最终确认与退出 ==========
+         if (forceExitTimer) clearTimeout(forceExitTimer);
+
+         const totalDuration = Date.now() - this.shutdownStartTime;
+         console.log('\n' + '='.repeat(60));
+         console.log(`✅ 优雅关闭完成！总耗时: ${totalDuration}ms`);
+         console.log(`   退出码: 0`);
+         console.log('='.repeat(60) + '\n');
+
          process.exit(0);
 
-       } catch (error) {
-         console.error('关闭过程中出错:', error);
-         process.exit(1);
+       } catch (err) {
+         console.error('\n❌ 关闭过程中发生异常:', err);
+         this._forceExit('error');
        }
      }
 
-     _waitForConnectionsToClose() {
-       return new Promise(resolve => {
+     /**
+      * 等待进行中的请求完成（带超时）
+      */
+     _waitForPendingRequests(maxWait = 10000) {
+       const startTime = Date.now();
+       return new Promise((resolve) => {
          const check = () => {
-           if (this.activeConnections.size === 0) {
+           // 所有请求都完成了
+           if (this.inFlightRequests.size === 0 && this.activeConnections.size === 0) {
              resolve();
-           } else {
-             setTimeout(check, 100);
+             return;
            }
+
+           // 超时检查
+           if (Date.now() - startTime > maxWait) {
+             console.warn(`   ⚠️ 等待超时 (${maxWait}ms)，剩余 ${this.inFlightRequests.size} 个请求`);
+             resolve();
+             return;
+           }
+
+           // 继续等待（每 100ms 检查一次）
+           setTimeout(check, 100);
          };
          check();
        });
+     }
+
+     /**
+      * 清理所有注册的定时器
+      */
+     _clearAllTimers() {
+       if (this.timers.size === 0) return;
+
+       let cleared = 0;
+       for (const timerId of this.timers) {
+         try {
+           clearTimeout(timerId);
+           clearInterval(timerId);
+           cleared++;
+         } catch (e) {
+           // 忽略无效的 timer ID
+         }
+       }
+       this.timers.clear();
+       if (cleared > 0) {
+         console.log(`   已清理 ${cleared} 个定时器`);
+       }
+     }
+
+     /**
+      * 强制退出
+      */
+     _forceExit(reason) {
+       console.error(`\n💥 强制退出原因: ${reason}`);
+       process.exit(1);
      }
    }
 
    module.exports = GracefulShutdown;
    ```
 
-3. **使用示例**
+3. **完整生产级使用示例**
    ```javascript
+   // app.js - 完整的生产环境启动文件
+
    const http = require('http');
    const mysql = require('mysql2/promise');
    const Redis = require('ioredis');
    const GracefulShutdown = require('./graceful-shutdown');
 
-   // 创建服务器
-   const server = http.createServer(app);
+   // ========== 1. 创建 HTTP 服务器 ==========
+   function handleRequest(req, res) {
+     // 模拟一个耗时的请求（测试优雅关闭时的等待行为）
+     if (req.url === '/slow') {
+       setTimeout(() => {
+         res.writeHead(200, { 'Content-Type': 'application/json' });
+         res.end(JSON.stringify({ message: '慢请求完成！' }));
+       }, 5000);  // 5秒完成
+       return;
+     }
 
-   // 数据库连接池
-   const pool = mysql.createPool(/* config */);
-   const redis = new Redis(/* config */);
+     res.writeHead(200, { 'Content-Type': 'application/json' });
+     res.end(JSON.stringify({ message: 'Hello World!' }));
+   }
 
-   // 配置优雅关闭
-   new GracefulShutdown(server, { timeout: 30000 })
-     .onCleanup(async () => {
-       console.log('正在关闭数据库连接...');
-       await pool.end();
-       
-       console.log('正在关闭 Redis 连接...');
-       await redis.quit();
-       
-       console.log('资源清理完成');
-     });
+   const server = http.createServer(handleRequest);
 
-   server.listen(3000);
+   // ========== 2. 外部资源初始化 ==========
+   // MySQL 连接池
+   const dbPool = mysql.createPool({
+     host: process.env.DB_HOST || 'localhost',
+     user: process.env.DB_USER || 'root',
+     password: process.env.DB_PASSWORD || '',
+     database: process.env.DB_NAME || 'mydb',
+     waitForConnections: true,
+     connectionLimit: 10,
+     queueLimit: 0
+   });
+
+   // Redis 连接
+   const redis = new Redis({
+     host: process.env.REDIS_HOST || 'localhost',
+     port: 6379,
+     retryStrategy: null  // 优雅关闭时不自动重连
+   });
+
+   // ========== 3. 注册需要清理的定时器 ==========
+   const graceful = new GracefulShutdown(server, {
+     timeout: 30000,      // 30秒总超时
+     forceExit: true      // 超时后强制退出
+   });
+
+   // 示例：一个定期执行的定时任务
+   const cleanupTimer = setInterval(async () => {
+     // 定期清理过期数据...
+     console.log('[定时任务] 执行清理...');
+   }, 60 * 60 * 1000);  // 每小时执行一次
+   graceful.registerTimer(cleanupTimer);
+
+   // 另一个示例：心跳检测定时器
+   const heartbeatTimer = setInterval(() => {
+     redis.ping().then(() => console.log('[心跳] Redis 正常'));
+   }, 30000);
+   graceful.registerTimer(heartbeatTimer);
+
+   // ========== 4. 注册清理回调（按顺序执行）==========
+
+   // 4a. 停止接收新任务
+   graceful.onCleanup(async () => {
+     console.log('→ 停止接收新任务...');
+     // 可以在这里设置一个标志位，让业务逻辑不再接受新工作
+   });
+
+   // 4b. 关闭数据库连接池
+   graceful.onCleanup(async () => {
+     console.log('→ 正在关闭数据库连接池...');
+     await dbPool.end();  // 等待所有查询完成并关闭连接
+     console.log('  ✅ 数据库连接池已关闭');
+   });
+
+   // 4c. 关闭 Redis 连接
+   graceful.onCleanup(async () => {
+     console.log('→ 正在关闭 Redis 连接...');
+     await redis.quit();
+     console.log('  ✅ Redis 连接已关闭');
+   });
+
+   // 4d. 刷新日志缓冲区
+   graceful.onCleanup(async () => {
+     console.log('→ 正在刷新日志...');
+     // await logger.flush();  // 如果有日志系统的话
+     console.log('  ✅ 日志已刷新');
+   });
+
+   // 4e. 上报关闭状态到监控系统
+   graceful.onCleanup(async () => {
+     console.log('→ 上报关闭状态...');
+     // await metrics.report('shutdown');  // Prometheus/Grafana 等
+     console.log('  ✅ 状态已上报');
+   });
+
+   // ========== 5. 启动服务器 ==========
+   server.listen(3000, () => {
+     console.log('✅ 服务器运行在 http://localhost:3000');
+     console.log('   按 Ctrl+C 或发送 SIGTERM 触发优雅关闭\n');
+
+     // 测试用：打印当前状态
+     console.log('当前状态:', JSON.stringify(graceful.getStats(), null, 2));
+   });
+
+   // ========== 6. 错误兜底 ==========
+   process.on('uncaughtException', (err) => {
+     console.error('❌ 未捕获异常:', err.message);
+     graceful.shutdown('uncaughtException');
+   });
+
+   process.on('unhandledRejection', (reason) => {
+     console.error('❌ 未处理的 Promise rejection:', reason);
+   });
    ```
 
-4. **Docker/K8s 配合配置**
+4. **Docker / Kubernetes 配合**
    ```dockerfile
-   # Dockerfile
-   STAGE node:18-alpine
-   # ...
-   
-   # 使用 tini 作为 PID 1 进程（正确转发信号）
-   ENTRYPOINT ["tini", "--", "node", "app.js"]
+   # Dockerfile — 关键点：使用 tini 作为 PID 1
+   FROM node:18-alpine
+
+   # 安装 tini（轻量级 init 系统，正确转发信号给子进程）
+   RUN apk add --no-cache tini
+
+   WORKDIR /app
+   COPY package*.json ./
+   RUN npm ci --only=production
+   COPY . .
+
+   # ⚠️ 必须使用 tini，否则信号无法正确传递给 Node.js 进程
+   ENTRYPOINT ["tini", "--"]
+   CMD ["node", "app.js"]
    ```
 
    ```yaml
-   # Kubernetes deployment.yaml
+   # k8s deployment.yaml — 优雅关闭关键配置
    apiVersion: apps/v1
    kind: Deployment
    metadata:
      name: my-api
    spec:
+     replicas: 3
      template:
        spec:
          containers:
          - name: my-api
+           image: my-api:v1.0.0
+           ports:
+           - containerPort: 3000
+           # ====== 生命周期钩子 ======
            lifecycle:
+             # preStop: K8s 在发送 SIGTERM 之前先执行这个命令
+             # 给 pod 一段"缓冲期"，让它从 service 的 endpoint 中摘除
              preStop:
                exec:
-                 command: ["/bin/sh", "-c", "sleep 15"]  # 等待 pod 从 service 移除
-           terminationMessagePath: /dev/termination-log
-         terminationGracePeriodSeconds: 35  # 给予足够的关闭时间
+                 command: ["/bin/sh", "-c", "sleep 10"]  # 等待10秒让 LB 更新
+           # ====== 就绪探针 ======
+           # 关闭期间返回非 200，LB 自动摘除流量
+           readinessProbe:
+             httpGet:
+               path: /health
+               port: 3000
+             initialDelaySeconds: 5
+             periodSeconds: 5
+           # ====== 存活探针 ======
+           livenessProbe:
+             httpGet:
+               path: /health
+               port: 3000
+             initialDelaySeconds: 15
+             periodSeconds: 20
+         # ====== 优雅终止宽限期 ======
+         # 这个值应该 > preStop sleep + 应用关闭所需时间
+         terminationGracePeriodSeconds: 40  # 总共给 40 秒
    ```
 
-5. **PM2 优雅关闭**
+5. **PM2 生态支持**
    ```javascript
    // ecosystem.config.js
    module.exports = {
      apps: [{
        name: 'my-api',
        script: 'app.js',
-       instances: 'max',
-       exec_mode: 'cluster',
-       kill_timeout: 30000,  // 30秒超时
-       wait_ready: true,
-       listen_timeout: 10000,
+       instances: 'max',          // 根据 CPU 核心数自动决定
+       exec_mode: 'cluster',      // Cluster 模式
+
+       // PM2 优雅关闭配置
+       kill_timeout: 30000,       // 发送 SIGTERM 后等待 30 秒
+       wait_ready: true,          // 等待 ready 信号
+       listen_timeout: 10000,     // 监听超时
+       max_memory_restart: '512M', // 内存超限时自动重启
+
+       // PM2 Cluster 模式下，SIGTERM 会转发给所有 worker
        env: {
-         NODE_ENV: 'production'
+         NODE_ENV: 'production',
+         PORT: 3000
        }
      }]
    };
+
+   // 启动命令
+   // pm2 start ecosystem.config.js
+   // pm2 logs                    # 查看日志
+   // pm2 monit                   # 监控面板
+   // pm2 reload all              # 零停机重启（逐个重启 worker）
    ```
+
+### 🔍 追问链
+1. **如何在滚动更新期间保证零停机？**
+   → 方向：K8s RollingUpdate + maxSurge/maxUnavailable；蓝绿部署；Canary 发布；preStop + readinessProbe 配合
+2. **Cluster 模式下如何保证所有 Worker 都正确关闭？**
+   → 方向：PM2 的 reload 命令（逐个重启）；master 进程转发信号给 workers；worker.disconnect() 先断开
+3. **如何设计关闭前的"排水"(Drain)模式？**
+   → 方向：先标记 draining 状态；health 返回 503；LB 摘除流量；等待 in-flight 请求完成后再真正关闭
 
 > **追问链**：如何在滚动更新期间保证零停机？→ K8s RollingUpdate 策略
 

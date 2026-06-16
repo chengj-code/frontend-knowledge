@@ -764,6 +764,44 @@ graph TD
     style H fill:#f3e5f5
 ```
 
+#### 图表1：Node.js 事件循环各阶段完整流程图
+
+以下是更加详细的事件循环流程图，展示了每个阶段的具体判断逻辑和执行流程：
+
+```mermaid
+flowchart TD
+    A["事件循环开始"] --> B{"timers 阶段<br/>检查到期的 timer"}
+    B --> C["执行到期的<br/>setTimeout/setInterval 回调"]
+    C --> D{"pending callbacks 阶段<br/>有推迟的 I/O 回调?"}
+    D -- 是 --> E["执行推迟的<br/>I/O 回调（上限50个）"]
+    D -- 否 --> F{"poll 阶段<br/>（核心阶段）"}
+    E --> F
+    F --> G{"有新的 I/O 事件?"}
+    G -- 是 --> H["执行对应的 I/O 回调"]
+    H --> F
+    G -- 无且无定时器 --> I{"check 阶段<br/>有 setImmediate?"}
+    I -- 是 --> J["执行 setImmediate 回调"]
+    J --> K{"close callbacks 阶段<br/>有 socket.close?"}
+    I -- 否 --> K
+    K -- 是 --> L["执行 close 回调"]
+    L --> A
+    K -- 否 --> M{"有 timer 或 pending?"}
+    M -- 是 --> A
+    M -- 否 --> N["等待新事件<br/>（可能阻塞在此处）"]
+    N --> A
+    
+    style A fill:#4CAF50,color:#fff
+    style N fill:#90A4AE,color:#000
+```
+
+**流程图说明**：
+- **timers 阶段**：检查 setTimeout/setInterval 是否到期，执行对应回调
+- **pending callbacks 阶段**：处理推迟到下一轮循环的 I/O 回调（如 TCP 错误）
+- **poll 阶段**（核心）：获取新的 I/O 事件，可能在此阻塞等待
+- **check 阶段**：执行 setImmediate() 的回调
+- **close callbacks 阶段**：处理 socket.close() 等关闭事件的回调
+- 循环会持续运行直到没有待处理的事件
+
 #### 各阶段详细说明
 
 ```javascript
@@ -1539,6 +1577,1457 @@ function detectMemoryLeak() {
 }
 
 detectMemoryLeak();
+```
+
+---
+
+## 2.8 libuv 架构详细说明
+
+### 2.8.1 libuv 线程池模型
+
+**libuv** 是 Node.js 的核心异步 I/O 库，它提供了一个基于事件循环的异步模型。除了事件循环，libuv 还维护了一个 **线程池（Thread Pool）** 用于处理某些无法完全异步的操作。
+
+#### 线程池架构图
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Node.js 主线程                            │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              JavaScript 执行引擎 (V8)                │   │
+│  │  ┌─────────────────────────────────────────────┐    │   │
+│  │  │           Event Loop (事件循环)              │    │   │
+│  │  │  Timers → Pending → Poll → Check → Close     │    │   │
+│  │  └─────────────────────────────────────────────┘    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                          ↕                                  │
+│                    任务队列 (Task Queue)                     │
+└─────────────────────────────────────────────────────────────┘
+                          ↕
+┌─────────────────────────────────────────────────────────────┐
+│                  libuv 线程池 (默认4个线程)                   │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐          │
+│  │ Thread 1│ │ Thread 2│ │ Thread 3│ │ Thread 4│          │
+│  │ 文件I/O │ │ DNS查询 │ │ 文件I/O │ │ Crypto  │          │
+│  │ 压缩/解压│ │         │ │ 压缩/解压│ │ 编译正则 │          │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘          │
+│                                                             │
+│  可通过 UV_THREADPOOL_SIZE 环境变量调整线程数量               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 使用线程池的操作类型
+
+| 操作类别 | 具体操作 | 说明 |
+|---------|---------|------|
+| **文件系统 I/O** | `fs.readFile()`, `fs.writeFile()` 等 | 除了 `fs.FS_*` 同步版本外的所有文件操作 |
+| **DNS 查询** | `dns.lookup()` | 使用 getaddrinfo 的 DNS 解析 |
+| **加密操作** | 部分 crypto 操作 | 如 pbkdf2、randomBytes、randomFill |
+| **压缩/解压** | zlib 相关操作 | 压缩和解压大文件时使用 |
+| **编译正则** | 复杂的正则表达式 | 某些情况下会在线程池中编译 |
+
+```javascript
+/**
+ * libuv 线程池演示
+ */
+
+const fs = require('fs');
+const crypto = require('crypto');
+const dns = require('dns');
+const zlib = require('zlib');
+
+// ==================== 1. 文件 I/O 线程池 ====================
+console.log('=== 文件 I/O 操作 ===');
+
+// 这些文件操作会在 libuv 线程池中执行
+const fileOperations = [
+    fs.promises.readFile('./package.json', 'utf8'),
+    fs.promises.readFile('./README.md', 'utf8'),
+    fs.promises.readdir('./src'),
+    fs.promises.stat('./node_modules')
+];
+
+Promise.allSettled(fileOperations)
+    .then(results => {
+        results.forEach((result, index) => {
+            console.log(`操作 ${index + 1}: ${result.status === 'fulfilled' ? '成功' : '失败'}`);
+        });
+    });
+
+// ==================== 2. DNS 查询线程池 ====================
+console.log('\n=== DNS 查询 ===');
+
+// dns.lookup() 使用线程池（底层调用 getaddrinfo）
+dns.lookup('github.com', (err, address) => {
+    if (err) {
+        console.error('DNS 查询失败:', err.message);
+    } else {
+        console.log(`GitHub IP 地址: ${address}`);
+    }
+});
+
+// 注意：dns.resolve() 不使用线程池，它直接执行 DNS 查询
+dns.resolve4('github.com', (err, addresses) => {
+    if (err) {
+        console.error('DNS resolve 失败:', err.message);
+    } else {
+        console.log(`GitHub 所有 IPv4 地址: ${addresses.join(', ')}`);
+    }
+});
+
+// ==================== 3. 加密操作线程池 ====================
+console.log('\n=== 加密操作 ===');
+
+// PBKDF2 密钥派生函数（CPU 密集型，在线程池执行）
+const password = 'mySecretPassword';
+const salt = crypto.randomBytes(16);
+
+console.time('PBKDF2');
+crypto.pbkdf2(password, salt, 100000, 64, 'sha512', (err, derivedKey) => {
+    if (err) {
+        console.error('加密失败:', err);
+    } else {
+        console.timeEnd('PBKDF2');
+        console.log(`派生密钥长度: ${derivedKey.length} bytes`);
+        console.log(`派生密钥前32字符: ${derivedKey.toString('hex').substring(0, 32)}...`);
+    }
+});
+
+// ==================== 4. 压缩操作线程池 ====================
+console.log('\n=== 压缩/解压操作 ===');
+
+const largeData = 'x'.repeat(10 * 1024 * 1024); // 10MB 数据
+
+console.time('压缩');
+zlib.gzip(largeData, (err, compressed) => {
+    if (err) {
+        console.error('压缩失败:', err);
+    } else {
+        console.timeEnd('压缩');
+        console.log(`原始大小: ${(largeData.length / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`压缩后大小: ${(compressed.length / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`压缩率: ${(100 - (compressed.length / largeData.length * 100)).toFixed(2)}%`);
+        
+        // 解压
+        console.time('解压');
+        zlib.gunzip(compressed, (err, decompressed) => {
+            if (err) {
+                console.error('解压失败:', err);
+            } else {
+                console.timeEnd('解压');
+                console.log('✅ 压缩/解压完成！');
+            }
+        });
+    }
+});
+
+// ==================== 调整线程池大小 ====================
+console.log('\n=== 线程池配置 ===');
+console.log(`当前线程池大小: ${process.env.UV_THREADPOOL_SIZE || '默认值 (4)'}`);
+console.log('可通过设置环境变量 UV_THREADPOOL_SIZE=8 来调整');
+```
+
+### 2.8.2 线程池性能优化建议
+
+```javascript
+/**
+ * libuv 线程池最佳实践
+ */
+
+// ✅ 最佳实践1：对于大量文件 I/O，考虑增加线程池大小
+// 在启动脚本前设置：UV_THREADPOOL_SIZE=8 node app.js
+
+// ✅ 最佳实践2：避免在热点路径上使用同步 I/O
+// 错误示例：阻塞主线程
+// const data = fs.readFileSync('large-file.txt'); // ❌ 阻塞
+
+// 正确示例：异步 I/O
+fs.promises.readFile('large-file.txt')
+    .then(data => console.log('文件读取完成'))
+    .catch(err => console.error('读取错误:', err));
+
+// ✅ 最佳实践3：使用流式处理大文件
+const { createReadStream, createWriteStream } = require('fs');
+
+function streamLargeFile(inputPath, outputPath) {
+    const readStream = createReadStream(inputPath);
+    const writeStream = createWriteStream(outputPath);
+    
+    readStream.pipe(writeStream);
+    
+    return new Promise((resolve, reject) => {
+        writeStream.on('finish', resolve);
+        writeStream.on('error', reject);
+        readStream.on('error', reject);
+    });
+}
+
+// ✅ 最佳实践4：批量处理任务时控制并发
+async function batchFileProcessing(files, concurrency = 4) {
+    const results = [];
+    
+    for (let i = 0; i < files.length; i += concurrency) {
+        const batch = files.slice(i, i + concurrency);
+        const batchResults = await Promise.all(
+            batch.map(file => fs.promises.readFile(file))
+        );
+        results.push(...batchResults);
+    }
+    
+    return results;
+}
+```
+
+---
+
+## 2.9 Worker Threads 详细用法
+
+### 2.9.1 Worker Threads 简介
+
+**Worker Threads**（工作线程）是 Node.js 10.5+ 引入的多线程模块，允许开发者创建真正的多线程来执行 CPU 密集型任务，而不会阻塞主线程的事件循环。
+
+#### 主线程 vs 工作线程对比
+
+| 特性 | 主线程 (Main Thread) | Worker Threads |
+|------|---------------------|----------------|
+| **职责** | 处理 I/O、事件循环、轻量计算 | 执行 CPU 密集型任务 |
+| **阻塞影响** | 阻塞整个应用 | 只影响自身 |
+| **内存共享** | 可通过 SharedArrayBuffer 共享 | 可通过 SharedArrayBuffer 共享 |
+| **通信方式** | N/A | postMessage / onmessage |
+| **适用场景** | 网络 I/O、文件 I/O | 图像处理、数据加密、复杂计算 |
+
+### 2.9.2 基本用法示例
+
+#### 主线程代码 (main.js)
+
+```javascript
+/**
+ * Worker Threads 基本用法 - 主线程
+ */
+
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+const path = require('path');
+
+if (isMainThread) {
+    // ==================== 主线程代码 ====================
+    console.log('📱 主线程启动');
+    console.log(`主线程 PID: ${process.pid}`);
+    
+    // 创建工作线程
+    const worker = new Worker(__filename, {
+        workerData: {
+            number: 40,  // 计算 fibonacci(40)
+            iterations: 10  // 计算10次
+        }
+    });
+    
+    // 监听工作线程消息
+    worker.on('message', (result) => {
+        console.log('📨 收到工作线程消息:');
+        console.log(`   结果: ${result.fibonacciNumber}`);
+        console.log(`   耗时: ${result.executionTime}ms`);
+        console.log(`   工作线程 PID: ${result.workerPid}`);
+    });
+    
+    // 监听错误
+    worker.on('error', (err) => {
+        console.error('❌ 工作线程错误:', err);
+    });
+    
+    // 监听退出
+    worker.on('exit', (code) => {
+        if (code !== 0) {
+            console.error(`❌ 工作线程异常退出，退出码: ${code}`);
+        } else {
+            console.log('✅ 工作线程正常退出');
+        }
+        console.log('📱 主线程继续执行其他任务...');
+    });
+    
+    // 主线程可以继续做其他事情
+    console.log('⏳ 主线程发送任务给工作线程后继续执行...');
+    
+} else {
+    // ==================== 工作线程代码 ====================
+    console.log('🔧 工作线程启动');
+    console.log(`工作线程 PID: ${process.pid}`);
+    
+    const { number, iterations } = workerData;
+    
+    // Fibonacci 计算（CPU 密集型任务）
+    function fibonacci(n) {
+        if (n <= 1) return n;
+        let a = 0, b = 1;
+        for (let i = 2; i <= n; i++) {
+            [a, b] = [b, a + b];
+        }
+        return b;
+    }
+    
+    console.log(`开始计算 fibonacci(${number})，重复 ${iterations} 次...`);
+    
+    const startTime = Date.now();
+    
+    // 执行多次计算以模拟长时间运行的任务
+    for (let i = 0; i < iterations; i++) {
+        const result = fibonacci(number);
+        if (i === iterations - 1) {
+            const executionTime = Date.now() - startTime;
+            
+            // 发送结果回主线程
+            parentPort.postMessage({
+                fibonacciNumber: result,
+                executionTime,
+                workerPid: process.pid
+            });
+        }
+    }
+}
+```
+
+### 2.9.3 SharedArrayBuffer 共享内存
+
+**SharedArrayBuffer** 允许主线程和工作线程之间共享内存，避免数据复制的开销，提高性能。
+
+```javascript
+/**
+ * SharedArrayBuffer 共享内存示例 - 主线程
+ */
+
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+
+if (isMainThread) {
+    console.log('=== SharedArrayBuffer 示例 ===\n');
+    
+    // 创建共享内存缓冲区（Int32Array，长度为10）
+    const sharedBuffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 10);
+    const sharedArray = new Int32Array(sharedBuffer);
+    
+    // 初始化数据
+    for (let i = 0; i < sharedArray.length; i++) {
+        sharedArray[i] = i * 10;
+    }
+    
+    console.log('初始共享数组:', [...sharedArray]);
+    
+    // 创建多个工作线程同时修改共享内存
+    const worker1 = new Worker(__filename, {
+        workerData: {
+            sharedBuffer,
+            startIndex: 0,
+            endIndex: 5,
+            workerId: 1
+        }
+    });
+    
+    const worker2 = new Worker(__filename, {
+        workerData: {
+            sharedBuffer,
+            startIndex: 5,
+            endIndex: 10,
+            workerId: 2
+        }
+    });
+    
+    let completedWorkers = 0;
+    
+    const handleWorkerMessage = (workerId) => {
+        completedWorkers++;
+        console.log(`工作线程 ${workerId} 完成`);
+        
+        if (completedWorkers === 2) {
+            console.log('\n最终共享数组:', [...sharedArray]);
+            console.log('✅ 多个工作线程成功共享和修改了同一块内存！');
+        }
+    };
+    
+    worker1.on('message', () => handleWorkerMessage(1));
+    worker2.on('message', () => handleWorkerMessage(2));
+    
+    worker1.on('error', console.error);
+    worker2.on('error', console.error);
+    
+} else {
+    // 工作线程代码
+    const { sharedBuffer, startIndex, endIndex, workerId } = workerData;
+    const sharedArray = new Int32Array(sharedBuffer);
+    
+    console.log(`工作线程 ${workerId}: 处理索引 ${startIndex}-${endIndex - 1}`);
+    
+    // 修改共享数组的指定范围
+    for (let i = startIndex; i < endIndex; i++) {
+        sharedArray[i] = sharedArray[i] + (workerId * 100);  // 每个worker加不同的值
+    }
+    
+    // 通知主线程完成
+    parentPort.postMessage({ workerId, status: 'completed' });
+}
+```
+
+### 2.9.4 Worker Threads 实战：并行图像处理
+
+```javascript
+/**
+ * Worker Threads 实战：并行图像处理
+ * 场景：批量调整图片尺寸（模拟）
+ */
+
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+const path = require('path');
+const os = require('os');
+
+if (isMainThread) {
+    console.log('🖼️  并行图像处理示例\n');
+    
+    // 模拟图片列表
+    const images = Array.from({ length: 20 }, (_, i) => ({
+        id: i + 1,
+        name: `image_${i + 1}.jpg`,
+        size: Math.floor(Math.random() * 5000) + 1000  // 1-6KB（模拟）
+    }));
+    
+    console.log(`待处理图片数量: ${images.length}`);
+    console.log(`CPU 核心数: ${os.cpus().length}\n`);
+    
+    const startTime = Date.now();
+    let completedImages = 0;
+    const results = [];
+    
+    // 根据 CPU 核心数决定并发 worker 数量
+    const maxWorkers = Math.min(os.cpus().length, images.length);
+    const chunkSize = Math.ceil(images.length / maxWorkers);
+    
+    console.log(`创建 ${maxWorkers} 个工作线程...\n`);
+    
+    // 分配任务给各个 worker
+    for (let i = 0; i < maxWorkers; i++) {
+        const startIdx = i * chunkSize;
+        const endIdx = Math.min(startIdx + chunkSize, images.length);
+        const chunk = images.slice(startIdx, endIdx);
+        
+        const worker = new Worker(__filename, {
+            workerData: {
+                images: chunk,
+                workerId: i + 1
+            }
+        });
+        
+        worker.on('message', (result) => {
+            completedImages++;
+            results.push(...result.processedImages);
+            
+            console.log(`✅ 工作线程 ${result.workerId}: 完成 ${result.processedImages.length} 张图片`);
+            
+            if (completedImages === images.length || completedImages === maxWorkers) {
+                const totalTime = Date.now() - startTime;
+                console.log(`\n🎉 全部完成！总耗时: ${totalTime}ms`);
+                console.log(`处理图片总数: ${results.length}`);
+                
+                // 显示部分结果
+                console.log('\n处理结果预览:');
+                results.slice(0, 5).forEach(img => {
+                    console.log(`  ${img.name}: ${img.originalSize}KB → ${img.newSize}KB (${img.operation})`);
+                });
+                if (results.length > 5) {
+                    console.log(`  ... 还有 ${results.length - 5} 张图片`);
+                }
+            }
+        });
+        
+        worker.on('error', (err) => {
+            console.error(`❌ 工作线程 ${i + 1} 错误:`, err.message);
+        });
+    }
+    
+} else {
+    // 工作线程：处理图片
+    const { images, workerId } = workerData;
+    
+    const processedImages = images.map(img => {
+        // 模拟图片处理（调整尺寸、压缩等）
+        const operations = ['resize', 'compress', 'thumbnail', 'optimize'];
+        const operation = operations[Math.floor(Math.random() * operations.length)];
+        
+        // 模拟处理时间
+        const start = Date.now();
+        while (Date.now() - start < Math.random() * 50 + 10);  // 10-60ms
+        
+        return {
+            ...img,
+            originalSize: img.size,
+            newSize: Math.floor(img.size * (Math.random() * 0.5 + 0.3)),  // 压缩到30%-80%
+            operation,
+            processedAt: new Date().toISOString()
+        };
+    });
+    
+    // 返回处理结果
+    parentPort.postMessage({
+        workerId,
+        processedImages,
+        processingTime: Date.now() - workerData.startTime || 0
+    });
+}
+```
+
+### 2.9.5 Worker Threads 最佳实践
+
+```javascript
+/**
+ * Worker Threads 最佳实践总结
+ */
+
+// ✅ 实践1：合理控制 Worker 数量
+// 建议：不超过 CPU 核心数
+const MAX_WORKERS = require('os').cpus().length;
+
+// ✅ 实践2：使用 Worker Pool（线程池模式）
+class WorkerPool {
+    constructor(scriptPath, numWorkers) {
+        this.workers = [];
+        this.taskQueue = [];
+        this.activeTasks = 0;
+        
+        for (let i = 0; i < numWorkers; i++) {
+            this._createWorker(scriptPath, i);
+        }
+    }
+    
+    _createWorker(scriptPath, id) {
+        const { Worker } = require('worker_threads');
+        const worker = new Worker(scriptPath);
+        
+        worker.on('message', (result) => {
+            this.activeTasks--;
+            if (this.taskQueue.length > 0) {
+                const { task, resolve, reject } = this.taskQueue.shift();
+                this._runTask(worker, task, resolve, reject);
+            }
+        });
+        
+        this.workers.push(worker);
+    }
+    
+    _runTask(worker, task, resolve, reject) {
+        this.activeTasks++;
+        worker.once('message', resolve);
+        worker.once('error', reject);
+        worker.postMessage(task);
+    }
+    
+    run(task) {
+        return new Promise((resolve, reject) => {
+            const idleWorker = this.workers.find(w => !this._isWorkerBusy(w));
+            
+            if (idleWorker && this.activeTasks < this.workers.length) {
+                this._runTask(idleWorker, task, resolve, reject);
+            } else {
+                this.taskQueue.push({ task, resolve, reject });
+            }
+        });
+    }
+    
+    _isWorkerBusy(worker) {
+        // 简化版：实际实现需要跟踪每个 worker 的状态
+        return false;
+    }
+}
+
+// ✅ 实践3：及时终止不再需要的 Worker
+function gracefulShutdown(workers) {
+    workers.forEach(worker => {
+        worker.terminate()
+            .then(() => console.log('Worker 已终止'))
+            .catch(err => console.error('终止 Worker 失败:', err));
+    });
+}
+
+// ✅ 实践4：错误处理和超时控制
+function runWithTimeout(worker, task, timeout = 30000) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            worker.terminate();
+            reject(new Error('任务超时'));
+        }, timeout);
+        
+        worker.once('message', (result) => {
+            clearTimeout(timer);
+            resolve(result);
+        });
+        
+        worker.once('error', (err) => {
+            clearTimeout(timer);
+            reject(err);
+        });
+        
+        worker.postMessage(task);
+    });
+}
+```
+
+---
+
+## 2.10 child_process 详解
+
+### 2.10.1 child_process 概述
+
+Node.js 的 `child_process` 模块提供了创建子进程的能力，可以通过以下四种方式创建子进程：
+
+| 方法 | 特点 | 适用场景 | 返回类型 |
+|------|------|----------|----------|
+| **spawn()** | 流式输出，适合大数据量 | 长时间运行的进程、实时输出 | ChildProcess |
+| **exec()** | 缓冲输出，适合小数据量 | 简单命令、Shell 脚本 | 回调（buffer） |
+| **execFile()** | 直接执行文件，不经过 Shell | 可执行文件、安全性要求高 | 回调（buffer） |
+| **fork()** | 专门用于 Node.js 脚本 | Node.js 进程间通信 | ChildProcess |
+
+### 2.10.2 spawn() - 流式子进程
+
+```javascript
+/**
+ * spawn() 用法详解
+ * 特点：返回流（stdout/stderr），适合处理大量输出
+ */
+
+const { spawn } = require('child_process');
+
+// ==================== 基础用法 ====================
+console.log('=== spawn() 基础用法 ===\n');
+
+// 执行 ls 命令
+const ls = spawn('ls', ['-lh', '/usr'], {
+    shell: true,  // 在 Shell 中执行
+    cwd: process.cwd(),  // 工作目录
+    env: process.env,  // 环境变量
+    stdio: 'pipe'  // 标准 I/O 配置
+});
+
+// 监听 stdout 数据流（流式输出）
+ls.stdout.on('data', (data) => {
+    console.log(`stdout: ${data}`);
+});
+
+// 监听 stderr 数据流
+ls.stderr.on('data', (data) => {
+    console.error(`stderr: ${data}`);
+});
+
+// 监听关闭事件
+ls.on('close', (code) => {
+    console.log(`子进程退出码: ${code}`);
+});
+
+// ==================== 高级用法：实时处理输出 ====================
+console.log('\n=== spawn() 实时处理 ===\n');
+
+function runCommand(command, args, options = {}) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, {
+            shell: true,
+            ...options
+        });
+        
+        let stdout = '';
+        let stderr = '';
+        
+        child.stdout.on('data', (data) => {
+            const output = data.toString();
+            stdout += output;
+            // 实时打印每一行
+            output.split('\n').filter(line => line.trim()).forEach(line => {
+                console.log(`[STDOUT] ${line}`);
+            });
+        });
+        
+        child.stderr.on('data', (data) => {
+            const output = data.toString();
+            stderr += output;
+            output.split('\n').filter(line => line.trim()).forEach(line => {
+                console.error(`[STDERR] ${line}`);
+            });
+        });
+        
+        child.on('close', (code) => {
+            if (code === 0) {
+                resolve({ code, stdout, stderr });
+            } else {
+                reject(new Error(`命令执行失败，退出码: ${code}\n${stderr}`));
+            }
+        });
+        
+        child.on('error', (err) => {
+            reject(new Error(`无法启动子进程: ${err.message}`));
+        });
+    });
+}
+
+// 使用示例：运行 npm 命令
+// runCommand('npm', ['list', '--depth=0'])
+//     .then(result => console.log('命令执行成功'))
+//     .catch(err => console.error('命令执行失败:', err.message));
+
+// ==================== 管道（Pipe）用法 ====================
+console.log('=== spawn() 管道用法 ===\n');
+
+// 将一个命令的输出传递给另一个命令
+const find = spawn('find', ['.','-name','*.js','-type','f']);
+const wc = spawn('wc', ['-l']);
+
+// 将 find 的 stdout 连接到 wc 的 stdin
+find.stdout.pipe(wc.stdin);
+
+wc.stdout.on('data', (data) => {
+    console.log(`JavaScript 文件总行数: ${data}`);
+});
+```
+
+### 2.10.3 exec() - 缓冲输出子进程
+
+```javascript
+/**
+ * exec() 用法详解
+ * 特点：将输出缓冲到内存，适合小数据量的简单命令
+ */
+
+const { exec } = require('child_process');
+
+// ==================== 基础用法 ====================
+console.log('=== exec() 基础用法 ===\n');
+
+exec('ls -lh', (error, stdout, stderr) => {
+    if (error) {
+        console.error(`执行错误: ${error.message}`);
+        return;
+    }
+    if (stderr) {
+        console.error(`标准错误: ${stderr}`);
+        return;
+    }
+    console.log(`标准输出:\n${stdout}`);
+});
+
+// ==================== Promise 封装 ====================
+function execPromise(command, options = {}) {
+    return new Promise((resolve, reject) => {
+        exec(command, options, (error, stdout, stderr) => {
+            if (error) {
+                reject({ error, stderr });
+            } else {
+                resolve({ stdout, stderr });
+            }
+        });
+    });
+}
+
+// 使用示例
+(async () => {
+    try {
+        const { stdout } = await execPromise('node --version');
+        console.log(`Node.js 版本: ${stdout.trim()}`);
+        
+        const { stdout: npmVersion } = await execPromise('npm --version');
+        console.log(`npm 版本: ${npmVersion.trim()}`);
+        
+    } catch ({ error, stderr }) {
+        console.error('命令执行失败:', error.message);
+        console.error('错误输出:', stderr);
+    }
+})();
+
+// ==================== 带超时的 exec ====================
+console.log('\n=== 带 timeout 的 exec ===\n');
+
+exec('sleep 5', { timeout: 2000 }, (error, stdout, stderr) => {
+    if (error) {
+        if (error.killed) {
+            console.log('❌ 子进程因超时被终止');
+        }
+        console.error(`错误: ${error.message}`);
+    } else {
+        console.log(`输出: ${stdout}`);
+    }
+});
+```
+
+### 2.10.4 fork() - Node.js 进程通信
+
+```javascript
+/**
+ * fork() 用法详解
+ * 特点：专门用于执行 Node.js 脚本，支持进程间通信（IPC）
+ */
+
+const { fork } = require('child_process');
+const path = require('path');
+
+if (process.env.CHILD_PROCESS === 'true') {
+    // ==================== 子进程代码 ====================
+    console.log('📦 子进程启动');
+    console.log(`子进程 PID: ${process.pid}`);
+    console.log(`父进程 PPID: ${process.ppid}`);
+    
+    // 接收来自父进程的消息
+    process.on('message', (msg) => {
+        console.log('📨 子进程收到消息:', msg);
+        
+        if (msg.type === 'compute') {
+            // 执行计算任务
+            const result = heavyComputation(msg.data);
+            
+            // 发送结果回父进程
+            process.send({
+                type: 'result',
+                data: result,
+                pid: process.pid
+            });
+        }
+        
+        if (msg.type === 'exit') {
+            console.log('📦 子进程收到退出指令');
+            process.exit(0);
+        }
+    });
+    
+    // 通知父进程已就绪
+    process.send({ type: 'ready', pid: process.pid });
+    
+    function heavyComputation(n) {
+        // 模拟 CPU 密集型任务
+        let result = 0;
+        for (let i = 0; i < n; i++) {
+            result += Math.sqrt(i) * Math.sin(i);
+        }
+        return { input: n, output: result };
+    }
+    
+} else {
+    // ==================== 父进程代码 ====================
+    console.log('👤 父进程启动\n');
+    
+    // fork 当前文件作为子进程
+    const child = fork(__filename, [], {
+        env: { ...process.env, CHILD_PROCESS: 'true' },
+        silent: false  // 是否共享 stdio
+    });
+    
+    console.log(`父进程 PID: ${process.pid}`);
+    console.log(`子进程 PID: ${child.pid}\n`);
+    
+    // 监听子进程消息
+    child.on('message', (msg) => {
+        console.log('👤 父进程收到消息:', msg);
+        
+        if (msg.type === 'ready') {
+            console.log('✅ 子进程就绪，开始发送任务...');
+            
+            // 发送计算任务
+            setTimeout(() => {
+                child.send({ type: 'compute', data: 1000000 });
+            }, 1000);
+        }
+        
+        if (msg.type === 'result') {
+            console.log('📊 计算结果:', msg.data);
+            
+            // 发送退出指令
+            setTimeout(() => {
+                child.send({ type: 'exit' });
+            }, 500);
+        }
+    });
+    
+    // 监听子进程退出
+    child.on('exit', (code, signal) => {
+        console.log(`\n📦 子进程退出: code=${code}, signal=${signal}`);
+        console.log('👤 父进程继续运行...');
+    });
+    
+    // 断开连接（不杀死进程）
+    // child.disconnect();
+    
+    // 杀死子进程
+    // child.kill('SIGTERM');
+}
+```
+
+### 2.10.5 三种方式对比与选择指南
+
+```javascript
+/**
+ * spawn vs exec vs fork 对比
+ */
+
+const comparison = `
+╔═══════════════╦═══════════════════════════════════════════════════╗
+║     方法      ║                   特点对比                        ║
+╠═══════════════╬═══════════════════════════════════════════════════╣
+║   spawn()     ║ • 流式输出，内存效率高                             ║
+║               ║ • 适合长时间运行的进程                              ║
+║               ║ • 可以实时处理输出                                ║
+║               ║ • 支持管道（pipe）操作                            ║
+║               ║ • 示例：ffmpeg 视频转码、webpack 构建             ║
+╠═══════════════╬═══════════════════════════════════════════════════╣
+║   exec()      ║ • 缓冲输出到内存                                  ║
+║               ║ • 适合简单的短命令                                ║
+║               ║ • 自动调用 Shell 解析命令                         ║
+║               ║ • 使用方便但有大输出限制                          ║
+║               ║ • 示例：ls、git status、npm version              ║
+╠═══════════════╬═══════════════════════════════════════════════════╣
+║   fork()      ║ • 专门用于 Node.js 脚本                           ║
+║               ║ • 支持 IPC 进程间通信                            ║
+║               ║ • 可以传递复杂数据对象                            ║
+║               ║ • 子进程可以使用所有 Node.js API                  ║
+║               ║ • 示例：CPU 密集型任务、微服务架构               ║
+╚═══════════════╩═══════════════════════════════════════════════════╝
+`;
+
+console.log(comparison);
+
+// 选择决策树
+function chooseMethod(scenario) {
+    const scenarios = {
+        'long-running-process': {
+            method: 'spawn()',
+            reason: '流式输出，不会因为输出过大导致内存溢出',
+            example: 'ffmpeg -i input.mp4 output.webm'
+        },
+        'simple-command': {
+            method: 'exec()',
+            reason: '使用简单，自动缓冲输出',
+            example: 'git status'
+        },
+        'node-script': {
+            method: 'fork()',
+            reason: '支持 IPC 通信，可以传递复杂对象',
+            example: 'fork("heavy-computation.js")'
+        },
+        'security-sensitive': {
+            method: 'execFile()',
+            reason: '不经过 Shell 解释，更安全',
+            example: 'execFile("/usr/bin/git", ["status"])'
+        },
+        'need-pipe': {
+            method: 'spawn()',
+            reason: '原生支持管道操作',
+            example: 'spawn("cat").pipe(spawn("grep", ["pattern"]))'
+        }
+    };
+    
+    return scenarios[scenario] || { method: 'unknown', reason: '请重新评估需求' };
+}
+
+// 使用示例
+console.log('\n选择建议:');
+console.log('场景1 - 长时间运行的进程:', chooseMethod('long-running-process').method);
+console.log('场景2 - 简单的 Shell 命令:', chooseMethod('simple-command').method);
+console.log('场景3 - Node.js 脚本:', chooseMethod('node-script').method);
+```
+
+---
+
+## 2.11 Cluster 模块详解
+
+### 2.11.1 Cluster 模块概述
+
+**Cluster 模块**允许 Node.js 创建共享相同端口的子进程（workers），从而充分利用多核 CPU 的能力，提高应用的吞吐量和可靠性。
+
+#### Cluster 架构图
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      Client (客户端)                         │
+│                         HTTP 请求                            │
+└───────────────────────────┬──────────────────────────────────┘
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    Load Balancer (负载均衡)                   │
+│                 （操作系统或 Round-Robin）                     │
+└───────────────────────────┬──────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌───────────────┐  ┌───────────────┐  ┌───────────────┐
+│   Master      │  │   Worker 1    │  │   Worker 2    │
+│   (Primary)   │  │   PID: 12345  │  │   PID: 12346  │
+│               │  │               │  │               │
+│ • 管理 Workers│  │ • 处理请求    │  │ • 处理请求    │
+│ • 监控状态    │  │ • 执行业务逻辑│  │ • 执行业务逻辑│
+│ • 重启策略    │  │               │  │               │
+│ • 日志收集    │  │ Port: 3000   │  │ Port: 3000    │
+└───────────────┘  └───────────────┘  └───────────────┘
+                                           (更多 Workers...)
+```
+
+### 2.11.2 基本 Cluster 实现
+
+```javascript
+/**
+ * Cluster 模块基本用法
+ * 功能：根据 CPU 核心数创建多个 Worker 进程
+ */
+
+const cluster = require('cluster');
+const http = require('http');
+const os = require('os');
+const process = require('process');
+
+if (cluster.isMaster) {
+    // ==================== Master 进程代码 ====================
+    const cpuCount = os.cpus().length;
+    
+    console.log(`Master ${process.pid} 正在启动`);
+    console.log(`检测到 ${cpuCount} 个 CPU 核心\n`);
+    
+    // 根据 CPU 数量 fork workers
+    const workers = [];
+    for (let i = 0; i < cpuCount; i++) {
+        const worker = cluster.fork();
+        workers.push(worker);
+        console.log(`✅ Worker ${worker.id} 启动 (PID: ${worker.pid})`);
+    }
+    
+    console.log(`\n共启动 ${workers.length} 个 Worker 进程`);
+    console.log('等待 HTTP 请求...\n');
+    
+    // ==================== Master 进程管理功能 ====================
+    
+    // 监听 Worker 退出事件，自动重启
+    cluster.on('exit', (worker, code, signal) => {
+        console.log(`\n⚠️  Worker ${worker.pid} 退出`);
+        console.log(`   退出码: ${code}, 信号: ${signal}`);
+        
+        // 重启策略：立即重启新的 Worker
+        console.log('🔄 正在重启 Worker...');
+        const newWorker = cluster.fork();
+        workers[workers.indexOf(worker)] = newWorker;
+        console.log(`✅ 新 Worker 启动 (PID: ${newWorker.pid})`);
+    });
+    
+    // 监听 Worker 在线事件
+    cluster.on('online', (worker) => {
+        console.log(`💚 Worker ${worker.pid} 已上线`);
+    });
+    
+    // 监听 setup 事件（fork 后触发）
+    cluster.on('setup', (settings) => {
+        console.log('Cluster 设置完成:', settings);
+    });
+    
+    // 优雅关闭：监听 SIGINT/SIGTERM 信号
+    process.on('SIGTERM', () => {
+        console.log('\n🛑 收到 SIGTERM 信号，开始优雅关闭...');
+        
+        // 逐个关闭 Workers
+        workers.forEach((worker, index) => {
+            setTimeout(() => {
+                console.log(`关闭 Worker ${worker.pid}`);
+                worker.disconnect();
+                worker.process.kill('SIGTERM');
+            }, index * 1000);  // 每个 Worker 间隔1秒关闭
+        });
+        
+        // 最后关闭 Master
+        setTimeout(() => {
+            console.log('✅ 所有进程已关闭');
+            process.exit(0);
+        }, workers.length * 1000 + 1000);
+    });
+    
+} else {
+    // ==================== Worker 进程代码 ====================
+    
+    // 每个 Worker 都是一个独立的 HTTP 服务器
+    // 它们共享同一个端口（由操作系统进行负载均衡）
+    
+    const server = http.createServer((req, res) => {
+        const timestamp = new Date().toISOString();
+        const workerInfo = `Worker ${process.pid}`;
+        
+        // 模拟不同响应时间（验证负载均衡）
+        const delay = Math.random() * 100;
+        
+        setTimeout(() => {
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'X-Worker-PID': process.pid.toString(),
+                'X-Timestamp': timestamp
+            });
+            
+            res.end(JSON.stringify({
+                message: 'Hello from Cluster!',
+                worker: workerInfo,
+                pid: process.pid,
+                url: req.url,
+                method: req.method,
+                headers: req.headers['user-agent'],
+                timestamp,
+                processingTime: `${delay.toFixed(2)}ms`
+            }));
+        }, delay);
+    });
+    
+    // 错误处理
+    server.on('error', (err) => {
+        console.error(`Worker ${process.pid} 服务器错误:`, err.message);
+    });
+    
+    server.listen(3000, () => {
+        console.log(`Worker ${process.pid} 正在监听端口 3000`);
+    });
+}
+```
+
+### 2.11.3 Master-Worker 通信机制
+
+```javascript
+/**
+ * Cluster 进程间通信（IPC）
+ * Master 和 Worker 可以通过 send()/on('message') 通信
+ */
+
+const cluster = require('cluster');
+const http = require('http');
+
+if (cluster.isMaster) {
+    // Master 进程
+    const worker = cluster.fork();
+    
+    // 向 Worker 发送消息
+    setTimeout(() => {
+        console.log('📤 Master → Worker: 发送配置更新');
+        worker.send({
+            type: 'config-update',
+            data: {
+                maxConnections: 1000,
+                timeout: 30000,
+                featureFlags: {
+                    newAPI: true,
+                    betaFeature: false
+                }
+            }
+        });
+    }, 2000);
+    
+    // 接收 Worker 消息
+    worker.on('message', (msg) => {
+        console.log('📥 Master ← Worker:', msg.type);
+        
+        if (msg.type === 'metrics') {
+            console.log('   性能指标:', msg.data);
+        }
+        
+        if (msg.type === 'alert') {
+            console.log('   ⚠️  告警:', msg.data);
+        }
+    });
+    
+    // 定期收集指标
+    setInterval(() => {
+        Object.values(cluster.workers).forEach(worker => {
+            worker.send({ type: 'request-metrics' });
+        });
+    }, 5000);
+    
+} else {
+    // Worker 进程
+    
+    // 接收 Master 消息
+    process.on('message', (msg) => {
+        console.log('📥 Worker ← Master:', msg.type);
+        
+        if (msg.type === 'config-update') {
+            console.log('   收到新配置:', msg.data);
+            // 应用新配置...
+        }
+        
+        if (msg.type === 'request-metrics') {
+            // 收集并上报性能指标
+            const metrics = collectMetrics();
+            process.send({
+                type: 'metrics',
+                data: metrics
+            });
+        }
+    });
+    
+    // 模拟收集指标
+    function collectMetrics() {
+        const memUsage = process.memoryUsage();
+        return {
+            pid: process.pid,
+            uptime: process.uptime(),
+            memory: {
+                heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+                heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+                rss: Math.round(memUsage.rss / 1024 / 1024)
+            },
+            cpu: process.cpuUsage(),
+            requests: {
+                total: Math.floor(Math.random() * 10000),
+                errors: Math.floor(Math.random() * 100),
+                avgResponseTime: Math.random() * 50 + 20
+            }
+        };
+    }
+    
+    // 启动 HTTP 服务器（简化版）
+    http.createServer((req, res) => {
+        res.writeHead(200);
+        res.end('OK');
+    }).listen(3000);
+}
+```
+
+### 2.11.4 高级重启策略
+
+```javascript
+/**
+ * Cluster 高级重启策略
+ * 包括：优雅重启（Graceful Restart）、滚动重启（Rolling Restart）、零停机部署
+ */
+
+const cluster = require('cluster');
+const http = require('http');
+
+if (cluster.isMaster) {
+    class ClusterManager {
+        constructor() {
+            this.workers = new Map();
+            this.restartQueue = [];
+            this.isRestarting = false;
+        }
+        
+        // 初始化 Workers
+        init(numWorkers) {
+            console.log(`初始化 ${numWorkers} 个 Workers...`);
+            for (let i = 0; i < numWorkers; i++) {
+                this.spawnWorker(i);
+            }
+        }
+        
+        // 创建新 Worker
+        spawnWorker(id) {
+            const worker = cluster.fork({ WORKER_ID: id });
+            this.workers.set(id, worker);
+            
+            worker.on('exit', (code, signal) => {
+                this.workers.delete(id);
+                console.log(`Worker ${id} 退出: code=${code}, signal=${signal}`);
+                
+                // 如果不是主动重启，自动重启
+                if (!this.isRestarting) {
+                    console.log(`自动重启 Worker ${id}`);
+                    this.spawnWorker(id);
+                }
+            });
+            
+            return worker;
+        }
+        
+        // 优雅重启（Graceful Restart）
+        async gracefulRestart() {
+            if (this.isRestarting) {
+                console.log('正在重启中，请稍候...');
+                return;
+            }
+            
+            this.isRestarting = true;
+            console.log('\n🔄 开始优雅重启...\n');
+            
+            const workerIds = Array.from(this.workers.keys());
+            
+            for (const id of workerIds) {
+                await this.restartWorkerGracefully(id);
+                // 等待一段时间再重启下一个
+                await this.sleep(2000);
+            }
+            
+            this.isRestarting = false;
+            console.log('\n✅ 优雅重启完成！\n');
+        }
+        
+        // 单个 Worker 优雅重启
+        restartWorkerGracefully(id) {
+            return new Promise((resolve) => {
+                const oldWorker = this.workers.get(id);
+                if (!oldWorker) {
+                    resolve();
+                    return;
+                }
+                
+                console.log(`重启 Worker ${id} (PID: ${oldWorker.pid})`);
+                
+                // 先创建新的 Worker
+                const newWorker = this.spawnWorker(id);
+                
+                // 等待新 Worker 就绪
+                newWorker.on('online', () => {
+                    console.log(`  新 Worker ${id} 就绪 (PID: ${newWorker.pid})`);
+                    
+                    // 通知旧 Worker 停止接收新连接
+                    oldWorker.send({ type: 'shutdown' });
+                    
+                    // 等待旧 Worker 处理完现有连接
+                    setTimeout(() => {
+                        console.log(`  关闭旧 Worker ${id}`);
+                        oldWorker.disconnect();
+                        oldWorker.process.kill('SIGTERM');
+                        resolve();
+                    }, 5000);  // 给旧 Worker 5秒处理剩余请求
+                });
+            });
+        }
+        
+        // 滚动重启（Rolling Restart）- 用于零停机部署
+        async rollingRestart(deployMessage) {
+            console.log(`\n🚀 开始滚动部署: ${deployMessage}\n`);
+            
+            const workerIds = Array.from(this.workers.keys());
+            
+            for (let i = 0; i < workerIds.length; i++) {
+                const id = workerIds[i];
+                console.log(`[${i + 1}/${workerIds.length}] 重启 Worker ${id}`);
+                
+                await this.restartWorkerGracefully(id);
+                
+                // 健康检查
+                await this.healthCheck();
+            }
+            
+            console.log('\n✅ 滚动部署完成！\n');
+        }
+        
+        // 健康检查
+        async healthCheck() {
+            console.log('  执行健康检查...');
+            // 这里可以实现真实的健康检查逻辑
+            await this.sleep(1000);
+            console.log('  ✅ 健康检查通过');
+        }
+        
+        sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    }
+    
+    // 使用 ClusterManager
+    const manager = new ClusterManager();
+    manager.init(require('os').cpus().length);
+    
+    // 监听 SIGHUP 信号触发优雅重启
+    process.on('SIGHUP', () => {
+        console.log('\n收到 SIGHUP 信号');
+        manager.gracefulRestart();
+    });
+    
+    // 模拟：10秒后执行一次滚动重启
+    // setTimeout(() => {
+    //     manager.rollingRestart('v2.0.0 部署');
+    // }, 10000);
+    
+} else {
+    // Worker 进程
+    const id = process.env.WORKER_ID;
+    let isShuttingDown = false;
+    let connections = 0;
+    
+    // 接收 Master 的关闭指令
+    process.on('message', (msg) => {
+        if (msg.type === 'shutdown') {
+            console.log(`Worker ${id}: 收到关闭指令，停止接受新连接`);
+            isShuttingDown = true;
+        }
+    });
+    
+    const server = http.createServer((req, res) => {
+        if (isShuttingDown) {
+            res.writeHead(503, { 'Connection': 'close' });
+            res.end('Server is shutting down');
+            return;
+        }
+        
+        connections++;
+        
+        res.writeHead(200);
+        res.end(`Hello from Worker ${id}! Active connections: ${connections}`);
+        
+        req.on('close', () => connections--);
+    });
+    
+    server.listen(3000, () => {
+        console.log(`Worker ${id} started and listening on port 3000`);
+    });
+}
+```
+
+### 2.11.5 Cluster 生产环境最佳实践
+
+```javascript
+/**
+ * Cluster 生产环境配置清单
+ */
+
+// ✅ 1. 日志管理
+// 所有 Worker 的日志应该统一收集和管理
+const winston = require('winston'); // 或其他日志库
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.File({ filename: 'error.log', level: 'error' }),
+        new winston.transports.File({ filename: 'combined.log' })
+    ]
+});
+
+// ✅ 2. 健康检查端点
+// 每个都应该提供健康检查接口
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        pid: process.pid,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+// ✅ 3. 优雅关闭
+// 必须正确处理 SIGTERM/SIGINT 信号
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+function gracefulShutdown(signal) {
+    logger.info(`${signal} received. Shutting down gracefully...`);
+    
+    // 停止接受新连接
+    server.close(() => {
+        logger.info('HTTP server closed');
+        process.exit(0);
+    });
+    
+    // 强制超时后退出
+    setTimeout(() => {
+        logger.error('Forced shutdown due to timeout');
+        process.exit(1);
+    }, 10000);
+}
+
+// ✅ 4. 监控和告警
+// 集成 Prometheus、Datadog 等监控工具
+const client = require('prom-client'); // Prometheus 客户端
+
+// ✅ 5. 环境变量配置
+// 通过环境变量配置 Cluster 行为
+const config = {
+    workers: parseInt(process.env.WORKER_COUNT) || require('os').cpus().length,
+    port: parseInt(process.env.PORT) || 3000,
+    restartDelay: parseInt(process.env.RESTART_DELAY_MS) || 2000,
+    shutdownTimeout: parseInt(process.env.SHUTDOWN_TIMEOUT_MS) || 10000
+};
+
+module.exports = { logger, config };
 ```
 
 ---
@@ -4288,3 +5777,3119 @@ try {
 | 操作 | 异步（Promise） | 同步 | 说明 |
 |------|-----------------|------|------|
 |
+---
+
+# 第7章：Express/Koa 框架实战
+
+## 📚 本章学习目标
+
+- 掌握 **Express 框架** 的核心概念和完整项目结构
+- 理解 **中间件模式** 和洋葱模型的工作原理
+- 学会使用 **Express 常用中间件** 提升开发效率
+- 掌握 **RESTful API 设计** 的最佳实践
+- 了解 **Koa2 框架** 的设计理念和 TypeScript 集成
+
+---
+
+## 7.1 Express 框架核心概念
+
+### 7.1.1 Express 简介
+
+**Express** 是 Node.js 最流行的 Web 应用框架，提供了简洁的 API 来构建 Web 应用和 API。它基于 Node.js 内置的 http 模块，添加了路由、中间件、视图系统等功能。
+
+```javascript
+/**
+ * Express 基础示例
+ */
+
+const express = require('express');
+const app = express();
+
+// 基础路由
+app.get('/', (req, res) => {
+    res.send('Hello, Express!');
+});
+
+app.get('/api/users', (req, res) => {
+    res.json({ users: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] });
+});
+
+// 启动服务器
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
+```
+
+### 7.1.2 Express 完整项目结构示例
+
+```
+my-express-app/
+├── src/
+│   ├── config/                 # 配置文件
+│   │   ├── index.js            # 主配置入口
+│   │   ├── database.js         # 数据库配置
+│   │   └── redis.js            # Redis 配置
+│   │
+│   ├── controllers/            # 控制器层
+│   │   ├── userController.js   # 用户相关控制器
+│   │   ├── authController.js   # 认证控制器
+│   │   └── productController.js# 产品控制器
+│   │
+│   ├── middleware/             # 中间件
+│   │   ├── index.js            # 中间件注册
+│   │   ├── auth.js             # JWT 认证中间件
+│   │   ├── errorHandler.js     # 全局错误处理
+│   │   ├── validator.js        # 请求验证
+│   │   └── rateLimiter.js      # 限流中间件
+│   │
+│   ├── models/                 # 数据模型
+│   │   ├── User.js             # 用户模型
+│   │   ├── Product.js          # 产品模型
+│   │   └── Order.js            # 订单模型
+│   │
+│   ├── routes/                 # 路由定义
+│   │   ├── index.js            # 路由注册
+│   │   ├── userRoutes.js       # 用户路由
+│   │   ├── authRoutes.js       # 认证路由
+│   │   └── productRoutes.js    # 产品路由
+│   │
+│   ├── services/               # 业务逻辑层
+│   │   ├── userService.js      # 用户服务
+│   │   ├── authService.js      # 认证服务
+│   │   └── emailService.js     # 邮件服务
+│   │
+│   ├── utils/                  # 工具函数
+│   │   ├── response.js         # 统一响应格式
+│   │   ├── logger.js           # 日志工具
+│   │   └── helpers.js          # 辅助函数
+│   │
+│   ├── validators/             # 请求验证规则
+│   │   ├── userValidator.js    # 用户验证规则
+│   │   └── productValidator.js # 产品验证规则
+│   │
+│   └── app.js                  # Express 应用实例
+│
+├── tests/                      # 测试文件
+│   ├── unit/                   # 单元测试
+│   └── integration/            # 集成测试
+│
+├── docs/                       # 文档
+│   └── api/                    # API 文档
+│
+├── .env                        # 环境变量
+├── .env.example                # 环境变量示例
+├── .gitignore                  # Git 忽略配置
+├── package.json                # 项目依赖
+├── server.js                   # 服务器入口
+└── README.md                   # 项目说明
+```
+
+#### 各目录职责详解
+
+| 目录 | 职责 | 说明 |
+|------|------|------|
+| **config/** | 配置管理 | 数据库、Redis、第三方服务等配置，支持多环境 |
+| **controllers/** | 控制器 | 处理 HTTP 请求，调用 Service 层，返回响应 |
+| **middleware/** | 中间件 | 认证、日志、错误处理、限流等横切关注点 |
+| **models/** | 数据模型 | 定义数据结构、数据库交互（ORM/ODM） |
+| **routes/** | 路由定义 | URL 路径与控制器的映射关系 |
+| **services/** | 业务逻辑 | 核心业务处理，与数据存储无关 |
+| **utils/** | 工具函数 | 响应封装、日志、辅助方法 |
+
+#### 完整项目代码示例
+
+```javascript
+// ==================== config/index.js ====================
+module.exports = {
+    port: process.env.PORT || 3000,
+    nodeEnv: process.env.NODE_ENV || 'development',
+    
+    database: {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT) || 27017,
+        name: process.env.DB_NAME || 'myapp',
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        options: {
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        }
+    },
+    
+    jwt: {
+        secret: process.env.JWT_SECRET || 'your-secret-key',
+        expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+        refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
+    },
+    
+    redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT) || 6379,
+        password: process.env.REDIS_PASSWORD
+    },
+    
+    rateLimit: {
+        windowMs: 15 * 60 * 1000, // 15分钟
+        max: 100 // 每个 IP 最大请求数
+    }
+};
+
+// ==================== utils/response.js ====================
+class ApiResponse {
+    static success(data, message = 'Success', statusCode = 200) {
+        return {
+            success: true,
+            statusCode,
+            message,
+            data,
+            timestamp: new Date().toISOString()
+        };
+    }
+    
+    static error(message = 'Error', statusCode = 500, errors = null) {
+        return {
+            success: false,
+            statusCode,
+            message,
+            errors,
+            timestamp: new Date().toISOString()
+        };
+    }
+    
+    static paginated(data, page, limit, total) {
+        return {
+            success: true,
+            statusCode: 200,
+            data,
+            pagination: {
+                current: page,
+                pageSize: limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            },
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+module.exports = ApiResponse;
+
+// ==================== middleware/auth.js ====================
+const jwt = require('jsonwebtoken');
+const ApiResponse = require('../utils/response');
+
+function authMiddleware(req, res, next) {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json(
+            ApiResponse.error('No token provided', 401)
+        );
+    }
+    
+    const token = authHeader.substring(7);
+    
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json(
+                ApiResponse.error('Token expired', 401, { code: 'TOKEN_EXPIRED' })
+            );
+        }
+        return res.status(401).json(
+            ApiResponse.error('Invalid token', 401, { code: 'INVALID_TOKEN' })
+        );
+    }
+}
+
+function optionalAuth(req, res, next) {
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            req.user = decoded;
+        } catch (error) {
+            // Token 无效但不阻止请求
+        }
+    }
+    
+    next();
+}
+
+module.exports = { authMiddleware, optionalAuth };
+
+// ==================== controllers/userController.js ====================
+const userService = require('../services/userService');
+const ApiResponse = require('../utils/response');
+
+class UserController {
+    async getUsers(req, res, next) {
+        try {
+            const { page = 1, limit = 10, search } = req.query;
+            
+            const result = await userService.getUsers({
+                page: parseInt(page),
+                limit: parseInt(limit),
+                search
+            });
+            
+            res.status(200).json(
+                ApiResponse.paginated(result.users, result.page, result.limit, result.total)
+            );
+        } catch (error) {
+            next(error);
+        }
+    }
+    
+    async getUserById(req, res, next) {
+        try {
+            const { id } = req.params;
+            const user = await userService.getUserById(id);
+            
+            if (!user) {
+                return res.status(404).json(
+                    ApiResponse.error('User not found', 404)
+                );
+            }
+            
+            res.status(200).json(ApiResponse.success(user));
+        } catch (error) {
+            next(error);
+        }
+    }
+    
+    async createUser(req, res, next) {
+        try {
+            const userData = req.body;
+            const user = await userService.createUser(userData);
+            
+            res.status(201).json(ApiResponse.success(user, 'User created successfully'));
+        } catch (error) {
+            next(error);
+        }
+    }
+    
+    async updateUser(req, res, next) {
+        try {
+            const { id } = req.params;
+            const updateData = req.body;
+            const user = await userService.updateUser(id, updateData);
+            
+            res.status(200).json(ApiResponse.success(user, 'User updated successfully'));
+        } catch (error) {
+            next(error);
+        }
+    }
+    
+    async deleteUser(req, res, next) {
+        try {
+            const { id } = req.params;
+            await userService.deleteUser(id);
+            
+            res.status(200).json(ApiResponse.success(null, 'User deleted successfully'));
+        } catch (error) {
+            next(error);
+        }
+    }
+}
+
+module.exports = new UserController();
+
+// ==================== routes/userRoutes.js ====================
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/userController');
+const { authMiddleware } = require('../middleware/auth');
+const { validateCreateUser, validateUpdateUser } = require('../validators/userValidator');
+
+// 所有用户路由都需要认证
+router.use(authMiddleware);
+
+router.get('/', userController.getUsers);                    // 获取用户列表
+router.get('/:id', userController.getUserById);              // 获取单个用户
+router.post('/', validateCreateUser, userController.createUser);     // 创建用户
+router.put('/:id', validateUpdateUser, userController.updateUser);   // 更新用户
+router.delete('/:id', userController.deleteUser);            // 删除用户
+
+module.exports = router;
+
+// ==================== app.js ====================
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+
+const config = require('./config');
+const userRoutes = require('./routes/userRoutes');
+const errorHandler = require('./middleware/errorHandler');
+const logger = require('./utils/logger');
+
+const app = express();
+
+// ==================== 基础中间件 ====================
+app.use(helmet());                          // 安全头设置
+app.use(cors());                            // CORS 支持
+app.use(compression());                     // Gzip 压缩
+app.use(morgan('combined'));                // 日志记录
+app.use(express.json({ limit: '10mb' }));   // JSON 解析
+app.use(express.urlencoded({ extended: true }));
+
+// ==================== 限流配置 ====================
+const limiter = rateLimit({
+    windowMs: config.rateLimit.windowMs,
+    max: config.rateLimit.max,
+    message: { success: false, message: 'Too many requests' }
+});
+app.use('/api/', limiter);
+
+// ==================== 路由注册 ====================
+app.use('/api/users', userRoutes);
+
+// ==================== 健康检查 ====================
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        environment: config.nodeEnv
+    });
+});
+
+// ==================== 错误处理 ====================
+app.use(errorHandler);
+
+// 404 处理
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: `Route ${req.method} ${req.path} not found`
+    });
+});
+
+module.exports = app;
+
+// ==================== server.js ====================
+const app = require('./src/app');
+const config = require('./src/config');
+
+app.listen(config.port, () => {
+    console.log(`🚀 Server running on http://localhost:${config.port}`);
+    console.log(`📚 Environment: ${config.nodeEnv}`);
+});
+```
+
+---
+
+## 7.2 Express 中间件模式详解
+
+### 7.2.1 中间件的概念
+
+**中间件（Middleware）** 是一个函数，它可以访问请求对象（`req`）、响应对象（`res`）和下一个中间件函数（`next`）。中间件可以执行以下操作：
+
+1. 执行任何代码
+2. 修改请求和响应对象
+3. 结束请求-响应循环
+4. 调用下一个中间件
+
+### 7.2.2 图表2：Express/Koa 中间件洋葱模型图
+
+以下是 Express/Koa 中间件执行流程的洋葱模型示意图：
+
+```mermaid
+flowchart LR
+    subgraph Request ["请求进入"]
+        REQ["HTTP Request"]
+    end
+    
+    subgraph MiddlewareChain ["中间件链（洋葱模型）"]
+        direction TB
+        MW1["MW1: Logger<br/>req → next() → res.log"]
+        MW2["MW2: Auth<br/>检查token → next()"]
+        MW3["MW3: Body Parser<br/>解析body → next()"]
+        MW4["MW4: Router<br/>处理路由逻辑"]
+        MW5["MW5: Error Handler<br/>err, req, res, next"]
+        
+        MW1 --> MW2 --> MW3 --> MW4 --> MW5
+    end
+    
+    subgraph Response ["响应返回"]
+        RES["HTTP Response"]
+    end
+    
+    Request --> MiddlewareChain --> RES
+```
+
+**洋葱模型说明**：
+- **请求阶段**：请求从外向内穿过每个中间件（MW1 → MW2 → MW3 → MW4）
+- **响应阶段**：响应从内向外返回（MW4 → MW3 → MW2 → MW1）
+- **Error Handler**：始终作为最后一个中间件，捕获所有未处理的错误
+- **next()**：将控制权传递给下一个中间件
+
+### 7.2.3 中间件类型与示例
+
+```javascript
+/**
+ * Express 中间件类型详解
+ */
+
+const express = require('express');
+const app = express();
+
+// ==================== 1. 应用级中间件 ====================
+// 绑定到 app 对象，对所有路由生效
+
+// 所有请求都会经过这个中间件
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
+
+// 特定路径的中间件
+app.use('/api', (req, res, next) => {
+    req.startTime = Date.now();
+    next();
+});
+
+// ==================== 2. 路由级中间件 ====================
+// 绑定到特定路由
+
+app.get('/users/:id', 
+    // 参数验证中间件
+    (req, res, next) => {
+        const id = parseInt(req.params.id);
+        if (isNaN(id) || id < 1) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+        next();
+    },
+    // 路由处理器
+    (req, res) => {
+        res.json({ id: req.params.id, name: `User ${req.params.id}` });
+    }
+);
+
+// ==================== 3. 错误处理中间件 ====================
+// 必须有 4 个参数 (err, req, res, next)
+
+app.use((err, req, res, next) => {
+    console.error('Error:', err.stack);
+    
+    res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Internal Server Error',
+        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    });
+});
+
+// ==================== 4. 内置中间件 ====================
+app.use(express.json());                      // 解析 JSON 请求体
+app.use(express.urlencoded({ extended: true })); // 解析 URL 编码的请求体
+app.use(express.static('public'));            // 静态文件服务
+
+// ==================== 5. 第三方中间件示例 ====================
+
+// Cookie 解析
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+
+// Session 管理
+const session = require('express-session');
+app.use(session({
+    secret: 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false, maxAge: 3600000 }
+}));
+
+// 文件上传
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
+
+app.post('/upload', upload.single('file'), (req, res) => {
+    res.json({ file: req.file });
+});
+```
+
+### 7.2.4 Express 常用中间件速查表
+
+| 中间件名称 | 功能 | 安装命令 | 使用场景 |
+|-----------|------|----------|----------|
+| **morgan** | HTTP 请求日志记录 | `npm install morgan` | 开发环境调试、生产环境访问日志 |
+| **helmet** | 设置安全相关的 HTTP 头 | `npm install helmet` | 所有生产环境的 Web 应用 |
+| **cors** | 处理跨域资源共享 (CORS) | `npm install cors` | API 服务、前后端分离项目 |
+| **compression** | Gzip/Brotli 压缩响应 | `npm install compression` | 减少传输体积，提升加载速度 |
+| **cookie-parser** | 解析 Cookie 头 | `npm install cookie-parser` | 需要 Cookie 认证的应用 |
+| **express-session** | 会话管理 | `npm install express-session` | 用户登录状态管理 |
+| **body-parser** | 解析请求体（已内置在 Express 4.16+） | `npm install body-parser` | 旧版本 Express 或需要额外配置 |
+| **multer** | 处理 multipart/form-data（文件上传） | `npm install multer` | 图片上传、文件导入功能 |
+| **express-rate-limit** | API 限流保护 | `npm install express-rate-limit` | 防止 API 被滥用、DDoS 攻击防护 |
+| **express-validator** | 请求数据验证 | `npm install express-validator` | 表单验证、API 参数校验 |
+| **passport** | 认证中间件框架 | `npm install passport` | OAuth、本地策略、JWT 等多种认证方式 |
+| **connect-mongo** | 将 session 存储到 MongoDB | `npm install connect-mongo` | 多实例部署、session 持久化 |
+| **csurf** | CSRF 保护 | `npm install csurf` | 表单提交、防止跨站请求伪造 |
+
+#### 中间件配置示例
+
+```javascript
+/**
+ * Express 常用中间件配置大全
+ */
+
+const express = require('express');
+const morgan = require('morgan');
+const helmet = require('helmet');
+const cors = require('cors');
+const compression = require('compression');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
+const csurf = require('csrf');
+
+const app = express();
+
+// ==================== Morgan - 日志配置 ====================
+if (process.env.NODE_ENV === 'development') {
+    // 开发环境：彩色详细日志
+    app.use(morgan('dev'));
+} else {
+    // 生产环境：写入文件
+    const fs = require('fs');
+    const path = require('path');
+    const accessLogStream = fs.createWriteStream(
+        path.join(__dirname, 'logs/access.log'),
+        { flags: 'a' }
+    );
+    app.use(morgan('combined', { stream: accessLogStream }));
+}
+
+// ==================== Helmet - 安全头配置 ====================
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+        },
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    },
+    noSniff: true,
+    frameguard: { action: 'deny' },
+    xssFilter: true
+}));
+
+// ==================== CORS - 跨域配置 ====================
+app.use(cors({
+    origin: [
+        'http://localhost:3000',
+        'https://example.com'
+    ],  // 允许的源
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],  // 允许的方法
+    allowedHeaders: ['Content-Type', 'Authorization'],  // 允许的请求头
+    credentials: true,  // 允许携带凭证（Cookie）
+    optionsSuccessStatus: 204  // 预检请求的成功状态码
+}));
+
+// ==================== Compression - 压缩配置 ====================
+app.use(compression({
+    level: 6,  // 压缩级别 (1-9)，6 是性能和压缩率的平衡点
+    threshold: 1024,  // 只压缩大于 1KB 的响应
+    filter: (req, res) => {
+        if (req.headers['x-no-compression']) {
+            return false;  // 不压缩
+        }
+        return compression.filter(req, res);
+    }
+}));
+
+// ==================== Rate Limit - 限流配置 ====================
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15分钟
+    max: 100,  // 每个 IP 最多 100 个请求
+    message: {
+        success: false,
+        message: 'Too many requests from this IP',
+        retryAfter: '15 minutes'
+    },
+    standardHeaders: true,  // 返回标准的 RateLimit-* 头
+    legacyHeaders: false,  // 禁用 X-RateLimit-* 头
+});
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,  // 登录接口更严格
+    message: { success: false, message: 'Too many login attempts' }
+});
+
+app.use('/api/', apiLimiter);
+app.post('/api/login', authLimiter, loginHandler);
+
+// ==================== Cookie Parser - Cookie 配置 ====================
+app.use(cookieParser(process.env.COOKIE_SECRET));
+
+// ==================== CSRF Protection ====================
+app.use(csurf({ cookie: true }));
+app.use((req, res, next) => {
+    res.locals.csrfToken = req.csrfToken();
+    next();
+});
+```
+
+---
+
+## 7.3 RESTful API 最佳实践
+
+### 7.3.1 URL 设计规范
+
+```
+✅ 正确的 RESTful URL 设计：
+
+资源集合：
+GET    /api/v1/users              # 获取用户列表
+POST   /api/v1/users              # 创建用户
+GET    /api/v1/users/{id}         # 获取特定用户
+PUT    /api/v1/users/{id}         # 更新整个用户
+PATCH  /api/v1/users/{id}         # 部分更新用户
+DELETE /api/v1/users/{id}         # 删除用户
+
+子资源：
+GET    /api/v1/users/{id}/posts           # 获取用户的文章列表
+POST   /api/v1/users/{id}/posts           # 为用户创建文章
+GET    /api/v1/users/{id}/posts/{postId}  # 获取用户的特定文章
+
+❌ 错误的设计：
+GET    /api/v1/getAllUsers          # 不要用动词
+POST   /api/v1/createUser          # 不要用动词
+GET    /api/v1/user/:userId         # 保持复数形式
+```
+
+#### URL 设计原则
+
+| 原则 | 示例 | 说明 |
+|------|------|------|
+| **使用名词复数** | `/users`, `/products` | 资源的集合 |
+| **避免动词** | ❌ `/getUsers`, ✅ `/users` | HTTP 方法已经表示动作 |
+| **层级嵌套** | `/users/{id}/orders` | 表示所属关系 |
+| **版本控制** | `/api/v1/`, `/api/v2/` | 便于 API 迭代 |
+| **使用 kebab-case** | `/user-profiles`, `/order-items` | URL 友好 |
+| **查询参数过滤** | `/users?role=admin&status=active` | 过滤、排序、分页 |
+
+### 7.3.2 响应格式规范
+
+```javascript
+/**
+ * 统一响应格式标准
+ */
+
+// ==================== 成功响应 ====================
+
+// 单个资源
+{
+    "success": true,
+    "statusCode": 200,
+    "message": "Operation successful",
+    "data": {
+        "id": 1,
+        "name": "John Doe",
+        "email": "john@example.com"
+    },
+    "timestamp": "2026-06-16T10:30:00Z"
+}
+
+// 资源集合（分页）
+{
+    "success": true,
+    "statusCode": 200,
+    "data": [...],
+    "pagination": {
+        "current": 1,
+        "pageSize": 20,
+        "total": 150,
+        "totalPages": 8
+    },
+    "timestamp": "2026-06-16T10:30:00Z"
+}
+
+// 创建成功（201）
+{
+    "success": true,
+    "statusCode": 201,
+    "message": "Resource created",
+    "data": { "id": 123, ... },
+    "location": "/api/v1/users/123",  // 新资源的 URL
+    "timestamp": "2026-06-16T10:30:00Z"
+}
+
+// 无内容（204）
+// 状态码 204 No Content，无响应体
+
+// ==================== 错误响应 ====================
+
+// 客户端错误（4xx）
+{
+    "success": false,
+    "statusCode": 400,
+    "message": "Validation failed",
+    "errors": [
+        {
+            "field": "email",
+            "message": "Invalid email format"
+        },
+        {
+            "field": "password",
+            "message": "Password must be at least 8 characters"
+        }
+    ],
+    "code": "VALIDATION_ERROR",
+    "timestamp": "2026-06-16T10:30:00Z"
+}
+
+// 未授权（401）
+{
+    "success": false,
+    "statusCode": 401,
+    "message": "Authentication required",
+    "code": "UNAUTHORIZED",
+    "timestamp": "2026-06-16T10:30:00Z"
+}
+
+// 未找到（404）
+{
+    "success": false,
+    "statusCode": 404,
+    "message": "Resource not found",
+    "code": "NOT_FOUND",
+    "timestamp": "2026-06-16T10:30:00Z"
+}
+
+// 服务器错误（5xx）
+{
+    "success": false,
+    "statusCode": 500,
+    "message": "Internal server error",
+    "code": "INTERNAL_ERROR",
+    ...(process.env.NODE_ENV === 'development' && {
+        "stack": "Error: ..."
+    }),
+    "timestamp": "2026-06-16T10:30:00Z"
+}
+```
+
+### 7.3.3 分页、过滤与排序实现
+
+```javascript
+/**
+ * RESTful API 高级功能实现
+ */
+
+const express = require('express');
+const router = express.Router();
+
+// ==================== 分页参数解析中间件 ====================
+function parsePaginationParams(req, res, next) {
+    const {
+        page = 1,
+        limit = 10,
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
+        ...filters
+    } = req.query;
+    
+    // 参数校验
+    req.pagination = {
+        page: Math.max(1, parseInt(page)),
+        limit: Math.min(100, Math.max(1, parseInt(limit))),  // 限制最大100条
+        skip: (Math.max(1, parseInt(page)) - 1) * Math.min(100, Math.max(1, parseInt(limit)))
+    };
+    
+    req.sorting = {
+        field: sortBy,  // 应该白名单校验
+        order: sortOrder.toLowerCase() === 'asc' ? 1 : -1
+    };
+    
+    req.filters = filters;  // 其他查询参数作为过滤器
+    
+    next();
+}
+
+// ==================== 过滤器构建 ====================
+function buildFilters(filters, allowedFields) {
+    const query = {};
+    
+    for (const [key, value] of Object.entries(filters)) {
+        if (!allowedFields.includes(key)) continue;  // 只允许白名单字段
+        
+        // 特殊操作符支持
+        if (typeof value === 'string') {
+            // 模糊搜索 (name~like)
+            if (value.endsWith('~')) {
+                query[key] = { $regex: value.slice(0, -1), $options: 'i' };
+            }
+            // 数组值 (status=active,pending)
+            else if (value.includes(',')) {
+                query[key] = { $in: value.split(',') };
+            }
+            // 范围查询 (age>18,price<100)
+            else if (value.startsWith('>')) {
+                query[key] = { $gt: parseFloat(value.slice(1)) };
+            } else if (value.startsWith('<')) {
+                query[key] = { $lt: parseFloat(value.slice(1)) };
+            }
+            // 精确匹配
+            else {
+                query[key] = value;
+            }
+        } else {
+            query[key] = value;
+        }
+    }
+    
+    return query;
+}
+
+// ==================== 完整的路由实现 ====================
+router.get('/products', parsePaginationParams, async (req, res) => {
+    try {
+        const { pagination, sorting, filters } = req;
+        
+        // 构建查询条件
+        const query = buildFilters(filters, [
+            'category', 'brand', 'status', 'minPrice', 'maxPrice'
+        ]);
+        
+        // 价格范围特殊处理
+        if (filters.minPrice || filters.maxPrice) {
+            query.price = {};
+            if (filters.minPrice) query.price.$gte = parseFloat(filters.minPrice);
+            if (filters.maxPrice) query.price.$lte = parseFloat(filters.maxPrice);
+            delete query.minPrice;
+            delete query.maxPrice;
+        }
+        
+        // 并行执行查询和计数
+        const [products, total] = await Promise.all([
+            Product.find(query)
+                .sort({ [sorting.field]: sorting.order })
+                .skip(pagination.skip)
+                .limit(pagination.limit)
+                .lean(),
+            Product.countDocuments(query)
+        ]);
+        
+        // 响应头元数据
+        res.set({
+            'X-Total-Count': total,
+            'X-Page': pagination.page,
+            'X-Per-Page': pagination.limit,
+            'X-Total-Pages': Math.ceil(total / pagination.limit),
+            'X-Next-Page': pagination.page * pagination.limit < total ? pagination.page + 1 : null,
+            'X-Prev-Page': pagination.page > 1 ? pagination.page - 1 : null
+        });
+        
+        // 统一响应格式
+        res.json({
+            success: true,
+            data: products,
+            pagination: {
+                current: pagination.page,
+                pageSize: pagination.limit,
+                total,
+                totalPages: Math.ceil(total / pagination.limit)
+            },
+            links: {
+                self: `${req.originalUrl}`,
+                next: pagination.page * pagination.limit < total 
+                    ? `${req.baseUrl}?page=${pagination.page + 1}&limit=${pagination.limit}` 
+                    : null,
+                prev: pagination.page > 1 
+                    ? `${req.baseUrl}?page=${pagination.page - 1}&limit=${pagination.limit}` 
+                    : null
+            }
+        });
+        
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ==================== 使用示例 ====================
+/*
+GET /api/v1/products?page=2&limit=20&sortBy=price&sortOrder=asc&category=electronics&brand=Apple&minPrice=500&maxPrice=2000
+
+响应头：
+X-Total-Count: 150
+X-Page: 2
+X-Per-Page: 20
+X-Total-Pages: 8
+X-Next-Page: 3
+X-Prev-Page: 1
+
+响应体：
+{
+    "success": true,
+    "data": [...],
+    "pagination": {
+        "current": 2,
+        "pageSize": 20,
+        "total": 150,
+        "totalPages": 8
+    },
+    "links": {
+        "self": "...",
+        "next": "?page=3&limit=20...",
+        "prev": "?page=1&limit=20..."
+    }
+}
+*/
+```
+
+### 7.3.4 版本控制策略
+
+```javascript
+/**
+ * API 版本控制实现方案
+ */
+
+// ==================== 方案1：URL 路径版本控制（推荐）====================
+const express = require('express');
+
+const v1Router = express.Router();
+const v2Router = express.Router();
+
+// v1 API
+v1Router.get('/users', (req, res) => {
+    res.json({ version: 1, users: [...] });
+});
+
+// v2 API（改进版）
+v2Router.get('/users', async (req, res) => {
+    const { includeProfile } = req.query;
+    let users = await User.find({});
+    if (includeProfile === 'true') {
+        users = await Promise.all(users.map(u => u.populate('profile')));
+    }
+    res.json({ version: 2, users, meta: { totalCount: users.length } });
+});
+
+// 注册版本路由
+app.use('/api/v1', v1Router);
+app.use('/api/v2', v2Router);
+
+// ==================== 方案2：请求头版本控制 ====================
+function versionMiddleware(versions) {
+    return (req, res, next) => {
+        const version = req.headers['api-version'] || 'v1';
+        
+        if (!versions[version]) {
+            return res.status(400).json({
+                success: false,
+                message: `Unsupported API version: ${version}`,
+                supportedVersions: Object.keys(versions)
+            });
+        }
+        
+        req.apiVersion = version;
+        versions[version](req, res, next);
+    };
+}
+
+app.use('/api/users', versionMiddleware({
+    'v1': require('./routes/v1/userRoutes'),
+    'v2': require('./routes/v2/userRoutes')
+}));
+
+// ==================== 版本废弃通知 ====================
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/v1')) {
+        res.set('Deprecation', 'true');
+        res.set('Sunset', '2026-12-31T23:59:59Z');  // 废弃日期
+        res.set('Link', '</api/v2>; rel="successor-version"');
+    }
+    next();
+});
+```
+
+---
+
+## 7.4 Koa2 框架实战
+
+### 7.4.1 Koa vs Express 对比
+
+| 特性 | Express | Koa2 |
+|------|---------|------|
+| **设计理念** | 包含大量内置功能（路由、视图等） | 极简内核，功能通过中间件扩展 |
+| **中间件模型** | 线性模型（简单易理解） | 洋葱模型（async/await） |
+| **异步处理** | 回调/Promise | 原生 async/await |
+| **Context 对象** | req, res 分离 | ctx（合并了 req 和 res） |
+| **错误处理** | 需要手动传递 | 自动捕获 async 错误 |
+| **学习曲线** | 较低 | 中等 |
+| **包大小** | 较大（功能丰富） | 极小（约770行代码） |
+| **适用场景** | 快速开发、全栈应用 | 高性能 API、微服务 |
+
+### 7.4.2 Koa 完整项目示例（含 TypeScript）
+
+```typescript
+// ==================== types/koa.d.ts ====================
+declare namespace Koa {
+    interface Context {
+        state: {
+            user?: IUser;
+            requestId?: string;
+            startTime?: number;
+        };
+    }
+}
+
+interface IUser {
+    id: string;
+    username: string;
+    email: string;
+    role: 'admin' | 'user';
+}
+
+// ==================== types/errors.ts ====================
+export class AppError extends Error {
+    public readonly statusCode: number;
+    public readonly isOperational: boolean;
+    public readonly code: string;
+
+    constructor(message: string, statusCode: number = 500, code: string = 'INTERNAL_ERROR') {
+        super(message);
+        this.statusCode = statusCode;
+        this.code = code;
+        this.isOperational = true;
+        Error.captureStackTrace(this, this.constructor);
+    }
+}
+
+export class ValidationError extends AppError {
+    constructor(public readonly errors: Array<{ field: string; message: string }>) {
+        super('Validation failed', 400, 'VALIDATION_ERROR');
+    }
+}
+
+export class NotFoundError extends AppError {
+    constructor(resource: string = 'Resource') {
+        super(`${resource} not found`, 404, 'NOT_FOUND');
+    }
+}
+
+export class UnauthorizedError extends AppError {
+    constructor(message: string = 'Unauthorized') {
+        super(message, 401, 'UNAUTHORIZED');
+    }
+}
+
+export class ForbiddenError extends AppError {
+    constructor(message: string = 'Forbidden') {
+        super(message, 403, 'FORBIDDEN');
+    }
+}
+
+// ==================== utils/response.ts ====================
+import Context from 'koa';
+
+interface SuccessResponse<T = any> {
+    success: true;
+    statusCode: number;
+    message: string;
+    data: T;
+    timestamp: string;
+}
+
+interface ErrorResponse {
+    success: false;
+    statusCode: number;
+    message: string;
+    errors?: any;
+    code?: string;
+    timestamp: string;
+}
+
+interface PaginatedResponse<T> {
+    success: true;
+    statusCode: number;
+    data: T[];
+    pagination: {
+        current: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+    };
+    timestamp: string;
+}
+
+export class ResponseHelper {
+    static success<T>(ctx: Context, data: T, message: string = 'Success', statusCode: number = 200): void {
+        ctx.status = statusCode;
+        ctx.body = <SuccessResponse<T>>{
+            success: true,
+            statusCode,
+            message,
+            data,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    static error(ctx: Context, message: string, statusCode: number = 500, errors?: any, code?: string): void {
+        ctx.status = statusCode;
+        ctx.body = <ErrorResponse>{
+            success: false,
+            statusCode,
+            message,
+            errors,
+            code,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    static paginated<T>(
+        ctx: Context, 
+        data: T[], 
+        page: number, 
+        limit: number, 
+        total: number
+    ): void {
+        ctx.status = 200;
+        ctx.body = <PaginatedResponse<T>>{
+            success: true,
+            statusCode: 200,
+            data,
+            pagination: {
+                current: page,
+                pageSize: limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            },
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    static created(ctx: Context, data: any, location?: string): void {
+        ctx.status = 201;
+        if (location) {
+            ctx.set('Location', location);
+        }
+        ctx.body = <SuccessResponse>{
+            success: true,
+            statusCode: 201,
+            message: 'Resource created',
+            data,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    static noContent(ctx: Context): void {
+        ctx.status = 204;
+        ctx.body = null;
+    }
+}
+
+// ==================== middleware/errorHandler.ts ====================
+import { Context, Next } from 'koa';
+import { AppError } from '../types/errors';
+import { ResponseHelper } from '../utils/response';
+
+export async function errorHandler(ctx: Context, next: Next): Promise<void> {
+    try {
+        await next();
+    } catch (err) {
+        console.error('Error caught by middleware:', err);
+
+        if (err instanceof AppError) {
+            // 已知的业务错误
+            ResponseHelper.error(
+                ctx,
+                err.message,
+                err.statusCode,
+                err.errors,
+                err.code
+            );
+        } else if (err.name === 'ValidationError') {
+            // 参数验证错误（如 koa-bodyparser）
+            ResponseHelper.error(ctx, 'Invalid request data', 400, err.details);
+        } else if (err.status && err.status >= 400 && err.status < 500) {
+            // 其他客户端错误
+            ResponseHelper.error(ctx, err.message, err.status);
+        } else {
+            // 未知的服务器错误
+            console.error('Unexpected error:', err);
+            ResponseHelper.error(
+                ctx,
+                process.env.NODE_ENV === 'production' 
+                    ? 'Internal server error' 
+                    : err.message,
+                500,
+                process.env.NODE_ENV === 'development' ? err.stack : undefined,
+                'INTERNAL_ERROR'
+            );
+        }
+    }
+}
+
+// ==================== middleware/auth.ts ====================
+import { Context, Next } from 'koa';
+import jwt from 'jsonwebtoken';
+import { UnauthorizedError, ForbiddenError } from '../types/errors';
+import config from '../config';
+
+interface JwtPayload {
+    userId: string;
+    role: string;
+    iat: number;
+    exp: number;
+}
+
+export function auth(requiredRole?: string[]) {
+    return async (ctx: Context, next: Next): Promise<void> => {
+        const authHeader = ctx.headers.authorization;
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            throw new UnauthorizedError('No token provided');
+        }
+
+        const token = authHeader.substring(7);
+
+        try {
+            const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
+            ctx.state.user = {
+                id: decoded.userId,
+                role: decoded.role
+            };
+
+            // 角色检查
+            if (requiredRole && !requiredRole.includes(decoded.role)) {
+                throw new ForbiddenError('Insufficient permissions');
+            }
+
+            await next();
+        } catch (err) {
+            if (err instanceof jwt.TokenExpiredError) {
+                throw new UnauthorizedError('Token has expired');
+            }
+            if (err instanceof jwt.JsonWebTokenError) {
+                throw new UnauthorizedError('Invalid token');
+            }
+            throw err;
+        }
+    };
+}
+
+// 可选认证（不强制要求 token）
+export function optionalAuth(): (ctx: Context, next: Next) => Promise<void> {
+    return async (ctx: Context, next: Next): Promise<void> => {
+        const authHeader = ctx.headers.authorization;
+
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7);
+            try {
+                const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
+                ctx.state.user = {
+                    id: decoded.userId,
+                    role: decoded.role
+                };
+            } catch {
+                // Token 无效但继续执行
+            }
+        }
+
+        await next();
+    };
+}
+
+// ==================== controllers/userController.ts ====================
+import { Context } from 'koa';
+import { ResponseHelper } from '../utils/response';
+import { NotFoundError } from '../types/errors';
+import * as userService from '../services/userService';
+
+class UserController {
+    async getUsers(ctx: Context): Promise<void> {
+        const { page = '1', limit = '10', search } = ctx.query;
+
+        const result = await userService.getUsers({
+            page: parseInt(page as string),
+            limit: parseInt(limit as string),
+            search: search as string
+        });
+
+        ResponseHelper.paginated(
+            ctx,
+            result.users,
+            result.page,
+            result.limit,
+            result.total
+        );
+    }
+
+    async getUserById(ctx: Context): Promise<void> {
+        const { id } = ctx.params;
+        const user = await userService.getUserById(id);
+
+        if (!user) {
+            throw new NotFoundError('User');
+        }
+
+        ResponseHelper.success(ctx, user);
+    }
+
+    async createUser(ctx: Context): Promise<void> {
+        const userData = ctx.request.body;
+        const user = await userService.createUser(userData);
+
+        ResponseHelper.created(ctx, user, `/api/v1/users/${user.id}`);
+    }
+
+    async updateUser(ctx: Context): Promise<void> {
+        const { id } = ctx.params;
+        const updateData = ctx.request.body;
+        const user = await userService.updateUser(id, updateData);
+
+        ResponseHelper.success(ctx, user, 'User updated successfully');
+    }
+
+    async deleteUser(ctx: Context): Promise<void> {
+        const { id } = ctx.params;
+        await userService.deleteUser(id);
+
+        ResponseHelper.noContent(ctx);
+    }
+}
+
+export default new UserController();
+
+// ==================== routes/userRoutes.ts ====================
+import Router from '@koa/router';
+import userController from '../controllers/userController';
+import { auth } from '../middleware/auth';
+
+const router = new Router({ prefix: '/users' });
+
+// 所有路由都需要认证
+router.use(auth());
+
+router.get('/', userController.getUsers);
+router.get('/:id', userController.getUserById);
+router.post('/', userController.createUser);
+router.put('/:id', userController.updateUser);
+router.del('/:id', userController.deleteUser);
+
+export default router;
+
+// ==================== app.ts ====================
+import Koa from 'koa';
+import koaBody from 'koa-body';
+import koaJson from 'koa-json';
+import cors from '@koa/cors';
+import helmet from 'koa-helmet';
+import compress from 'koa-compress';
+import ratelimit from 'koa-ratelimit';
+import Redis from 'ioredis';
+
+import { errorHandler } from './middleware/errorHandler';
+import userRoutes from './routes/userRoutes';
+import config from './config';
+
+const app = new Koa();
+
+// ==================== 基础中间件 ====================
+app.use(errorHandler);  // 错误处理必须在最前面
+app.use(koaBody({ multipart: true, formidable: { maxFileSize: 10 * 1024 * 1024 } }));
+app.use(koaJson({ pretty: false, param: 'pretty' }));
+app.use(cors({ origin: '*', allowMethods: ['GET', 'POST', 'PUT', 'DELETE'] }));
+app.use(helmet());
+app.use(compress());
+
+// ==================== 限流中间件 ====================
+const redisClient = new Redis(config.redis.url);
+app.use(ratelimit({
+    db: redisClient,
+    duration: 60000,  // 1分钟
+    max: 100,  // 最多100个请求
+    id: (ctx) => ctx.ip,
+    headers: {
+        remaining: 'X-RateLimit-Remaining',
+        reset: 'X-RateLimit-Reset',
+        total: 'X-RateLimit-Total'
+    },
+    errorMessage: { success: false, message: 'Rate limit exceeded' }
+}));
+
+// ==================== 请求ID中间件 ====================
+app.use(async (ctx, next) => {
+    ctx.state.requestId = generateRequestId();
+    ctx.set('X-Request-ID', ctx.state.requestId);
+    ctx.state.startTime = Date.now();
+    
+    await next();
+    
+    const duration = Date.now() - ctx.state.startTime!;
+    ctx.set('X-Response-Time', `${duration}ms`);
+});
+
+function generateRequestId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// ==================== 路由注册 ====================
+app.use(userRoutes.routes());
+app.use(userRoutes.allowedMethods());
+
+// ==================== 健康检查 ====================
+router.get('/health', (ctx) => {
+    ctx.body = {
+        status: 'healthy',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        environment: config.nodeEnv
+    };
+});
+
+// ==================== 404处理 ====================
+app.use(async (ctx) => {
+    ctx.status = 404;
+    ctx.body = {
+        success: false,
+        message: `Route ${ctx.method} ${ctx.path} not found`,
+        code: 'NOT_FOUND'
+    };
+});
+
+export default app;
+
+// ==================== server.ts ====================
+import app from './app';
+import config from './config';
+
+const server = app.listen(config.port, () => {
+    console.log(`🚀 Server running on http://localhost:${config.port}`);
+    console.log(`📚 Environment: ${config.nodeEnv}`);
+});
+
+// 优雅关闭
+const shutdown = () => {
+    console.log('\n🛑 Shutting down gracefully...');
+    server.close(() => {
+        console.log('✅ Server closed');
+        process.exit(0);
+    });
+    
+    setTimeout(() => {
+        console.error('❌ Forced shutdown');
+        process.exit(1);
+    }, 10000);
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+```
+
+---
+
+## 本章要点速查
+
+---
+
+# 第11章：安全与鉴权
+
+## 📚 本章学习目标
+
+- 掌握 **JWT (JSON Web Token)** 的原理和完整实现
+- 理解 **认证 vs 授权** 的区别和最佳实践
+- 学会 **常见安全威胁** 的防护措施
+- 掌握 **OAuth 2.0** 和 **Session** 认证方案
+
+---
+
+## 11.1 JWT 鉴权完整实现
+
+### 11.1.1 JWT 结构解析
+
+**JSON Web Token (JWT)** 是一种开放标准 (RFC 7519)，用于在各方之间以 JSON 对象的形式安全地传输信息。
+
+#### JWT 组成结构
+
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+└─────────────────┘ └───────────────────────────────┘ └──────────────────────────────┘
+       Header                  Payload                      Signature
+   (Base64URL)              (Base64URL)                   (HMACSHA256)
+```
+
+| 部分 | 内容 | 说明 |
+|------|------|------|
+| **Header** | `{"alg":"HS256","typ":"JWT"}` | 算法和令牌类型 |
+| **Payload** | `{"sub":"1234567890","name":"John Doe"}` | 声明数据（用户信息、过期时间等） |
+| **Signature** | 签名结果 | 用于验证消息未被篡改 |
+
+### 11.1.2 图表3：JWT 鉴权完整流程图
+
+以下是 JWT 认证的完整生命周期，包括登录、请求和刷新流程：
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server(Express)
+    participant DB as Database
+    participant R as Redis(可选)
+    
+    Note over C,S: 1. 登录获取 Token
+    C->>S: POST /api/login {username, password}
+    S->>DB: 查询用户 + 验证密码(bcrypt)
+    DB-->>S: 用户信息
+    S->>S: 生成 JWT {userId, role, exp}
+    S-->>C: Access Token (AT) <br/>Refresh Token (RT)
+    
+    Note over C,S: 2. 携带 Token 请求 API
+    C->>S: GET /api/user Authorization: Bearer AT
+    S->>S: 验证 AT (签名+过期时间)
+    S-->>C: 返回用户数据 ✅
+    
+    Note over C,S: 3. AT 过期 → 用 RT 刷新
+    C->>S: POST /api/refresh {RT}
+    S->>R: 验证 RT 是否有效/未撤销
+    R-->>S: RT 有效
+    S->>S: 签发新的 AT + RT
+    S-->>C: 新 AT + 新 RT
+```
+
+**流程说明**：
+1. **登录阶段**：用户提交凭证 → 服务端验证 → 签发 Access Token + Refresh Token
+2. **请求阶段**：客户端携带 AT 请求 API → 服务端验证签名和过期时间 → 返回数据
+3. **刷新阶段**：AT 过期后使用 RT 获取新的 token 对 → 实现**无感续期**
+
+### 11.1.3 JWT 完整代码实现
+
+```javascript
+/**
+ * JWT 鉴权完整实现
+ */
+
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+
+// ==================== 配置 ====================
+const JWT_CONFIG = {
+    accessSecret: process.env.JWT_ACCESS_SECRET || 'access-secret-key-min-32-chars',
+    refreshSecret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key-min-32-chars',
+    accessExpiresIn: '15m',      // Access Token 有效期：15分钟
+    refreshExpiresIn: '7d',     // Refresh Token 有效期：7天
+    algorithm: 'HS256'
+};
+
+// ==================== 工具函数 ====================
+class JwtService {
+    
+    /**
+     * 生成 Access Token
+     */
+    static generateAccessToken(user) {
+        return jwt.sign(
+            {
+                userId: user.id,
+                email: user.email,
+                role: user.role,
+                type: 'access'
+            },
+            JWT_CONFIG.accessSecret,
+            { 
+                expiresIn: JWT_CONFIG.accessExpiresIn,
+                algorithm: JWT_CONFIG.algorithm 
+            }
+        );
+    }
+    
+    /**
+     * 生成 Refresh Token
+     */
+    static generateRefreshToken(user) {
+        const tokenId = crypto.randomBytes(32).toString('hex');
+        
+        const token = jwt.sign(
+            {
+                userId: user.id,
+                tokenId,  // 用于撤销特定 token
+                type: 'refresh'
+            },
+            JWT_CONFIG.refreshSecret,
+            { 
+                expiresIn: JWT_CONFIG.refreshExpiresIn,
+                algorithm: JWT_CONFIG.algorithm 
+            }
+        );
+        
+        // 在实际应用中，应该将 refreshToken 存储到数据库或 Redis
+        // await Redis.set(`refresh:${tokenId}`, user.id, 'EX', 7 * 24 * 3600);
+        
+        return { token, tokenId };
+    }
+    
+    /**
+     * 验证 Access Token
+     */
+    static verifyAccessToken(token) {
+        try {
+            const decoded = jwt.verify(token, JWT_CONFIG.accessSecret);
+            
+            if (decoded.type !== 'access') {
+                throw new Error('Invalid token type');
+            }
+            
+            return { valid: true, decoded };
+        } catch (error) {
+            if (error.name === 'TokenExpiredError') {
+                return { valid: false, error: 'TOKEN_EXPIRED', message: 'Access token has expired' };
+            }
+            if (error.name === 'JsonWebTokenError') {
+                return { valid: false, error: 'INVALID_TOKEN', message: 'Invalid access token' };
+            }
+            return { valid: false, error: 'UNKNOWN_ERROR', message: error.message };
+        }
+    }
+    
+    /**
+     * 验证 Refresh Token
+     */
+    static verifyRefreshToken(token) {
+        try {
+            const decoded = jwt.verify(token, JWT_CONFIG.refreshSecret);
+            
+            if (decoded.type !== 'refresh') {
+                throw new Error('Invalid token type');
+            }
+            
+            // 检查 token 是否被撤销（从数据库/Redis查询）
+            // const isRevoked = await Redis.exists(`refresh:${decoded.tokenId}`);
+            // if (isRevoked) {
+            //     throw new Error('Token has been revoked');
+            // }
+            
+            return { valid: true, decoded };
+        } catch (error) {
+            return { valid: false, error: error.name, message: error.message };
+        }
+    }
+    
+    /**
+     * 刷新 Token 对
+     */
+    static async refreshTokens(refreshToken, userService) {
+        const result = this.verifyRefreshToken(refreshToken);
+        
+        if (!result.valid) {
+            throw new Error('Invalid or expired refresh token');
+        }
+        
+        const { userId } = result.decoded;
+        const user = await userService.findById(userId);
+        
+        if (!user || !user.isActive) {
+            throw new Error('User not found or inactive');
+        }
+        
+        // 生成新的 token 对
+        const newAccessToken = this.generateAccessToken(user);
+        const { token: newRefreshToken, tokenId } = this.generateRefreshToken(user);
+        
+        // 撤销旧的 refresh token（可选）
+        // await Redis.del(`refresh:${oldTokenId}`);
+        
+        return {
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken
+        };
+    }
+}
+
+// ==================== Express 中间件实现 ====================
+function authMiddleware(req, res, next) {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+            success: false,
+            code: 'AUTH_REQUIRED',
+            message: 'Authorization header with Bearer token is required'
+        });
+    }
+    
+    const token = authHeader.substring(7);
+    const result = JwtService.verifyAccessToken(token);
+    
+    if (!result.valid) {
+        return res.status(401).json({
+            success: false,
+            code: result.error,
+            message: result.message
+        });
+    }
+    
+    // 将用户信息附加到请求对象
+    req.user = result.decoded;
+    next();
+}
+
+// 可选角色检查中间件
+function requireRole(...roles) {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+        }
+        
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN',
+                message: 'Insufficient permissions'
+            });
+        }
+        
+        next();
+    };
+}
+
+// ==================== 路由实现示例 ====================
+const express = require('express');
+const router = express.Router();
+
+// 登录路由
+router.post('/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        
+        // 1. 查找用户
+        const user = await User.findOne({ 
+            $or: [{ email: username }, { username }] 
+        });
+        
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                code: 'INVALID_CREDENTIALS',
+                message: 'Invalid username or password'
+            });
+        }
+        
+        // 2. 验证密码（bcrypt）
+        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+        
+        if (!isValidPassword) {
+            // 安全建议：使用通用错误消息，不区分用户不存在和密码错误
+            return res.status(401).json({
+                success: false,
+                code: 'INVALID_CREDENTIALS',
+                message: 'Invalid username or password'
+            });
+        }
+        
+        // 3. 检查用户状态
+        if (!user.isActive) {
+            return res.status(403).json({
+                success: false,
+                code: 'ACCOUNT_DISABLED',
+                message: 'Account has been disabled'
+            });
+        }
+        
+        // 4. 更新最后登录时间
+        user.lastLoginAt = new Date();
+        await user.save();
+        
+        // 5. 生成 token 对
+        const accessToken = JwtService.generateAccessToken(user);
+        const { token: refreshToken } = JwtService.generateRefreshToken(user);
+        
+        // 6. 返回响应
+        res.json({
+            success: true,
+            data: {
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    role: user.role,
+                    avatar: user.avatar
+                },
+                tokens: {
+                    accessToken,
+                    refreshToken,
+                    expiresIn: 15 * 60  // 秒
+                }
+            },
+            message: 'Login successful'
+        });
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
+// 刷新 token 路由
+router.post('/refresh', async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        
+        if (!refreshToken) {
+            return res.status(400).json({
+                success: false,
+                code: 'REFRESH_TOKEN_REQUIRED',
+                message: 'Refresh token is required'
+            });
+        }
+        
+        const tokens = await JwtService.refreshTokens(refreshToken, userService);
+        
+        res.json({
+            success: true,
+            data: {
+                ...tokens,
+                expiresIn: 15 * 60
+            },
+            message: 'Tokens refreshed successfully'
+        });
+        
+    } catch (error) {
+        res.status(401).json({
+            success: false,
+            code: 'REFRESH_FAILED',
+            message: error.message
+        });
+    }
+});
+
+// 登出路由（撤销 refresh token）
+router.post('/logout', authMiddleware, async (req, res) => {
+    try {
+        // 在实际应用中，将 refresh token 加入黑名单
+        // const refreshToken = req.body.refreshToken;
+        // await Redis.del(`refresh:${tokenId}`);
+        
+        res.json({
+            success: true,
+            message: 'Logged out successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Logout failed'
+        });
+    }
+});
+
+module.exports = { router, authMiddleware, requireRole, JwtService };
+```
+
+### 11.1.4 JWT 最佳实践和安全建议
+
+```javascript
+/**
+ * JWT 安全最佳实践清单
+ */
+
+// ✅ 1. 使用强密钥（至少256位随机字符串）
+const secretKey = crypto.randomBytes(32).toString('hex');  // 64字符的十六进制字符串
+
+// ✅ 2. 设置合理的过期时间
+// - Access Token: 短有效期（15分钟 - 1小时）
+// - Refresh Token: 较长有效期（7天 - 30天），但可撤销
+
+// ✅ 3. 使用 HTTPS 传输
+// 绝不在 HTTP 中传输 token
+
+// ✅ 4. 敏感操作需要二次验证
+async function sensitiveAction(req, res, next) {
+    // 对于修改密码、支付等敏感操作，要求重新输入密码
+    const { currentPassword } = req.body;
+    
+    const isValid = await bcrypt.compare(currentPassword, req.user.passwordHash);
+    if (!isValid) {
+        return res.status(403).json({ message: 'Password verification required' });
+    }
+    
+    next();
+}
+
+// ✅ 5. Token 黑名单机制（用于强制登出）
+class TokenBlacklist {
+    constructor(redisClient) {
+        this.redis = redisClient;
+    }
+    
+    async add(token, ttl) {
+        // 使用 token 的 jti (JWT ID) 作为 key
+        const decoded = jwt.decode(token);
+        await this.redis.setex(`blacklist:${decoded.jti}`, ttl, '1');
+    }
+    
+    async isBlacklisted(token) {
+        const decoded = jwt.decode(token);
+        return await this.redis.exists(`blacklist:${decoded.jti}`);
+    }
+}
+
+// ✅ 6. 不要在 Payload 中存储敏感信息
+// ❌ 错误：存储密码哈希
+jwt.sign({ passwordHash: '...' }, secret);
+
+// ✅ 正确：只存储必要的信息
+jwt.sign({ userId: '123', role: 'admin' }, secret);
+
+// ✅ 7. 实现 Token 刷新策略
+// 当 Access Token 即将过期时（如剩余 < 5分钟），自动刷新
+function shouldRefreshToken(decoded) {
+    const now = Math.floor(Date.now() / 1000);
+    const timeLeft = decoded.exp - now;
+    return timeLeft < 300;  // 剩余不足5分钟时刷新
+}
+```
+
+---
+
+## 本章要点速查
+
+---
+
+# 第14章：部署与运维
+
+## 📚 本章学习目标
+
+- 掌握 **PM2** 进程管理和生产环境配置
+- 学会 **Docker 容器化** 部署的最佳实践
+- 理解 **Nginx 反向代理** 配置和性能优化
+- 掌握 **CI/CD 自动化部署** 流程
+
+---
+
+## 14.1 PM2 生产环境配置
+
+### 14.1.1 PM2 简介
+
+**PM2** 是 Node.js 应用的生产环境进程管理器，具有自动重启、负载均衡、日志管理、监控等功能。
+
+### 14.1.2 ecosystem.config.js 完整配置示例
+
+```javascript
+/**
+ * PM2 Ecosystem Configuration
+ * 文件名: ecosystem.config.js
+ */
+
+module.exports = {
+    // ==================== 应用配置 ====================
+    apps: [
+        {
+            name: 'api-server',                    // 应用名称
+            script: './src/server.js',             // 入口文件
+            
+            // ==================== 实例数量 ====================
+            instances: 'max',                      // 'max' 或具体数字
+            exec_mode: 'cluster',                  // cluster 模式（多进程）
+            
+            // ==================== 自动重启 ====================
+            watch: false,                          // 生产环境不建议开启 watch
+            ignore_watch: [                        // 忽略的目录
+                'node_modules',
+                'logs',
+                '.git'
+            ],
+            
+            max_memory_restart: '512M',             // 内存超过 512MB 时重启
+            
+            // ==================== 环境变量 ====================
+            env: {
+                NODE_ENV: 'development',
+                PORT: 3000,
+                DB_HOST: 'localhost',
+                DB_NAME: 'myapp_dev',
+                LOG_LEVEL: 'debug'
+            },
+            
+            env_production: {
+                NODE_ENV: 'production',
+                PORT: 3000,
+                DB_HOST: process.env.DB_HOST || 'prod-mongodb',
+                DB_NAME: 'myapp_prod',
+                LOG_LEVEL: 'info',
+                JWT_SECRET: process.env.JWT_SECRET,
+                REDIS_URL: process.env.REDIS_URL
+            },
+            
+            env_staging: {
+                NODE_ENV: 'staging',
+                PORT: 3000,
+                DB_HOST: 'staging-mongodb',
+                DB_NAME: 'myapp_staging',
+                LOG_LEVEL: 'warn'
+            },
+            
+            // ==================== 日志配置 ====================
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+            error_file: './logs/error.log',        // 错误日志路径
+            out_file: './logs/out.log',            // 输出日志路径
+            merge_logs: true,                       // 合并所有实例的日志
+            
+            // 日志轮转配置（需要 pm2-logrotate 插件）
+            log_rotate: {
+                workerInterval: '30s',             // 轮询间隔
+                rotateModule: true,                // 启用轮转
+                maxSize: '10M',                    // 单个日志最大大小
+                retain: 30,                         // 保留的日志文件数
+                dateFormat: 'YYYY-MM-DD_HH-mm-ss'   // 日志文件命名格式
+            },
+            
+            // ==================== 性能监控 ====================
+            max_restarts: 10,                       // 最大重启次数
+            min_uptime: '10s',                     // 最小运行时间
+            restart_delay: 4000,                   // 重启延迟 (ms)
+            
+            // ==================== 源码映射支持 ====================
+            source_map_support: true,
+            
+            // ==================== 其他选项 ====================
+            node_args: '--max-old-space-size=512',  // V8 引擎参数
+            wait_ready: true,                       // 等待 ready 信号
+            listen_timeout: 10000,                  // 监听超时时间
+            
+            // ==================== 部署配置（可选）====================
+            deploy: {
+                production: {
+                    user: 'node',
+                    host: '192.168.1.10',
+                    ref: 'origin/main',
+                    repo: 'git@github.com:user/myapp.git',
+                    path: '/var/www/myapp',
+                    'pre-deploy': 'git fetch --all',
+                    'post-deploy': 
+                        'npm install && ' +
+                        'npm run build && ' +
+                        'pm2 reload ecosystem.config.js --env production',
+                    env: {
+                        NODE_ENV: 'production'
+                    }
+                }
+            }
+        }
+    ],
+    
+    // ==================== 部署配置 ====================
+    deploy: {
+        production: {
+            user: 'deploy',
+            host: ['192.168.1.10', '192.168.1.11'],  // 多服务器
+            ref: 'origin/main',
+            repo: 'https://github.com/user/myapp.git',
+            path: '/var/www/production',
+            'pre-setup': 'apt-get install git || yum install git',
+            'post-setup': 
+                'source ~/.nvm/nvm.sh && ' +
+                'nvm install 18 && nvm use 18',
+            'pre-deploy': 'git fetch --all',
+            'deploy': 
+                'source ~/.nvm/nvm.sh && ' +
+                'nvm use 18 && ' +
+                'npm ci --production=false && ' +
+                'npm run build',
+            'post-deploy': 
+                'pm2 reload ecosystem.config.js --env production && ' +
+                'pm2 save',
+            env: {
+                NODE_ENV: 'production'
+            }
+        }
+    }
+};
+```
+
+### 14.1.3 PM2 常用命令速查
+
+```bash
+# ==================== 基本操作 ====================
+pm2 start server.js              # 启动应用
+pm2 start ecosystem.config.js     # 使用配置文件启动
+pm2 stop all                      # 停止所有应用
+pm2 stop api-server               # 停止指定应用
+pm2 restart all                   # 重启所有应用
+pm2 reload all                    # 平滑重启（零停机）
+pm2 delete all                    # 删除所有应用
+
+# ==================== 监控和日志 ====================
+pm2 list                          # 列出所有应用
+pm2 show api-server               # 查看应用详情
+pm2 logs                          # 查看所有日志
+pm2 logs api-server               # 查看指定应用日志
+pm2 logs --lines 200              # 显示最近200行日志
+pm2 monit                          # 打开监控面板
+
+# ==================== 集群模式 ====================
+pm2 start server.js -i max         # 根据CPU核心数启动实例
+pm2 start server.js -i 4           # 启动4个实例
+pm2 reload all                    # 零停机重载
+
+# ==================== 保存和开机自启 ====================
+pm2 save                          # 保存当前进程列表
+pm2 startup                       # 生成开机自启脚本
+pm2 unstartup                     # 移除开机自启
+
+# ==================== 其他实用功能 ====================
+pm2 describe <id>                 # 详细信息
+pm2 reset <id>                    # 重置计数器
+pm2 flush                         # 清空日志
+pm2 updatePM2                     # 更新 PM2 本身
+```
+
+---
+
+## 14.2 Docker 多阶段构建最佳实践
+
+### 14.2.1 Dockerfile 多阶段构建
+
+```dockerfile
+# ========================================
+# 阶段1: 基础依赖安装
+# ========================================
+FROM node:18-alpine AS base
+
+# 安装必要的系统依赖
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    tzdata \
+    curl \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone
+
+# 设置工作目录
+WORKDIR /app
+
+# ========================================
+# 阶段2: 依赖安装
+# ========================================
+FROM base AS deps
+
+# 复制 package 文件
+COPY package.json package-lock.json* ./
+
+# 安装生产依赖（使用 npm ci 保证一致性）
+RUN npm ci --only=production && npm cache clean --force
+
+# 开发依赖（用于构建）
+FROM base AS build-deps
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# ========================================
+# 阶段3: 构建阶段
+# ========================================
+FROM build-deps AS builder
+
+# 复制源代码
+COPY . .
+
+# 设置构建环境变量
+ENV NODE_ENV=production
+
+# 运行构建脚本
+RUN npm run build
+
+# ========================================
+# 阶段4: 生产镜像（最终镜像）
+# ========================================
+FROM node:18-alpine AS runner
+
+# 创建非 root 用户
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# 安装 dumb-init（正确的 PID 1 进程）
+RUN apk add --no-cache dumb-init
+
+# 设置工作目录
+WORKDIR /app
+
+# 从依赖阶段复制 node_modules
+COPY --from=deps /app/node_modules ./node_modules
+
+# 从构建阶段复制构建产物
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./package.json
+
+# 如果有静态资源，单独复制
+# COPY --from=builder /app/public ./public
+
+# 切换到非 root 用户
+USER appuser
+
+# 暴露端口
+EXPOSE 3000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
+# 设置环境变量
+ENV NODE_ENV=production \
+    PORT=3000
+
+# 使用 dumb-init 作为入口点
+ENTRYPOINT ["dumb-init", "--"]
+
+# 启动命令
+CMD ["node", "dist/server.js"]
+```
+
+### 14.2.2 docker-compose.yml 示例
+
+```yaml
+version: '3.8'
+
+services:
+  # ==================== API 服务 ====================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: myapp-api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - DB_HOST=mongodb
+      - DB_PORT=27017
+      - DB_NAME=myapp
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=info
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== MongoDB ====================
+  mongodb:
+    image: mongo:6
+    container_name: myapp-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-password123}
+      - MONGO_INITDB_DATABASE=myapp
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== Redis ====================
+  redis:
+    image: redis:7-alpine
+    container_name: myapp-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
+```
+
+### 14.2.3 .dockerignore 配置
+
+```
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+coverage
+.nyc_output
+logs
+*.log
+README.md
+.vscode
+.idea
+.eslintcache
+.tsbuildinfo
+dist
+build
+```
+
+---
+
+## 14.3 Nginx 完整配置示例
+
+### 14.3.1 Nginx 主配置文件
+
+```nginx
+# ========================================
+# /etc/nginx/nginx.conf
+# Nginx 全局配置
+# ========================================
+
+# 运行用户
+user nginx;
+
+# 工作进程数（通常设置为 CPU 核心数）
+worker_processes auto;
+
+# 错误日志路径和级别
+error_log /var/log/nginx/error.log warn;
+
+# PID 文件位置
+pid /var/run/nginx.pid;
+
+# 工作连接数
+events {
+    worker_connections 2048;
+    use epoll;
+    multi_accept on;
+}
+
+http {
+    # ==================== 基础设置 ====================
+    
+    # 包含 MIME 类型定义
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    
+    # 日志格式
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for" '
+                    'rt=$request_time';
+    
+    access_log /var/log/nginx/access.log main;
+    
+    # ==================== 性能优化 ====================
+    
+    # 高效文件传输
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    
+    # 连接超时设置
+    keepalive_timeout 65;
+    client_header_timeout 15;
+    client_body_timeout 15;
+    send_timeout 25;
+    
+    # 请求体大小限制
+    client_max_body_size 20m;
+    
+    # Gzip 压缩
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_min_length 1024;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml+rss
+        application/atom+xml
+        image/svg+xml;
+    
+    # ==================== 安全头 ====================
+    
+    # 隐藏版本号
+    server_tokens off;
+    
+    # ==================== 限流配置 ====================
+    
+    limit_req_zone $binary_remote_addr zone=general:10m rate=10r/s;
+    limit_req_zone $binary_remote_addr zone=login:10m rate=3r/m;
+    limit_conn_zone $binary_remote_addr zone=connlimit:10m;
+    
+    # ==================== 上游服务器（Node.js 应用）====================
+    
+    upstream node_backend {
+        least_conn;  # 最少连接算法
+        
+        server 127.0.0.1:3000 weight=5 max_fails=3 fail_timeout=30s;
+        server 127.0.0.1:3001 weight=5 max_fails=3 fail_timeout=30s;
+        
+        keepalive 32;  # 保持长连接
+    }
+    
+    # ==================== 包含站点配置 ====================
+    include /etc/nginx/conf.d/*.conf;
+}
+```
+
+### 14.3.2 站点配置文件（反向代理 + SSL）
+
+```nginx
+# ========================================
+# /etc/nginx/conf.d/myapp.conf
+# Node.js 应用反向代理配置
+# ========================================
+
+# HTTP → HTTPS 重定向
+server {
+    listen 80;
+    listen [::]:80;
+    server_name example.com www.example.com;
+    
+    # Let's Encrypt 验证
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    
+    location / {
+        return 301 https://$server_name$request_uri;
+    }
+}
+
+# HTTPS 主配置
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name example.com www.example.com;
+    
+    # ==================== SSL/TLS 配置 ====================
+    
+    ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+    
+    # SSL 协议和加密套件
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    
+    # SSL 会话缓存
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+    
+    # OCSP Stapling
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+    
+    # HSTS（HTTP 严格传输安全）
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    
+    # ==================== 安全头 ====================
+    
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    
+    # ==================== 日志 ====================
+    
+    access_log /var/log/nginx/myapp_access.log main;
+    error_log /var/log/nginx/myapp_error.log warn;
+    
+    # ==================== 根路由（API 反向代理）====================
+    
+    location / {
+        # 限流
+        limit_req zone=general burst=20 nodelay;
+        limit_conn connlimit 20;
+        
+        # 代理到 Node.js 后端
+        proxy_pass http://node_backend;
+        
+        # 代理头设置
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $request_id;
+        
+        # WebSocket 支持
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # 缓冲设置
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+        proxy_busy_buffers_size 8k;
+    }
+    
+    # ==================== 登录接口特殊限流 ====================
+    
+    location /api/login {
+        limit_req zone=login burst=5 nodelay;
+        limit_req_status 429;
+        
+        proxy_pass http://node_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # ==================== 静态资源 ====================
+    
+    location /static/ {
+        alias /var/www/myapp/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        
+        # 防止执行脚本
+        location ~* \.(php|py|sh|pl)$ {
+            deny all;
+        }
+    }
+    
+    # ==================== 健康检查端点 ====================
+    
+    location /health {
+        proxy_pass http://node_backend;
+        access_log off;
+    }
+    
+    # ==================== 错误页面 ====================
+    
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+    
+    # 自定义错误响应（JSON 格式）
+    error_page 429 = @rate_limited;
+    location @rate_limited {
+        default_type application/json;
+        return 429 '{"success":false,"message":"Too many requests","code":"RATE_LIMITED"}';
+    }
+}
+
+# WebSocket 升级配置（如需要）
+server {
+    listen 443 ssl http2;
+    server_name ws.example.com;
+    
+    ssl_certificate /etc/letsencrypt/live/ws.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ws.example.com/privkey.pem;
+    
+    location / {
+        proxy_pass http://node_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+}
+```
+
+### 14.3.3 Nginx 优化建议
+
+```bash
+# ==================== 系统级优化 ====================
+
+# 编辑 /etc/sysctl.conf
+net.core.somaxconn = 65535
+net.ipv4.tcp_max_syn_backlog = 65535
+net.ipv4.ip_local_port_range = 1024 65535
+net.ipv4.tcp_tw_reuse = 1
+net.core.netdev_max_backlog = 65535
+
+# 应用配置
+sudo sysctl -p
+
+# ==================== 文件描述符限制 ====================
+
+# 编辑 /etc/security/limits.conf
+* soft nofile 65535
+* hard nofile 65535
+
+# Nginx 配置中添加
+worker_rlimit_nofile 65535;
+```
+
+---
+
+## 14.4 GitHub Actions CI/CD 流水线
+
+### 14.4.1 完整 CI/CD 配置文件
+
+```yaml
+# ========================================
+# .github/workflows/ci-cd.yml
+# GitHub Actions CI/CD 流水线
+# ========================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+    
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ==================== Job 1: 代码质量检查 ====================
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [16, 18, 20]
+    
+    services:
+      mongodb:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linter
+        run: npm run lint
+      
+      - name: Check code formatting
+        run: npm run format:check
+      
+      - name: Run type check
+        run: npm run type-check
+      
+      - name: Run unit tests
+        run: npm run test:unit
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_PORT: 27017
+          DB_NAME: test_db
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-key-for-testing-only
+      
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_PORT: 27017
+          DB_NAME: test_db_integration
+          REDIS_URL: redis://localhost:6379
+      
+      - name: Upload coverage report
+        if: matrix.node-version == 18
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage/
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-${{ matrix.node-version }}
+          path: test-results/
+
+  # ==================== Job 2: 构建 Docker 镜像 ====================
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+  
+  # ==================== Job 3: 部署到 Staging ====================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to staging server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/staging/myapp
+            git pull origin develop
+            docker-compose pull
+            docker-compose up -d --remove-orphans
+            docker system prune -f
+      
+      - name: Run health checks
+        run: |
+          sleep 30
+          curl -f https://staging.example.com/health || exit 1
+      
+      - name: Notify deployment
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "✅ Staging Deployment Successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Staging Deploy* ✅\nBranch: `${{ github.head_ref }}`\nCommit: `${{ github.sha }}`"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_STAGING }}
+
+  # ==================== Job 4: 部署到 Production ====================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Create deployment backup
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            BACKUP_DIR="/backups/$(date +%Y%m%d_%H%M%S)"
+            mkdir -p $BACKUP_DIR
+            cp -r /var/www/production/myapp/.env $BACKUP_DIR/
+            docker exec myapp-api mongodump --archive=$BACKUP_DIR/mongo_backup.gz
+            echo "Backup created at $BACKUP_DIR"
+      
+      - name: Deploy to production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e  # 遇到错误立即退出
+            
+            echo "🔄 Pulling latest changes..."
+            cd /var/www/production/myapp
+            git pull origin main
+            
+            echo "📦 Pulling new Docker images..."
+            docker-compose pull
+            
+            echo "🚀 Rolling deployment..."
+            docker-compose up -d --no-deps --build api
+            
+            echo "⏳ Waiting for health check..."
+            sleep 45
+            
+            echo "✅ Verifying deployment..."
+            for i in {1..10}; do
+              if curl -sf http://localhost:3000/health > /dev/null; then
+                echo "Health check passed!"
+                break
+              fi
+              if [ $i -eq 10 ]; then
+                echo "❌ Health check failed! Rolling back..."
+                docker-compose rollback
+                exit 1
+              fi
+              sleep 5
+            done
+            
+            echo "🧹 Cleanup old resources..."
+            docker image prune -f --filter "until=24h"
+            docker volume prune -f
+      
+      - name: Verify deployment
+        run: |
+          sleep 30
+          response=$(curl -sf https://api.example.com/health)
+          echo "Health check response: $response"
+          
+          status=$(echo $response | jq -r '.status')
+          if [ "$status" != "healthy" ]; then
+            echo "❌ Health check failed!"
+            exit 1
+          fi
+          echo "✅ Production deployment verified!"
+      
+      - name: Notify team (Slack)
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "🚀 Production Deployment Successful",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Production Deploy Success"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Commit:* `${{ github.sha }}`"},
+                    {"type": "mrkdwn", "text": "*Author:* ${{ github.actor }}"},
+                    {"type": "mrkdwn", "text": "*Branch:* `main`"},
+                    {"type": "mrkdwn", "text": "*Time:* $(date '+%Y-%m-%d %H:%M:%S')"}
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_PRODUCTION }}
+      
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "❌ Production Deployment Failed",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Production Deploy FAILED"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Commit:* `${{ github.sha }}`\n*Author:* ${{ github.actor }}\n*Action:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_ALERTS }}
+
+  # ==================== Job 5: 性能测试（可选）====================
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install k6
+        run: |
+          sudo gpg --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D87D77E83886B4C1BAF69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: Run load tests
+        run: k6 run k6/load-test.js --env STAGING_URL=https://staging.example.com
+      
+      - name: Upload performance results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-results
+          path: k6/results/
+```
+
+### 14.4.2 GitHub Secrets 配置清单
+
+在 GitHub 仓库的 Settings → Secrets and variables → Actions 中配置：
+
+| Secret 名称 | 说明 | 示例值 |
+|-------------|------|--------|
+| `STAGING_HOST` | Staging 服务器 IP | `192.168.1.100` |
+| `PRODUCTION_HOST` | 生产服务器 IP | `203.0.113.50` |
+| `SSH_PRIVATE_KEY` | SSH 私钥 | （完整私钥内容） |
+| `SLACK_WEBHOOK_STAGING` | Slack Webhook URL | `https://hooks.slack.com/...` |
+| `SLACK_WEBHOOK_PRODUCTION` | Slack Webhook URL | `https://hooks.slack.com/...` |
+| `SLACK_WEBHOOK_ALERTS` | 告警频道 Webhook | `https://hooks.slack.com/...` |
+
+---
+
+## 本章要点速查

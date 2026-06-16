@@ -17,7 +17,7 @@
 | **工程化** | ✅ 15章+2附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-15 |
 | **性能优化** | ✅ 16章+2附录 | ✅ 50题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-16 |
 | **网络** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
-| **浏览器** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
+| **浏览器** | ✅ 14章+2附录 | ✅ 50题 | ⭐ **9.2** | 🟢 已优化 | 2026-06-16 |
 
 > 评分标准：满分 10 分，9.0+ 为优秀（可直接用于面试准备）
 
@@ -75,13 +75,15 @@ frontend-knowledge/
 │   │   └── 性能优化-Basics-Guide.md           # ~5578行 (16章+2附录)
 │   └── interviews/
 │       └── 性能优化-Interview-Questions.md    # ~6244行 (50题)
+├── 浏览器/                   # 浏览器原理、渲染机制、存储与安全  ⭐9.2
+│   ├── basics/
+│   │   └── 浏览器-Basics-Guide.md               # ~5682行 (14章+2附录)
+│   └── interviews/
+│       └── 浏览器-Interview-Questions.md        # ~7161行 (50题)
+│
 ├── 网络/                     # HTTP、HTTPS、WebSocket 等    📋 待生成
 │   ├── basics/.gitkeep
 │   └── interviews/.gitkeep
-│
-└── 浏览器/                   # 浏览器原理、渲染机制、存储    📋 待生成
-    ├── basics/.gitkeep
-    └── interviews/.gitkeep
 ```
 
 ---
@@ -141,6 +143,15 @@ frontend-knowledge/
 | [面试题库](性能优化/interviews/性能优化-Interview-Questions.md) | ~6244 行 | 50 题（基础15/进阶18/专家17）+ 15 题追问链 + 5 道手写实现（debounce/虚拟列表/懒加载指令/Performance SDK）|
 
 **核心覆盖**：Core Web Vitals、关键渲染路径、代码分割、缓存策略（HTTP/SW）、渲染性能优化（Reflow/Repaint/合成层）、JS 执行性能（长任务/Web Worker）、内存管理与泄漏防护、网络层优化（HTTP/2&3/CDN）、图片/字体/打包体积优化、移动端特殊考虑、性能监控体系、Lighthouse 实战、性能预算与工程化
+
+### 浏览器 ⭐ 9.2 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](浏览器/basics/浏览器-Basics-Guide.md) | ~5682 行 | 14 章 + 附录 A（按场景分类的知识速查表）+ 附录 B（浏览器端监控 SDK 完整实现）+ 7 组 Mermaid 图 |
+| [面试题库](浏览器/interviews/浏览器-Interview-Questions.md) | ~7161 行 | 50 题（基础15/进阶20/专家15）+ 8 题追问链 + 4 道增强手写实现（EventEmitter/Promise/debounce+throttle/懒加载指令）|
+
+**核心覆盖**：浏览器多进程架构、渲染管线（DOM/CSSOM/Layout/Paint/Composite）、V8 引擎（Ignition/TurboFan/GC/Hidden Class）、Event Loop（宏任务/微任务/rAF）、DOM 事件机制、存储方案选型（Cookie/LocalStorage/IndexedDB）、跨域通信（CORS/postMessage/WebSocket）、浏览器安全（XSS/CSRF/CSP/SRI/HSTS）、网络 API（Fetch/WebSocket/SSE）、Web Components/WASM/Workers、移动端特殊行为、DevTools 调试实战
 
 ---
 

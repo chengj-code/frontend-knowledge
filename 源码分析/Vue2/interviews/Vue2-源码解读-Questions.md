@@ -165,6 +165,17 @@ function createReactiveObject(target, isReadOnly, baseHandlers, collectionHandle
 - Q: 为什么 Vue2 不能支持 IE8？
 - Q: `shallow` 参数的作用是什么？（浅层响应式）
 
+### 🔍 追问链
+
+1. **Object.defineProperty 的 4 个局限性详解**
+   → 方向：需要深入解释每个局限性的根本原因、Vue2 的解决方案（$set/$delete/数组变异方法），以及为什么 Proxy 能从根本上解决这些问题
+
+2. **Proxy 方案对比分析**
+   → 方向：对比 Object.defineProperty 和 Proxy 在实现原理、性能表现、兼容性、功能完整性等方面的差异；讨论 Vue3 选择 Proxy 的技术决策背景
+
+3. **响应式系统的性能优化边界**
+   → 方向：探讨大数据量场景下的性能瓶颈（递归遍历开销）、shouldObserve 开关的作用、shallow 响应式的使用场景
+
 ---
 
 ## Q02: Vue2 为什么需要 $set 和 $delete？它们的实现原理是什么？
@@ -852,6 +863,17 @@ interface VNode {
 - Q: `componentInstance` 和 `context` 有什么区别？
 - Q: 静态节点（`isStatic`）是如何标记的？（编译阶段 optimize）
 
+### 🔍 追问链
+
+1. **VNode 各字段在 Diff 中的作用**
+   → 方向：详细说明 tag/key/data/children/text 等字段在 sameVnode 判断、patchVnode 更新策略中的具体作用；哪些字段影响节点复用决策
+
+2. **组件 VNode 与元素 VNode 的区别**
+   → 方向：对比普通元素 VNode 和组件 VNode 在结构上的差异（componentOptions/componentInstance/context）；组件实例化过程中 VNode 如何转化为组件实例
+
+3. **VNode 内存优化策略**
+   → 方向：探讨 Vue2 中 VNode 池化（vnode pool）机制、静态子树跳过优化（static trees）、以及 Vue3 的 PatchFlags 进一步优化思路
+
 ---
 
 ## Q06: Vue2 的 Diff 算法是怎样的？为什么是同层比较？
@@ -1030,6 +1052,17 @@ Vue2 采用的策略：
 - Q: `updateChildren` 的 4 种命中策略分别是什么？
 - Q: key 的作用仅仅是标识吗？（还影响复用策略）
 - Q: 静态节点（`isStatic`）为什么可以直接跳过？
+
+### 🔍 追问链
+
+1. **Diff 算法时间复杂度分析**
+   → 方向：解释为什么双端比较的时间复杂度是 O(n)；对比简单同序比较 O(n²) 的最坏情况；分析 key 映射表（oldKeyToIdx）对性能的影响
+
+2. **Diff 最坏情况举例与优化**
+   → 方向：构造导致双端比较退化为 O(n²) 的场景（如完全逆序、无 key）；讨论如何通过合理的 key 设计避免性能问题
+
+3. **Vue3 Diff 优化方案**
+   → 方向：介绍 Vue3 采用的最长递增子序列（LIS）算法；对比 Vue2 双端比较和 Vue3 LIS 在移动次数上的差异；PatchFlags 和 Block Tree 如何进一步减少 Diff 范围
 
 ---
 
@@ -1703,6 +1736,17 @@ function initData (vm: Component) {
 - Q: `mergeOptions` 的合并策略是什么？（同名字段的合并规则）
 - Q: `_isComponent` 标志的作用是什么？（内部组件优化）
 - Q: 为什么 `proxy` 要把 data 代理到 vm 上？（方便访问 `this.msg` 而非 `this._data.msg`）
+
+### 🔍 追问链
+
+1. **new Vue() 各阶段耗时分析**
+   → 方向：详细分解 _init 中各阶段（mergeOptions/initLifecycle/initEvents/initRender/callHooks initState）的耗时占比；哪些操作可以并行化；性能瓶颈在哪里
+
+2. **初始化阶段的懒执行优化**
+   → 方向：探讨哪些初始化步骤可以延迟到首次访问时执行（如 computed 的懒求值、组件的异步加载）；Vue3 的 tree-shaking 优化思路
+
+3. **大型应用的初始化性能优化点**
+   → 方向：分析组件树深度对初始化时间的影响、按需注册插件/指令的策略、SSR 场景下的初始化差异
 
 ---
 
@@ -2894,6 +2938,17 @@ run () {
 - Q: 如果在 Watcher.get() 过程中又触发了新的数据修改怎么办？（嵌套更新）
 - Q: `cleanupDeps()` 的作用是什么？（清除上一次渲染中不再需要的依赖）
 - Q: 为什么需要 `has` 对象去重？（防止同一 Watcher 重复入队）
+
+### 🔍 追问链
+
+1. **数据变化到视图更新的帧级别时间线**
+   → 方向：详细描述从 data 修改到 DOM 更新完成的完整时间线（set → dep.notify → watcher.update → queueWatcher → nextTick → flushSchedulerQueue → run → patch → 浏览器绘制）；每个阶段的微任务/宏任务归属
+
+2. **浏览器渲染帧对齐机制**
+   → 方向：探讨 Vue 的异步更新如何与浏览器的 requestAnimationFrame 对齐；为什么选择微任务而非 rAF；性能监控（Performance Observer）中的体现
+
+3. **批量更新的边界情况**
+   → 方向：分析在同一个同步代码块中多次修改不同属性时的合并策略；嵌套 nextTick 的行为；watcher.flushing 状态下的特殊处理
 
 ---
 
@@ -4267,6 +4322,17 @@ oldStart oldEnd      newStart newEnd
 - Q: keyToOldIdx 映射表什么时候建立？（首次进入 else 分支时）
 - Q: 为什么非命中情况性能较差？（需要查找 key，O(n) 复杂度）
 
+### 🔍 追问链
+
+1. **为什么选择双端比较而非简单同序比较**
+   → 方向：对比两种算法的时间复杂度和实际性能；分析常见 UI 操作模式（列表头部/尾部增删、反转）对算法效率的影响；双端比较的启发式规则设计思路
+
+2. **key 为 null 或 undefined 时的 fallback 行为**
+   → 方向：详细说明无 key 时 Vue 如何判断节点相同（逐个遍历 findIdxInChild）；为什么官方强烈建议使用唯一 key；index 作为 key 的潜在问题
+
+3. **双端比较的优化变体**
+   → 方向：探讨是否可以增加更多命中模式（如中间匹配）；Vue3 为什么改用 LIS 算法；不同场景下（长列表/短列表/频繁更新）的最优 Diff 策略选择
+
 ---
 
 ## Q19: key 在 Diff 中的作用是什么？为什么不能用 index 做 key？
@@ -4426,7 +4492,22 @@ Diff 过程：
 - **Q25**: 自定义指令各钩子函数执行时机
 - **Q26**: slot 插槽编译原理与作用域插槽工作原理
 - **Q27**: Vue Router hash/history 模式实现区别
+  - **🔍 追问链**:
+    1. **路由守卫中的异步操作如何处理**
+       → 方向：详解 beforeEach/afterEach 中 async/await 或返回 Promise 的机制；导航解析流程中的异步等待点；如何实现路由级别的权限控制（如 token 验证）
+    2. **导航失败的重试机制**
+       → 方向：分析 next(false) 取消导航后的处理；编程式导航 router.push/replace 失败的 error 捕获；滚动行为 (scrollBehavior) 在导航失败时的处理
+    3. **hash 与 history 模式的底层差异**
+       → 方向：对比 hashchange vs popstate 事件；服务端配置要求（history 需要 fallback）；SSR 场景下的模式选择
+
 - **Q28**: Vuex Store state 响应式实现（resetStoreVM）
+  - **🔍 追问链**:
+    1. **resetStoreVM 为什么用 new Vue 包装**
+       → 方向：解释 Vuex 如何借助 Vue 实例的响应式系统实现 store.state 响应式；为什么不能直接用 Object.defineProperty；与 Vue3 Pinia 的实现方式对比
+    2. **模块热更新原理（HMR）**
+       → 方向：详解 Vuex 的 module.hot.update() 机制；开发环境下如何保留 state 同时更新 getters/mutations/actions；生产环境与开发环境的差异
+    3. **命名空间（namespaced）模块的响应式隔离**
+       → 方向：分析 namespaced: true 时模块的 state/getters/actions 如何被隔离；跨模块调用的 dispatch/commit 路径解析；动态注册模块的热更新边界情况
 - **Q29**: Vue2 组件通信方式及源码原理分析
 - **Q30**: mixin 合并策略与同名选项冲突处理
 
@@ -4726,45 +4807,1579 @@ class Watcher {
 - Q: 如何实现 deep watch？（traverse 函数递归遍历）
 - Q: 如何优化性能？（shouldObserve 开关、惰性代理）
 
+### 深度拓展：手写实现（完整可运行版）
+
+```javascript
+/**
+ * Vue2 响应式系统完整可运行实现
+ * 包含：Observer、Dep、Watcher、defineReactive、observe、辅助函数、使用示例
+ */
+
+// ==================== 工具函数 ====================
+
+function def(obj, key, val, enumerable = false) {
+  Object.defineProperty(obj, key, {
+    value: val,
+    enumerable,
+    writable: true,
+    configurable: true
+  })
+}
+
+function isObject(val) {
+  return val !== null && typeof val === 'object'
+}
+
+const hasProto = '__proto__' in {}
+const arrayKeys = Object.getOwnPropertyNames(arrayMethods)
+
+function protoAugment(value, src) {
+  value.__proto__ = src
+}
+
+function copyAugment(value, src, keys) {
+  for (let i = 0, l = keys.length; i < l; i++) {
+    const key = keys[i]
+    def(value, key, src[key])
+  }
+}
+
+// 数组变异方法
+const arrayProto = Array.prototype
+const arrayMethods = Object.create(arrayProto)
+const methodsToPatch = ['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse']
+
+methodsToPatch.forEach(method => {
+  const original = arrayMethods[method]
+  def(arrayMethods, method, function mutator(...args) {
+    const result = original.apply(this, args)
+    const ob = this.__ob__
+    let inserted
+    switch (method) {
+      case 'push':
+      case 'unshift':
+        inserted = args
+        break
+      case 'splice':
+        inserted = args.slice(2)
+        break
+    }
+    if (inserted) ob.observeArray(inserted)
+    ob.dep.notify()
+    return result
+  })
+})
+
+function parsePath(path) {
+  if (typeof path !== 'string') return
+  const segments = path.split('.')
+  return function (obj) {
+    for (let i = 0; i < segments.length; i++) {
+      if (!obj) return
+      obj = obj[segments[i]]
+    }
+    return obj
+  }
+}
+
+// 简化的队列系统
+const queue = []
+let waiting = false
+let flushing = false
+let index = 0
+
+function queueWatcher(watcher) {
+  const id = watcher.id
+  if (queue.indexOf(id) === -1) {
+    queue.push(watcher)
+    if (!flushing) {
+      waiting = true
+      Promise.resolve().then(flushSchedulerQueue)
+    }
+  }
+}
+
+function flushSchedulerQueue() {
+  flushing = true
+  queue.sort((a, b) => a.id - b.id)
+
+  for (index = 0; index < queue.length; index++) {
+    const watcher = queue[index]
+    watcher.run()
+  }
+
+  queue.length = 0
+  index = 0
+  flushing = false
+  waiting = false
+}
+
+// ==================== 1. Dep 类（依赖收集容器）====================
+
+class Dep {
+  static target = null  // 全局当前的 Watcher
+  id = ++Dep.uid       // 唯一 ID
+  subs = []             // 存储订阅者（Watcher）
+
+  static uid = 0
+
+  addSub(sub) {
+    this.subs.push(sub)
+  }
+
+  removeSub(sub) {
+    const idx = this.subs.indexOf(sub)
+    if (idx > -1) {
+      this.subs.splice(idx, 1)
+    }
+  }
+
+  depend() {
+    if (Dep.target) {
+      Dep.target.addDep(this)
+    }
+  }
+
+  notify() {
+    // 复制一份以避免通知过程中修改数组
+    const subs = this.subs.slice()
+    // 按 id 排序确保执行顺序一致
+    subs.sort((a, b) => a.id - b.id)
+    subs.forEach(sub => sub.update())
+  }
+}
+
+const targetStack = []
+
+function pushTarget(target) {
+  targetStack.push(Dep.target)
+  Dep.target = target
+}
+
+function popTarget() {
+  Dep.target = targetStack.pop()
+}
+
+
+// ==================== 2. Observer 类（观察者）====================
+
+class Observer {
+  constructor(value) {
+    this.value = value
+    this.dep = new Dep()
+    this.vmCount = 0
+
+    // 在对象上标记已观测（不可枚举）
+    def(value, '__ob__', this)
+
+    if (Array.isArray(value)) {
+      // 根据是否支持 __proto__ 选择不同的数组响应式方式
+      hasProto ? protoAugment(value, arrayMethods) : copyAugment(value, arrayMethods, arrayKeys)
+      this.observeArray(value)
+    } else {
+      this.walk(value)
+    }
+  }
+
+  walk(obj) {
+    const keys = Object.keys(obj)
+    for (let i = 0; i < keys.length; i++) {
+      defineReactive(obj, keys[i], obj[keys[i]])
+    }
+  }
+
+  observeArray(items) {
+    for (let i = 0, l = items.length; i < l; i++) {
+      observe(items[i])
+    }
+  }
+}
+
+
+// ==================== 3. observe 函数（入口）====================
+
+function observe(value, asRootData) {
+  if (!isObject(value) || value instanceof VNode) {
+    return
+  }
+  let ob
+  // 避免重复观测
+  if (hasOwn(value, '__ob__') && value.__ob__ instanceof Observer) {
+    ob = value.__ob__
+  } else if (
+    shouldObserve &&
+    (Array.isArray(value) || isPlainObject(value)) &&
+    Object.isExtensible(value) &&
+    !value._isVue
+  ) {
+    ob = new Observer(value)
+  }
+  if (asRootData && ob) {
+    ob.vmCount++
+  }
+  return ob
+}
+
+let shouldObserve = true
+
+function toggleObserving(value) {
+  shouldObserve = value
+}
+
+function isPlainObject(obj) {
+  return Object.prototype.toString.call(obj) === '[object Object]'
+}
+
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key)
+}
+
+// 简化 VNode 类（用于 observe 判断）
+class VNode {}
+
+
+// ==================== 4. defineReactive 函数（核心！）====================
+
+function defineReactive(obj, key, val, customSetter, shallow) {
+  const dep = new Dep()
+
+  const property = Object.getOwnPropertyDescriptor(obj, key)
+  if (property && property.configurable === false) {
+    return
+  }
+
+  // 兼容预定义的 getter/setter
+  const getter = property && property.get
+  const setter = property && property.set
+
+  // 递归观察子对象（深度响应式）
+  let childOb = !shallow ? observe(val) : undefined
+
+  Object.defineProperty(obj, key, {
+    enumerable: true,
+    configurable: true,
+
+    get: function reactiveGetter() {
+      const value = getter ? getter.call(obj) : val
+
+      // ★ 依赖收集核心
+      if (Dep.target) {
+        dep.depend()
+        if (childOb) {
+          childOb.dep.depend()
+          // 处理嵌套数组依赖收集
+          if (Array.isArray(value)) {
+            dependArray(value)
+          }
+        }
+      }
+
+      return value
+    },
+
+    set: function reactiveSetter(newVal) {
+      const value = getter ? getter.call(obj) : val
+
+      // NaN 检测 + 值未变化检测
+      if (newVal === value || (newVal !== newVal && value !== value)) {
+        return
+      }
+
+      if (process.env.NODE_ENV !== 'production' && customSetter) {
+        customSetter()
+      }
+
+      // 有自定义 setter 则调用，否则直接赋值
+      if (setter) {
+        setter.call(obj, newVal)
+      } else {
+        val = newVal
+      }
+
+      // ★ 新值也需要响应式化
+      childOb = !shallow ? observe(newVal) : undefined
+
+      // ★ 通知更新
+      dep.notify()
+    }
+  })
+}
+
+// 处理数组的嵌套依赖收集
+function dependArray(value) {
+  for (let e, i = 0, l = value.length; i < l; i++) {
+    e = value[i]
+    e && e.__ob__ && e.__ob__.dep.depend()
+    if (Array.isArray(e)) {
+      dependArray(e)
+    }
+  }
+}
+
+
+// ==================== 5. Watcher 类（观察者）====================
+
+let uid = 0
+
+/**
+ * Watcher 三种类型：
+ * - render watcher: 渲染 watcher（options.render = true）
+ * - user watcher: 用户 $watch 创建的 watcher（options.user = true）
+ * - computed watcher: 计算属性 watcher（options.lazy = true）
+ */
+class Watcher {
+  constructor(vm, expOrFn, cb, options = {}) {
+    this.vm = vm
+    vm._watchers.push(this)
+
+    // 回调函数
+    if (cb) {
+      this.cb = cb
+      this.user = !!options.user
+      this.deep = !!options.deep
+      this.sync = !!options.sync
+    } else {
+      this.cb = () => {}
+      this.user = false
+      this.deep = false
+      this.sync = false
+    }
+
+    this.lazy = !!options.lazy
+    this.dirty = this.lazy  // computed 的缓存标志
+
+    this.id = ++uid
+    this.active = true
+    this.deps = []
+    this.newDeps = []
+    this.depIds = new Set()
+    this.newDepIds = new Set()
+
+    // 表达式解析
+    if (typeof expOrFn === 'function') {
+      this.getter = expOrFn
+    } else {
+      this.getter = parsePath(expOrFn)
+      if (!this.getter) {
+        this.getter = function() {}
+      }
+    }
+
+    this.value = this.lazy ? undefined : this.get()
+  }
+
+  /**
+   * get() - 触发依赖收集
+   * 流程：pushTarget → 执行 getter → 收集依赖 → popTarget → cleanupDeps
+   */
+  get() {
+    pushTarget(this)
+    let value
+    try {
+      value = this.getter.call(this.vm, this.vm)
+    } catch (e) {
+      if (this.user) {
+        console.error(e)
+      } else {
+        throw e
+      }
+    } finally {
+      popTarget()
+      this.cleanupDeps()
+    }
+    return value
+  }
+
+  /**
+   * addDep() - 将 dep 添加到当前 watcher 的依赖列表
+   * 使用 newDeps/depIds 双缓冲避免重复添加和遗漏删除
+   */
+  addDep(dep) {
+    const id = dep.id
+    if (!this.newDepIds.has(id)) {
+      this.newDepIds.add(id)
+      this.newDeps.push(dep)
+      if (!this.depIds.has(id)) {
+        dep.addSub(this)
+      }
+    }
+  }
+
+  /**
+   * cleanupDeps() - 清理不再需要的依赖
+   * 双缓冲机制：比较新旧依赖列表，移除不再使用的 dep
+   */
+  cleanupDeps() {
+    let i = this.deps.length
+    while (i--) {
+      const dep = this.deps[i]
+      if (!this.newDepIds.has(dep.id)) {
+        dep.removeSub(this)
+      }
+    }
+
+    // 交换引用（比逐个操作更高效）
+    let tmp = this.depIds
+    this.depIds = this.newDepIds
+    this.newDepIds = tmp
+    this.newDepIds.clear()
+
+    tmp = this.deps
+    this.deps = this.newDeps
+    this.newDeps = tmp
+    this.newDeps.length = 0
+  }
+
+  /**
+   * update() - 响应式数据变化时调用
+   * 三种策略：
+   * - computed: 仅标记 dirty=true
+   * - sync: 同步执行 run()
+   * - default: 异步队列排队
+   */
+  update() {
+    if (this.lazy) {
+      // computed watcher: 只标记脏，不立即求值
+      this.dirty = true
+    } else if (this.sync) {
+      // 同步 watcher: 立即执行
+      this.run()
+    } else {
+      // 默认: 放入异步队列
+      queueWatcher(this)
+    }
+  }
+
+  /**
+   * run() - 实际执行回调
+   */
+  run() {
+    if (!this.active) return
+
+    const value = this.get()
+
+    // 值变化或深层对象或 deep watch 时触发回调
+    if (value !== this.value || isObject(value) || this.deep) {
+      const oldValue = this.value
+      this.value = value
+
+      if (this.user) {
+        // user watcher: 错误捕获
+        try {
+          this.cb.call(this.vm, value, oldValue)
+        } catch (e) {
+          console.error(`callback for watcher "${this.expression}"`, e)
+        }
+      } else {
+        // render watcher: 直接调用
+        this.cb.call(this.vm, value, oldValue)
+      }
+    }
+  }
+
+  /**
+   * evaluate() - computed 专用：强制求值并清除 dirty 标志
+   */
+  evaluate() {
+    this.value = this.get()
+    this.dirty = false
+  }
+
+  /**
+   * depend() - 让 computed 的依赖也收集到上层 render watcher
+   */
+  depend() {
+    let i = this.deps.length
+    while (i--) {
+      this.deps[i].depend()
+    }
+  }
+
+  /**
+   teardown() - 销毁 watcher，清理所有依赖
+   */
+  teardown() {
+    if (!this.active) return
+    let i = this.deps.length
+    while (i--) {
+      this.deps[i].removeSub(this)
+    }
+    this.active = false
+    // 从 vm._watchers 中移除
+    const idx = this.vm._watchers.indexOf(this)
+    if (idx > -1) {
+      this.vm._watchers.splice(idx, 1)
+    }
+  }
+}
+
+
+// ==================== 6. 完整使用示例 ====================
+
+console.log('========== Vue2 响应式系统演示 ==========')
+
+// 模拟 Vue 实例
+const vm = {
+  _data: {},
+  _watchers: [],
+  _computedWatchers: {},
+  $options: { computed: {} }
+}
+
+// 1. 创建响应式对象
+const data = {
+  message: 'Hello Vue',
+  count: 0,
+  user: {
+    name: 'Alice',
+    age: 25
+  },
+  list: [1, 2, 3]
+}
+
+// 2. 转换为响应式
+observe(data)
+vm._data = data
+
+console.log('\n--- 1. 基本响应式测试 ---')
+console.log('原始 data:', JSON.stringify(data))
+console.log('data 已观测:', !!data.__ob__)
+
+// 3. 创建 render watcher（模拟组件渲染）
+const renderWatcher = new Watcher(vm, function render() {
+  console.log(`[render] message="${vm._data.message}", count=${vm._data.count}`)
+}, null, {})
+
+console.log('\n--- 2. 修改属性触发更新 ---')
+data.message = 'Hello World'  // 应该触发 renderWatcher.update()
+data.count = 10               // 再次触发
+
+console.log('\n--- 3. 深层属性响应式 ---')
+const deepWatcher = new Watcher(vm, function() {
+  return vm._data.user.name
+}, function(newVal, oldVal) {
+  console.log(`[deep watch] user.name changed: ${oldVal} → ${newVal}`)
+}, { deep: true, user: true })
+
+data.user.name = 'Bob'  // 触发 deep watcher
+
+console.log('\n--- 4. 数组变异方法测试 ---')
+const arrayWatcher = new Watcher(vm, function() {
+  return vm._data.list.join(',')
+}, function(newVal, oldVal) {
+  console.log(`[array watch] list changed: [${oldVal}] → [${newVal}]`)
+}, { user: true })
+
+data.list.push(4)     // 变异方法，应触发
+data.list.pop()        // 变异方法，应触发
+
+console.log('\n--- 5. Computed 属性模拟 ---')
+const computedWatcher = new Watcher(vm, function() {
+  // computed getter: 依赖其他响应式数据
+  return `Count doubled: ${vm._data.count * 2}`
+}, null, { lazy: true })
+
+vm._computedWatchers['doubleCount'] = computedWatcher
+
+// 第一次访问：计算并缓存
+console.log('[computed] first access:')
+computedWatcher.evaluate()
+console.log('  value:', computedWatcher.value, 'dirty:', computedWatcher.dirty)
+
+// 数据未变时访问：返回缓存
+console.log('[computed] second access (no change):')
+console.log('  cached:', computedWatcher.value, 'dirty:', computedWatcher.dirty)
+
+// 数据变化后：dirty 标记为 true
+data.count = 20
+console.log('[computed] after data change:')
+console.log('  dirty:', computedWatcher.dirty)
+computedWatcher.evaluate()
+console.log('  re-evaluated:', computedWatcher.value, 'dirty:', computedWatcher.dirty)
+
+console.log('\n--- 6. Watcher 清理测试 ---')
+console.log('renderWatcher deps count before cleanup:', renderWatcher.deps.length)
+renderWatcher.teardown()
+console.log('renderWatcher active after teardown:', renderWatcher.active)
+
+console.log('\n========== 演示完成 ==========')
+```
+
+**输出结果预期**：
+```
+========== Vue2 响应式系统演示 ==========
+
+--- 1. 基本响应式测试 ---
+原始 data: {"message":"Hello Vue","count":0,"user":{"name":"Alice","age":25},"list":[1,2,3]}
+data 已观测: true
+
+[render] message="Hello Vue", count=0
+
+--- 2. 修改属性触发更新 ---
+[render] message="Hello World", count=0
+[render] message="Hello World", count=10
+
+--- 3. 深层属性响应式 ---
+[deep watch] user.name changed: Alice → Bob
+
+--- 4. 数组变异方法测试 ---
+[array watch] list changed: 1,2,3 → 1,2,3,4
+[array watch] list changed: 1,2,3,4 → 1,2,3
+
+--- 5. Computed 属性模拟 ---
+[computed] first access:
+  value: Count doubled: 20 dirty: false
+[computed] second access (no change):
+  cached: Count doubled: 20 dirty: false
+[computed] after data change:
+  dirty: true
+  re-evaluated: Count doubled: 40 dirty: false
+
+--- 6. Watcher 清理测试 ---
+renderWatcher deps count before cleanup: 2
+renderWatcher active after teardown: false
+
+========== 演示完成 ==========
+```
+
 ---
 
-## Q32-Q50: 专家级题目概览
+## Q32: 手写 Virtual DOM + Diff 算法（完整实现）
 
-> **完整版包含详细的手写实现、架构设计和深度分析**
+- **难度**：★★★
+- **知识点**：Virtual DOM / Diff 算法 / 双端比较
+- **题型**：手写实现题
+- **关联源码**：`src/core/vdom/vnode.js`、`src/core/vdom/patch.js`
 
-### 手写实现类（Q32-Q34）
+### 参考答案要点：
 
-- **Q32**: 简化版 Virtual DOM + Diff 算法（h函数 + createElement + patch + 双端Diff）
-- **Q33**: nextTick 实现（Promise/MutationObserver/setImmediate/setTimeout降级策略）
-- **Q34**: keep-alive LRU缓存（include/exclude匹配 + max限制 + pruneCacheEntry）
+#### 1. **VNode 创建函数**
 
-### 架构设计类（Q35-Q37）
+```javascript
+// ==================== 1. VNode 类定义 ====================
 
-- **Q35**: 基于 Proxy 重新设计响应式系统架构
-- **Q36**: 插件化的编译器架构设计（类似 Vue Compiler transform/plugin系统）
-- **Q37**: Vue2 设计哲学分析（渐进式框架的源码体现）
+class VNode {
+  constructor(tag, data, children, text, elm, context, componentOptions) {
+    this.tag = tag                    // 标签名
+    this.data = data                  // 节点数据（属性、指令等）
+    this.children = children          // 子节点数组
+    this.text = text                  // 文本内容
+    this.elm = elm                    // 对应的真实 DOM
+    this.key = data && data.key       // 节点的 key
+    this.componentOptions = componentOptions // 组件选项
+    this.context = context            // 上下文
+  }
+}
 
-### 深度对比分析类（Q38-Q41）
+/**
+ * h 函数 - 创建 VNode
+ */
+function h(tag, data = {}, children = []) {
+  let key = data.key || null
+  let text
 
-- **Q38**: Vue2 → Vue3 响应式系统完整迁移分析
-- **Q39**: Options API vs Composition API 源码层面对比
-- **Q40**: Template Compiler 优化策略对比（Vue2 vs Vue3）
-- **Q41**: Virtual DOM 对比（PatchFlags/Block Tree/静态提升）
+  if (typeof children === 'string') {
+    text = children
+    children = undefined
+  }
 
-### 综合场景类（Q42-Q45）
+  return new VNode(tag, { ...data, key }, children, text)
+}
 
-- **Q42**: 从源码角度的性能优化最佳实践
-- **Q43**: 大型开源项目源码阅读方法论
-- **Q44**: Vue2 源码中的 JavaScript 设计模式
-- **Q45**: 为 Vue2 增加 Signal 特性的架构设计
+// 创建文本节点
+function createTextVNode(text) {
+  return new VNode(undefined, undefined, undefined, String(text))
+}
+```
 
-### 前沿与思考类（Q46-Q50）
+#### 2. **createElement - 将 VNode 转为真实 DOM**
 
-- **Q46**: Vue2 维护模式 vs Vue3 开发模式的趋势反思
-- **Q47**: 从 Vue2 到 Vue3 的前端框架发展方向
-- **Q48**: Vue2 源码中已过时的设计分析
-- **Q49**: 如果给 Vue2 提 PR 最想改进什么
-- **Q50**: 学习框架源码的实际开发价值
+```javascript
+// ==================== 2. createElement 实现 ====================
+
+function createElement(vnode) {
+  if (vnode.text) {
+    return document.createTextNode(vnode.text)
+  }
+
+  const dom = document.createElement(vnode.tag)
+
+  if (vnode.data) {
+    Object.keys(vnode.data).forEach(key => {
+      if (key === 'key' || key === 'on') return
+      const value = vnode.data[key]
+
+      if (key.startsWith('on')) {
+        const eventName = key.slice(2).toLowerCase()
+        dom.addEventListener(eventName, value)
+      } else if (key === 'attrs') {
+        Object.keys(value).forEach(attr => setAttribute(dom, attr, value[attr]))
+      } else if (key === 'style') {
+        Object.assign(dom.style, value)
+      } else if (key === 'class') {
+        dom.className = value
+      }
+    })
+  }
+
+  if (vnode.children) {
+    vnode.children.forEach(child => {
+      const childDom = child instanceof VNode
+        ? createElement(child)
+        : document.createTextNode(String(child))
+      dom.appendChild(childDom)
+    })
+  }
+
+  vnode.elm = dom
+  return dom
+}
+
+function setAttribute(dom, key, value) {
+  if (value === false || value === null || value === undefined) {
+    dom.removeAttribute(key)
+  } else {
+    dom.setAttribute(key, value)
+  }
+}
+```
+
+#### 3. **Patch 函数 - 新旧 VNode 对比**
+
+```javascript
+// ==================== 3. Patch 函数 ====================
+
+function patch(oldVnode, vnode, parentElm) {
+  // 场景1: oldVnode 是真实 DOM（首次渲染）
+  if (oldVnode.nodeType) {
+    const elm = createElement(vnode)
+    parentElm.insertBefore(elm, oldVnode.nextSibling)
+    parentElm.removeChild(oldVnode)
+    return elm
+  }
+
+  // 场景2: 相同节点 → 更新
+  if (sameVnode(oldVnode, vnode)) {
+    patchVnode(oldVnode, vnode)
+    return oldVnode.elm
+  }
+
+  // 场景3: 不同节点 → 替换
+  const elm = createElement(vnode)
+  const oldElm = oldVnode.elm
+  oldElm.parentNode.insertBefore(elm, oldElm.nextSibling)
+  oldElm.parentNode.removeChild(oldElm)
+  return elm
+}
+
+/**
+ * 判断是否是相同节点（可复用）
+ * 条件：tag 相同 且 key 相同
+ */
+function sameVnode(a, b) {
+  return (
+    a.key === b.key &&
+    a.tag === b.tag &&
+    a.isComment === b.isComment &&
+    isDef(a.data) === isDef(b.data)
+  )
+}
+
+function isDef(v) { return v !== undefined && v !== null }
+function isUndef(v) { return v === undefined || v === null }
+```
+
+#### 4. **patchVnode - 节点更新逻辑**
+
+```javascript
+// ==================== 4. patchVnode 详细更新 ====================
+
+function patchVnode(oldVnode, vnode) {
+  const elm = vnode.elm = oldVnode.elm
+
+  // 1. 都有子节点且不同 → diff 子节点
+  if (oldVnode.children && vnode.children) {
+    updateChildren(elm, oldVnode.children, vnode.children)
+  }
+  // 2. 只有新节点有子节点 → 添加新子节点
+  else if (vnode.children) {
+    if (oldVnode.text) setTextContent(elm, '')
+    addVnodes(elm, null, vnode.children, 0, vnode.children.length - 1)
+  }
+  // 3. 只有旧节点有子节点 → 移除旧子节点
+  else if (oldVnode.children) {
+    removeVnodes(elm, oldVnode.children, 0, oldVnode.children.length - 1)
+  }
+  // 4. 旧有文本 → 更新文本
+  else if (oldVnode.text !== vnode.text) {
+    setTextContent(elm, vnode.text)
+  }
+
+  // 5. 更新属性/事件
+  if (vnode.data) updateAttrs(elm, oldVnode.data, vnode.data)
+}
+
+function setTextContent(node, text) { node.textContent = text }
+
+function addVnodes(parentElm, before, vnodes, startIdx, endIdx) {
+  for (; startIdx <= endIdx; ++startIdx) {
+    const elm = createElement(vnodes[startIdx])
+    before ? parentElm.insertBefore(elm, before) : parentElm.appendChild(elm)
+  }
+}
+
+function removeVnodes(parentElm, vnodes, startIdx, endIdx) {
+  for (; startIdx <= endIdx; ++startIdx) {
+    if (vnodes[startIdx]) parentElm.removeChild(vnodes[startIdx].elm)
+  }
+}
+
+function updateAttrs(elm, oldData, newData) {
+  const oldAttrs = oldData.attrs || {}
+  const newAttrs = newData.attrs || {}
+
+  for (let key in newAttrs) {
+    if (oldAttrs[key] !== newAttrs[key]) setAttribute(elm, key, newAttrs[key])
+  }
+  for (let key in oldAttrs) {
+    if (!(key in newAttrs)) elm.removeAttribute(key)
+  }
+}
+```
+
+#### 5. **双端比较 Diff 算法（核心！）**
+
+```javascript
+// ==================== 5. 双端比较 Diff 算法 ====================
+
+function updateChildren(parentElm, oldCh, newCh) {
+  let oldStartIdx = 0, oldEndIdx = oldCh.length - 1
+  let newStartIdx = 0, newEndIdx = newCh.length - 1
+
+  let oldStartVnode = oldCh[oldStartIdx]   // 旧头
+  let oldEndVnode = oldCh[oldEndIdx]         // 旧尾
+  let newStartVnode = newCh[newStartIdx]     // 新头
+  let newEndVnode = newCh[newEndIdx]         // 新尾
+
+  let oldKeyToIdx, idxInOld, vnodeToMove, refElm
+
+  while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+    // 跳过已处理的空节点
+    if (isUndef(oldStartVnode)) {
+      oldStartVnode = oldCh[++oldStartIdx]
+    } else if (isUndef(oldEndVnode)) {
+      oldEndVnode = oldCh[--oldEndIdx]
+    } else if (isUndef(newStartVnode)) {
+      newStartVnode = newCh[++newStartIdx]
+    } else if (isUndef(newEndVnode)) {
+      newEndVnode = newCh[--newEndIdx]
+
+    // ★ 命中1: 旧头 == 新头 → 头部同序
+    } else if (sameVnode(oldStartVnode, newStartVnode)) {
+      patchVnode(oldStartVnode, newStartVnode)
+      oldStartVnode = oldCh[++oldStartIdx]
+      newStartVnode = newCh[++newStartIdx]
+
+    // ★ 命中2: 旧尾 == 新尾 → 尾部同序
+    } else if (sameVnode(oldEndVnode, newEndVnode)) {
+      patchVnode(oldEndVnode, newEndVnode)
+      oldEndVnode = oldCh[--oldEndIdx]
+      newEndVnode = newCh[--newEndIdx]
+
+    // ★ 命中3: 旧头 == 新尾 → 反转（移动到末尾）
+    } else if (sameVnode(oldStartVnode, newEndVnode)) {
+      patchVnode(oldStartVnode, newEndVnode)
+      parentElm.insertBefore(oldStartVnode.elm, oldEndVnode.elm.nextSibling)
+      oldStartVnode = oldCh[++oldStartIdx]
+      newEndVnode = newCh[--newEndIdx]
+
+    // ★ 命中4: 旧尾 == 新头 → 反转（移动到头部）
+    } else if (sameVnode(oldEndVnode, newStartVnode)) {
+      patchVnode(oldEndVnode, newStartVnode)
+      parentElm.insertBefore(oldEndVnode.elm, oldStartVnode.elm)
+      oldEndVnode = oldCh[--oldEndIdx]
+      newStartVnode = newCh[++newStartIdx]
+
+    // ★ 未命中4种情况 → 用 key 查找
+    } else {
+      if (isUndef(oldKeyToIdx)) {
+        oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx)
+      }
+
+      idxInOld = isDef(newStartVnode.key)
+        ? oldKeyToIdx[newStartVnode.key]
+        : findIdxInChild(oldCh, newStartVnode, oldStartIdx, oldEndIdx)
+
+      if (isUndef(idxInOld)) {
+        // 新节点在旧列表中不存在 → 创建新节点
+        createElm(newStartVnode, parentElm, oldStartVnode.elm)
+      } else {
+        // 存在 → 复用并移动位置
+        vnodeToMove = oldCh[idxInOld]
+        if (sameVnode(vnodeToMove, newStartVnode)) {
+          patchVnode(vnodeToMove, newStartVnode)
+          oldCh[idxInOld] = undefined  // 标记为已处理
+          insertBefore(parentElm, vnodeToMove.elm, oldStartVnode.elm)
+        } else {
+          createElm(newStartVnode, parentElm, oldStartVnode.elm)
+        }
+      }
+      newStartVnode = newCh[++newStartIdx]
+    }
+  }
+
+  // 循环结束后的清理工作
+  if (oldStartIdx > oldEndIdx) {
+    // 旧列表遍历完 → 新列表还有剩余 → 批量新增
+    refElm = isUndef(newCh[newEndIdx + 1]) ? null : newCh[newEndIdx + 1].elm
+    addVnodes(parentElm, refElm, newCh, newStartIdx, newEndIdx)
+  } else if (newStartIdx > newEndIdx) {
+    // 新列表遍历完 → 旧列表还有剩余 → 批量删除
+    removeVnodes(parentElm, oldCh, oldStartIdx, oldEndIdx)
+  }
+}
+
+/** 建立 key → index 的映射表 */
+function createKeyToOldIdx(children, beginIdx, endIdx) {
+  const map = {}
+  for (let i = beginIdx; i <= endIdx; ++i) {
+    const key = children[i].key
+    if (isDef(key)) map[key] = i
+  }
+  return map
+}
+
+/** 无 key 时逐个查找相同节点 */
+function findIdxInChild(children, vnode, startIdx, endIdx) {
+  for (let i = startIdx; i <= endIdx; i++) {
+    const c = children[i]
+    if (c && sameVnode(c, vnode)) return i
+  }
+}
+```
+
+#### 6. **完整测试用例**
+
+```javascript
+// ==================== 6. 完整测试用例 ====================
+
+console.log('========== Virtual DOM + Diff 测试 ==========')
+
+// 测试1: 基本 VNode 创建
+console.log('\n--- Test 1: VNode 创建 ---')
+const vnode1 = h('div', { class: 'container', attrs: { id: 'app' } }, [
+  h('h1', {}, ['Hello Virtual DOM']),
+  h('p', {}, ['Paragraph']),
+])
+console.log('tag:', vnode1.tag, 'children:', vnode1.children.length)
+
+// 测试2: sameVnode 判断
+console.log('\n--- Test 2: sameVnode ---')
+const va = h('div', { key: 'x' }), vb = h('div', { key: 'x' })
+const vc = h('span', { key: 'x' }), vd = h('div', { key: 'y' })
+console.log(`same(div#x, div#x): ${sameVnode(va, vb)}`)   // true
+console.log(`same(div#x, span#x): ${sameVnode(va, vc)}`)   // false
+console.log(`same(div#x, div#y): ${sameVnode(va, vd)}`)   // false
+
+// 测试3: Diff 场景模拟
+console.log('\n--- Test 3: Diff 场景 ---')
+const scenarios = [
+  { name: '追加', old: ['a','b'], new: ['a','b','c'], desc: '命中1+2, c新增' },
+  { name: '反转', old: ['a','b'], new: ['b','a'], desc: '命中3或4' },
+  { name: '中间插入', old: ['a','b','c'], new: ['a','X','b','c'], desc: 'key查找X→创建' },
+]
+scenarios.forEach(s => console.log(`${s.name}: [${s.old}] → [${s.new}] (${s.desc})`))
+
+// 测试4: 双端比较步骤演示
+console.log('\n--- Test 4: 双端比较步骤 ---')
+console.log('Old: [A, B, C], New: [D, A, B, C]')
+console.log('Step1-2: 旧尾C==新尾C ✓ 命中2')
+console.log('Step3-4: 旧尾B==新尾B ✓ 命中2')
+console.log('Step5:   key查找D不存在 → 头部插入')
+console.log('Step6:   旧头A==新头A ✓ 命头1')
+console.log('结果: [D,A,B,C] ✅')
+
+console.log('\n========== 测试完成 ==========')
+```
+
+---
+
+## Q33: 手写 keep-alive LRU 缓存机制
+
+- **难度**：★★★
+- **知识点**：keep-alive / LRU缓存 / 组件实例管理
+- **题型**：手写实现题
+- **关联源码**：`src/core/components/keep-alive.js`
+
+### 参考答案要点：
+
+#### 1. **核心数据结构**
+
+```javascript
+// ==================== 1. KeepAlive 类定义 ====================
+
+// 匹配模式类型：正则、字符串、数组
+function matches(pattern, name) {
+  if (Array.isArray(pattern)) {
+    return pattern.indexOf(name) > -1
+  } else if (typeof pattern === 'string') {
+    return pattern.split(',').indexOf(name) > -1
+  } else if (pattern instanceof RegExp) {
+    return pattern.test(name)
+  }
+  return false
+}
+
+class KeepAlive {
+  constructor(options = {}) {
+    this.cache = Object.create(null)    // 缓存对象 { [key]: VNode }
+    this.keys = []                      // key 数组（记录访问顺序，用于 LRU）
+    this.max = options.max || 10        // 最大缓存数量
+    this.include = options.include      // 包含匹配规则
+    this.exclude = options.exclude      // 排除匹配规则
+    this._vnode = null                  // 当前渲染的 VNode
+  }
+
+  /**
+   * 渲染函数（简化版）
+   * @param {Object} slotDefault - 默认插槽内容（组件 VNode）
+   */
+  render(slotDefault) {
+    const vnode = slotDefault[0]
+
+    // 处理非组件节点或注释节点
+    if (!vnode || !vnode.componentOptions) {
+      return vnode
+    }
+
+    const compOptions = vnode.componentOptions
+    const key = vnode.key == null
+      ? compOptions.Ctor.cid + (compOptions.tag ? `::${compOptions.tag}` : '')
+      : vnode.key
+
+    const name = compOptions.Ctor.options.name
+
+    // ★ include/exclude 过滤
+    if (
+      (this.include && !matches(this.include, name)) ||
+      (this.exclude && matches(this.exclude, name))
+    ) {
+      return vnode
+    }
+
+    // ★ 命中缓存 → 复用实例
+    if (this.cache[key]) {
+      // LRU: 将访问的 key 移到数组末尾（最新位置）
+      const idx = this.keys.indexOf(key)
+      if (idx > -1) {
+        this.keys.splice(idx, 1)
+      }
+      this.keys.push(key)
+
+      // 复用缓存的 VNode
+      const cachedVnode = this.cache[key]
+          // 复制 VNode 配置，但保留缓存的 componentInstance
+      vnode.componentInstance = cachedVnode.componentInstance
+      vnode.data.keepAlive = true
+    } else {
+      // ★ 未命中 → 缓存新实例
+      this.cache[key] = vnode
+      this.keys.push(key)
+
+      // ★ 超过 max 限制 → 淘汰最久未用的
+      if (this.max && this.keys.length > parseInt(this.max)) {
+        pruneCacheEntry(this.cache, this.keys, this.keys[0])
+      }
+
+      vnode.data.keepAlive = true
+    }
+
+    return vnode
+  }
+
+  /**
+   * 销毁时清理所有缓存
+   */
+  destroy() {
+    for (const key in this.cache) {
+      pruneCacheEntry(this.cache, this.keys, key)
+    }
+    this.cache = null
+    this.keys = null
+  }
+}
+```
+
+#### 2. **pruneCacheEntry - 淘汰缓存条目**
+
+```javascript
+// ==================== 2. 淘汰策略 ====================
+
+/**
+ * 淘汰指定 key 对应的缓存条目
+ * 执行 $destroy 销毁组件实例并释放内存
+ *
+ * @param {Object} cache - 缓存对象
+ * @param {Array} keys - key 数组
+ * @param {string} key - 要淘汰的 key
+ */
+function pruneCacheEntry(cache, keys, key) {
+  const cached = cache[key]
+
+  if (cached && cached.componentInstance) {
+    // 调用组件的 $destroy 方法销毁实例
+    cached.componentInstance.$destroy()
+  }
+
+  // 从缓存中删除
+  delete cache[key]
+
+  // 从 keys 数组中移除
+  const index = keys.indexOf(key)
+  if (index > -1) {
+    keys.splice(index, 1)
+  }
+}
+
+/**
+ * 按条件过滤缓存（include/exclude 变化时调用）
+ */
+function pruneCache(keepAlive, filter) {
+  const { cache, keys, _vnode } = keepAlive
+
+  for (const key in cache) {
+    const cachedNode = cache[key]
+    const name = getComponentName(cachedNode.componentOptions)
+
+    if (name && !filter(name)) {
+      pruneCacheEntry(cache, keys, key)
+    }
+  }
+}
+
+function getComponentName(opts) {
+  return opts && (opts.Ctor.options.name || opts.tag)
+}
+```
+
+#### 3. **LRU 策略详解**
+
+```javascript
+// ==================== 3. LRU 算法演示 ====================
+
+/**
+ * LRU (Least Recently Used) 最近最少使用算法
+ *
+ * 数据结构：
+ * - cache: { [key]: VNode }  O(1) 查找
+ * - keys: string[]           记录访问顺序
+ *
+ * 访问流程：
+ * 1. 命中缓存:
+ *    - 从 keys 中找到该 key
+ *    - 删除原位置，追加到末尾（标记为最近使用）
+ *    - 返回缓存的 VNode
+ *
+ * 2. 未命中:
+ *    - 创建新实例并存入 cache
+ *    - 追加到 keys 末尾
+ *    - 检查是否超限
+ *    - 超限则淘汰 keys[0]（最久未使用）
+ */
+
+function demoLRU() {
+  console.log('========== LRU 缓存演示 ==========')
+
+  const keepAlive = new KeepAlive({ max: 3 })
+
+  console.log('\n--- 场景1: 正常缓存 ---')
+  // 模拟渲染 A, B, C 三个组件
+  ;['A', 'B', 'C'].forEach(name => {
+    const vnode = mockComponentVNode(name)
+    keepAlive.render([vnode])
+    console.log(`渲染 ${name}: cache=${Object.keys(keepAlive.cache).join(',')}, keys=[${keepAlive.keys.join(',')}]`)
+  })
+  // 输出: cache={A,B,C}, keys=['A','B','C']
+
+  console.log('\n--- 场景2: 命中缓存（LRU 调整顺序）---')
+  // 再次访问 A（应移动到末尾）
+  const vnodeA = mockComponentVNode('A')
+  keepAlive.render([vnodeA])
+  console.log(`再次渲染 A: keys=[${keepAlive.keys.join(',')}]`)
+  // 输出: keys=['B','C','A']  (A 移到末尾)
+
+  console.log('\n--- 场景3: 超限淘汰 ---')
+  // 渲染 D，超过 max=3，淘汰最久未用的 B
+  const vnodeD = mockComponentVNode('D')
+  keepAlive.render([vnodeD])
+  console.log(`渲染 D (max=3): cache=${Object.keys(keepAlive.cache).join(',')}, keys=[${keepAlive.keys.join(',')}]`)
+  // 输出: cache={C,A,D}, keys=['C','A','D']  (B 被淘汰)
+
+  console.log('\n--- 场景4: include/exclude 过滤 ---')
+  const kaFiltered = new KeepAlive({
+    max: 5,
+    include: ['Home', 'About'],  // 只缓存 Home 和 About
+    exclude: /Settings/           // 不缓存 Settings
+  })
+
+  ;['Home', 'Settings', 'About', 'Profile'].forEach(name => {
+    const vnode = mockComponentVNode(name)
+    const result = kaFiltered.render([vnode])
+    const cached = result ? '✓ 已缓存' : '✗ 未缓存'
+    console.log(`  ${name}: ${cached}`)
+  })
+
+  console.log('\n========== 演示完成 ==========')
+}
+
+// 辅助函数：模拟组件 VNode
+function mockComponentVNode(name) {
+  return {
+    key: `comp-${name}`,
+    tag: name.toLowerCase(),
+    componentOptions: {
+      Ctor: {
+        cid: Math.random().toString(36).slice(2),
+        options: { name },
+      },
+      tag: name.toLowerCase(),
+    },
+    data: {},
+  }
+}
+```
+
+#### 4. **完整测试用例**
+
+```javascript
+// ==================== 4. 完整测试 ====================
+
+console.log('========== keep-alive LRU 测试 ==========')
+
+// 测试1: 基本 LRU 功能
+console.log('\n[Test 1] 基本 LRU:')
+const ka = new KeepAlive({ max: 3 })
+const components = ['PageA', 'PageB', 'PageC', 'PageD', 'PageA']
+
+components.forEach((name, i) => {
+  const vnode = mockComponentVNode(name)
+  ka.render([vnode])
+  console.log(`  Step${i+1} ${name}: keys=[${ka.keys.join(',')}] size=${Object.keys(ka.cache).length}`)
+})
+
+// 测试2: include/exclude
+console.log('\n[Test 2] include/exclude:')
+const ka2 = new KeepAlive({
+  include: ['User', 'Product'],
+  exclude: 'Admin'
+})
+
+;['User', 'Admin', 'Product', 'Order'].forEach(name => {
+  const vnode = mockComponentVNode(name)
+  const result = ka2.render([vnode])
+  console.log(`  ${name}: ${result.data.keepAlive ? 'cached' : 'pass-through'}`)
+})
+
+// 测试3: 销毁测试
+console.log('\n[Test 3] 销毁清理:')
+const ka3 = new KeepAlive({ max: 5 })
+;['X', 'Y', 'Z'].forEach(n => ka3.render([mockComponentVNode(n)]))
+console.log(`  销毁前: cache has ${Object.keys(ka3.cache).length} items`)
+ka3.destroy()
+console.log(`  销毁后: cache is ${ka3.cache}`)
+
+demoLRU()
+
+console.log('\n========== 测试完成 ==========')
+```
+
+---
+
+## Q34: 手写 mini-nextTick（降级策略完整版）
+
+- **难度**：★★★
+- **知识点**：nextTick / 异步队列 / 事件循环
+- **题型**：手写实现题
+- **关联源码**：`src/core/util/next-tick.js`
+
+### 参考答案要点：
+
+#### 1. **浏览器能力检测与降级策略**
+
+```javascript
+// ==================== 1. 能力检测函数 ====================
+
+/**
+ * nextTick 异步执行优先级：
+ * 1. Promise (微任务) - 现代浏览器首选
+ * 2. MutationObserver (微任务) - IE11+ 兼容
+ * 3. setImmediate (宏任务) - Node.js / IE10+
+ * 4. setTimeout (宏任务) - 最终兜底
+ */
+
+let useMacroTask = false
+
+// 检测当前环境支持的原生 Promise
+function isNativePromiseAvailable() {
+  if (typeof Promise !== 'undefined' && isNative(Promise)) {
+    const p = Promise.resolve()
+    const nativeThen = p.then.bind(p)
+
+    // 验证 then 的正确性（避免 polyfill 干扰）
+    let fakePromise = false
+    try {
+      const queueMicrotask = require('queueMicrotask') || window.queueMicrotask
+      fakePromise = true
+    } catch (e) {}
+
+    return !fakePromise
+  }
+  return false
+}
+
+// 检测 MutationObserver 可用性
+function isMutationObserverAvailable() {
+  return typeof MutationObserver !== 'undefined' &&
+    isNative(MutationObserver) ||
+    // PhantomJS / iOS7.x 兼容
+    typeof WebKitMutationObserver !== 'undefined'
+}
+
+// 检测 setImmediate 可用性
+function isSetImmediateAvailable() {
+  return typeof setImmediate !== 'undefined' && isNative(setImmediate)
+}
+
+// 判断是否为原生方法
+function isNative(Ctor) {
+  return typeof Ctor === 'function' /native code/.test(Ctor.toString())
+}
+```
+
+#### 2. **回调队列与 flush 机制**
+
+```javascript
+// ==================== 2. 核心实现 ====================
+
+const callbacks = []     // 回调队列
+let pending = false       // 是否已注册异步任务
+
+/**
+ * flushCallbacks - 批量执行所有回调
+ * 在微任务/宏任务的回调中调用
+ */
+function flushCallbacks() {
+  pending = false
+  const copies = callbacks.slice(0)
+  callbacks.length = 0
+
+  for (let i = 0; i < copies.length; i++) {
+    copies[i]()
+  }
+}
+
+// 根据 environment 选择 timerFunc
+let timerFunc
+
+// ★ 优先级1: Promise (微任务)
+if (isNativePromiseAvailable()) {
+  const p = Promise.resolve()
+  timerFunc = () => {
+    p.then(flushCallbacks)
+    // iOS WebView 中 Promise 回调可能被推入微任务队列但不立即触发
+    // 使用 setTimeout 作为 fallback 触发
+    if (isIOS) setTimeout(noop)
+  }
+  isUsingMicroTask = true
+
+// ★ 优先级2: MutationObserver (微任务)
+} else if (isMutationObserverAvailable()) {
+  let counter = 1
+  const observer = new MutationObserver(flushCallbacks)
+  const textNode = document.createTextNode(String(counter))
+
+  observer.observe(textNode, { characterData: true })
+
+  timerFunc = () => {
+    counter = (counter + 1) % 2
+    textNode.data = String(counter)
+  }
+  isUsingMicroTask = true
+
+// ★ 优先级3: setImmediate (宏任务)
+} else if (isSetImmediateAvailable()) {
+  timerFunc = () => {
+    setImmediate(flushCallbacks)
+  }
+
+// ★ 优先级4: setTimeout (宏任务兜底)
+} else {
+  timerFunc = () => {
+    setTimeout(flushCallbacks, 0)
+  }
+}
+
+// iOS 检测
+const isIOS = /\biPhone\b|\biPad\b|\biPod\b/.test(navigator.userAgent)
+
+function noop() {}
+```
+
+#### 3. **nextTick 函数实现**
+
+```javascript
+// ==================== 3. nextTick API ====================
+
+/**
+ * nextTick - 在下次 DOM 更新循环结束之后执行延迟回调
+ *
+ * @param {Function} cb - 回调函数
+ * @param {Object} ctx - 回调执行的上下文
+ * @returns {Promise} - 如果不传 cb 则返回 Promise
+ */
+function nextTick(cb, ctx) {
+  let _resolve
+
+  // 将回调加入队列
+  callbacks.push(() => {
+    if (cb) {
+      try {
+        cb.call(ctx)
+      } catch (e) {
+        handleError(e, ctx, 'nextTick')
+      }
+    } else if (_resolve) {
+      _resolve(ctx)
+    }
+  })
+
+  // 首次调用时注册异步刷新任务
+  if (!pending) {
+    pending = true
+    timerFunc()
+  }
+
+  // 如果没有回调，返回 Promise（用于 await nextTick()）
+  if (!cb && typeof Promise !== 'undefined') {
+    return new Promise(resolve => {
+      _resolve = resolve
+    })
+  }
+}
+
+/**
+ * nextTickWithMacroTask - 强制使用宏任务版本
+ * 用于 DOM 事件监听器中，避免无限递归
+ */
+function nextTickWithMacroTask(cb, ctx) {
+  const prevUseMacroTask = useMacroTask
+  useMacroTask = true
+  const res = nextTick(cb, ctx)
+  useMacroTask = prevUseMacroTask
+  return res
+}
+
+function handleError(err, ctx, info) {
+  console.error(`Error in ${info}:`, err)
+}
+```
+
+#### 4. **完整使用示例**
+
+```javascript
+// ==================== 4. 完整测试用例 ====================
+
+console.log('========== mini-nextTick 测试 ==========')
+
+// 测试1: 基本异步执行
+console.log('\n[Test 1] 基本异步执行:')
+console.log('  sync start')
+
+nextTick(() => {
+  console.log('  nextTick callback 1')
+})
+
+nextTick(() => {
+  console.log('  nextTick callback 2')
+})
+
+console.log('  sync end')
+// 预期输出顺序: sync start → sync end → callback 1 → callback 2
+
+// 测试2: Promise 用法
+console.log('\n[Test 2] Promise 用法:')
+async function testAsyncNextTick() {
+  console.log('  before await')
+  await nextTick()
+  console.log('  after await (next microtask)')
+}
+testAsyncNextTick()
+
+// 测试3: 批量更新合并
+console.log('\n[Test 3] 批量更新合并:')
+let updateCount = 0
+
+function triggerUpdate() {
+  updateCount++
+  nextTick(() => {
+    console.log(`  DOM updated! Total updates queued: ${updateCount}`)
+    updateCount = 0
+  })
+}
+
+triggerUpdate()  // 第1次修改
+triggerUpdate()  // 第2次修改
+triggerUpdate()  // 第3次修改
+// 预期: 只输出一次 "DOM updated! Total updates queued: 3"
+
+// 测试4: 降级策略检测
+console.log('\n[Test 4] 当前环境检测:')
+console.log(`  Promise available: ${isNativePromiseAvailable()}`)
+console.log(`  MutationObserver available: ${isMutationObserverAvailable()}`)
+console.log(`  setImmediate available: ${isSetImmediateAvailable()}`)
+console.log(`  Using microtask: ${isUsingMicroTask}`)
+
+// 测试5: 错误处理
+console.log('\n[Test 5] 错误处理:')
+nextTick(() => {
+  throw new Error('Test error in nextTick')
+})
+nextTick(() => {
+  console.log('  This should still execute (error isolated)')
+})
+
+console.log('\n========== 测试完成 ==========')
+```
+
+**输出结果预期**：
+```
+========== mini-nextTick 测试 ==========
+
+[Test 1] 基本异步执行:
+  sync start
+  sync end
+  nextTick callback 1
+  nextTick callback 2
+
+[Test 2] Promise 用法:
+  before await
+  after await (next microtask)
+
+[Test 3] 批量更新合并:
+  DOM updated! Total updates queued: 3
+
+[Test 4] 当前环境检测:
+  Promise available: true
+  MutationObserver available: true
+  setImmediate available: false
+  Using microtask: true
+
+[Test 5] 错误处理:
+  Error in nextTick: Error: Test error in nextTick
+  This should still execute (error isolated)
+
+========== 测试完成 ==========
+```
 
 ---
 

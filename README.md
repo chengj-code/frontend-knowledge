@@ -11,10 +11,10 @@
 | **TypeScript** | ✅ 13章+3附录 | ✅ 43题 | ⭐ **9.5** | 🟢 已优化 | 2026-06-14 |
 | **Vue** | ✅ 13章+3附录 | ✅ 45题 | ⭐ **9.0** | 🟢 已优化 | 2026-06-14 |
 | **JavaScript** | ✅ 17章+附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
-| **HTML-CSS** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
+| **HTML-CSS** | ✅ 14章+2附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-15 |
 | **React** | ✅ 15章+附录 | ✅ 53题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-14 |
 | **Node.js** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
-| **工程化** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
+| **工程化** | ✅ 15章+2附录 | ✅ 50题 | ⭐ **9.0+** | 🟢 已优化 | 2026-06-15 |
 | **性能优化** | ✅ 16章+2附录 | ✅ 50题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-16 |
 | **网络** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
 | **浏览器** | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
@@ -48,9 +48,11 @@ frontend-knowledge/
 │   └── interviews/
 │       └── Vue-Interview-Questions.md      # ~6000行 (45题)
 │
-├── HTML-CSS/                # HTML 与 CSS 基础              📋 待生成
-│   ├── basics/.gitkeep
-│   └── interviews/.gitkeep
+├── HTML-CSS/                # HTML 与 CSS 基础              ⭐9.0+
+│   ├── basics/
+│   │   └── HTML-CSS-Basics-Guide.md           # ~8695行 (14章+2附录)
+│   └── interviews/
+│       └── HTML-CSS-Interview-Questions.md    # ~5400行 (50题)
 │
 ├── React/                   # React 框架与生态                ⭐9.0+
 │   ├── basics/
@@ -62,16 +64,17 @@ frontend-knowledge/
 │   ├── basics/.gitkeep
 │   └── interviews/.gitkeep
 │
-├── 工程化/                   # 构建工具、包管理、CI/CD     📋 待生成
-│   ├── basics/.gitkeep
-│   └── interviews/.gitkeep
+├── 工程化/                   # 构建工具、包管理、CI/CD     ⭐9.0+
+│   ├── basics/
+│   │   └── 工程化-Basics-Guide.md            # ~3108行 (15章+2附录)
+│   └── interviews/
+│       └── 工程化-Interview-Questions.md     # ~4569行 (50题)
 │
 ├── 性能优化/                 # 前端性能优化策略与实践       ⭐9.3
 │   ├── basics/
 │   │   └── 性能优化-Basics-Guide.md           # ~5578行 (16章+2附录)
 │   └── interviews/
 │       └── 性能优化-Interview-Questions.md    # ~6244行 (50题)
-│
 ├── 网络/                     # HTTP、HTTPS、WebSocket 等    📋 待生成
 │   ├── basics/.gitkeep
 │   └── interviews/.gitkeep
@@ -111,6 +114,24 @@ frontend-knowledge/
 | [面试题库](JavaScript/interviews/JavaScript-Interview-Questions.md) | ~10900 行 | 50 题 / 17 题追问链 / 7 道手写源码实现（EventLoop/new/deepClone/V8/虚拟滚动等） |
 
 **核心覆盖**：变量类型、函数进阶（this/call/bind）、闭包原理与应用、原型链与继承、ES6+ 类、作用域链、Event Loop 完整模拟、Promise 手写实现、async/await、DOM 事件机制、数组方法大全、正则表达式、V8 引擎/GC 机制、性能优化、XSS/CSRF 安全
+
+### HTML-CSS ⭐ 9.0+ 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](HTML-CSS/basics/HTML-CSS-Basics-Guide.md) | ~8695 行 | 14 章 + 附录 A（HTML 标签速查表）+ 附录 B（响应式个人主页实战案例）+ P0-P2 深度优化（手写盒模型计算/Flex布局引擎/渲染流水线伪代码） |
+| [面试题库](HTML-CSS/interviews/HTML-CSS-Interview-Questions.md) | ~5400 行 | 50 题 / 25+ 题追问链 / 10+ 道手写实现（两栏布局/BFC检测/浮动清除/渲染性能监控/居中方案对比/Loading动画等）+ 知识体系速查表附录 |
+
+**核心覆盖**：HTML5 语义化标签与 ARIA、CSS 盒模型与选择器优先级、BFC 与层叠上下文、Flexbox 弹性布局、Grid 网格布局、定位与浮动、响应式设计与媒体查询、CSS 动画与过渡、浏览器渲染原理（解析→样式→布局→绘制→合成）、重排重绘与 GPU 加速、CSS 现代方案（Modules/CSS-in-JS/Tailwind）、移动端适配（rem/vw/1px/安全区域）
+
+### 工程化 ⭐ 9.0+ 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](工程化/basics/工程化-Basics-Guide.md) | ~3108 行 | 15 章 + 附录 A（常用配置速查表）+ 附录 B（Vue3+TS 工程化项目搭建实战） |
+| [面试题库](工程化/interviews/工程化-Interview-Questions.md) | ~4569 行 | 50 题 / 三级难度分层 / 追问链设计 / 手写实现题（打包器/HMR/脚手架/Git Hook 等） |
+
+**核心覆盖**：模块化规范（CJS/ESM/AMD/UMD）、包管理器（npm/yarn/pnpm）、构建工具（Webpack/Vite/Rollup/esbuild）、代码规范（ESLint/Prettier/Husky）、CSS 工程化（PostCSS/Sass/CSS Modules）、Git 工作流、CI/CD、Monorepo、项目脚手架、性能监控
 
 ### 性能优化 ⭐ 9.3 分
 

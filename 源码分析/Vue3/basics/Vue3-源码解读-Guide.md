@@ -1590,6 +1590,2964 @@ function acceptValue(val: number | Ref<number>) {
 }
 ```
 
+### 3.7 【ref / reactive / computed 在 setup 中的使用模式】
+
+> **源码位置**：`packages/runtime-core/src/apiReactivity.ts:1-80`, `packages/reactivity/src/ref.ts:1-200`
+> **对应版本**：Vue 3.4.x
+
+#### 1. 源码片段：setup 中响应式 API 的内部实现
+
+```typescript
+// packages/reactivity/src/ref.ts - ref 的核心实现
+export function ref<T>(value: T): Ref<T> {
+  // ⭐ 创建 ref 对象的工厂函数
+  return createRef(value, false)
+}
+
+function createRef<T>(value: T, shallow: boolean) {
+  // 如果已经是 ref，直接返回（避免重复包装）
+  if (isRef(value)) {
+    return value
+  }
+  
+  // 根据是否浅层响应式创建不同的 ref 实现
+  return new RefImpl(value, shallow)
+}
+
+// ⭐ RefImpl 类：ref 的核心数据结构
+class RefImpl<T> {
+  private _value: T          // 存储实际值
+  public readonly __v_isRef = true  // 标记这是 ref（用于 isRef 判断）
+  
+  // ⭐ 构造函数：根据值类型决定是否转换为 reactive
+  constructor(value: T, public readonly __v_isShallow: boolean) {
+    this._rawValue = __v_isShallow ? value : toRaw(value)  // 保存原始值
+    this._value = __v_isShallow ? value : convert(value)     // 转换对象为 reactive
+  }
+  
+  // ⭐ getter：依赖收集（track）
+  get value() {
+    // 收集当前正在执行的 effect 作为依赖
+    track(toRaw(this), TrackOpTypes.GET, 'value')
+    
+    // 如果是深层 ref 且值是对象，返回 reactive 代理
+    return this._value
+  }
+  
+  // ⭐ setter：触发更新（trigger）
+  set value(newVal) {
+    // 检查值是否真的变化了（优化：相同值不触发更新）
+    newVal = this.__v_isShallow ? newVal : toRaw(newVal)
+    
+    if (hasChanged(newVal, this._rawValue)) {
+      this._rawValue = newVal
+      this._value = this.__v_isShallow ? newVal : convert(newVal)
+      
+      // ⭐ 触发所有依赖这个 ref 的 effect 重新执行
+      trigger(toRaw(this), TriggerOpTypes.SET, 'value', newVal)
+    }
+  }
+}
+
+// packages/reactivity/src/reactive.ts - reactive 的核心实现
+export function reactive<T extends object>(target: T): UnwrapNestedRefs<T> {
+  // 如果是只读代理，直接返回
+  if (isReadonly(target)) {
+    return target
+  }
+  
+  // 创建 Proxy 代理对象
+  return createReactiveObject(
+    target,
+    false,                    // 是否只读
+    mutableHandlers,          // 对象处理器
+    mutableCollectionHandlers,// 集合处理器
+    reactiveMap               // 缓存 Map（避免重复代理）
+  )
+}
+
+// packages/reactivity/src/computed.ts - computed 的核心实现
+export function computed<T>(
+  getterOrOptions: ComputedGetter<T> | WritableComputedOptions<T>
+) {
+  let getter: ComputedGetter<T>
+  let setter: ComputedSetter<T>
+  
+  // ⭐ 支持两种写法：
+  // 1. computed(() => value)        - 只读
+  // 2. computed({ get, set })       - 可写
+  if (isFunction(getterOrOptions)) {
+    getter = getterOrOptions
+    setter = () => {
+      console.warn('Write operation failed: computed value is readonly')
+    }
+  } else {
+    getter = getterOrOptions.get
+    setter = getterOrOptions.set
+  }
+  
+  return new ComputedRefImpl(getter, setter)
+}
+
+// ⭐ ComputedRefImpl：computed 的实现类
+class ComputedRefImpl<T> {
+  private _value!: T           // 缓存的计算结果
+  private _dirty = true        // ⭐ 脏标记：true 表示需要重新计算
+  
+  // ⭐ effect 实例：懒执行 + 调度器
+  public effect!: ReactiveEffect<T>
+  public readonly __v_isRef = true
+  
+  constructor(
+    getter: ComputedGetter<T>,
+    private readonly _setter: ComputedSetter<T>
+  ) {
+    // 创建 effect，但设置 lazy=true（不立即执行）
+    this.effect = new ReactiveEffect(getter, () => {
+      // ⭐ 调度器：当依赖变化时，不立即重新计算
+      if (!this._dirty) {
+        this._dirty = true  // 只标记为脏，等待下次访问时才计算
+        trigger(toRaw(this), TriggerOpTypes.SET, 'value')  // 通知外部依赖
+      }
+    })
+    
+    this.effect.computed = true  // 标记这是 computed effect
+  }
+  
+  get value() {
+    // ⭐ 缓存机制：只有 dirty 时才重新计算
+    if (this._dirty) {
+      this._value = this.effect.run()  // 执行 getter 并收集依赖
+      this._dirty = false              // 计算完成，清除脏标记
+    }
+    
+    // 收集外部对 computed.value 的访问作为依赖
+    track(toRaw(this), TrackOpTypes.GET, 'value')
+    return this._value
+  }
+}
+```
+
+#### 2. 使用模式对比表
+
+| 场景 | 推荐API | 原因 | 示例 |
+|------|---------|------|------|
+| **基本类型**（string/number/boolean） | `ref` | 基本类型无法用 Proxy 代理 | `const count = ref(0)` |
+| **单一对象**（需要整体替换） | `ref` | 可以替换整个对象引用 | `const user = ref(null); user.value = newUser` |
+| **复杂对象**（不需要整体替换） | `reactive` | 更自然的属性访问方式 | `const state = reactive({ name: 'vue', items: [] })` |
+| **从 reactive 解构** | `toRefs` | 保持解构后的响应性 | `const { name } = toRefs(state)` |
+| **计算属性** | `computed` | 自动缓存 + 懒求值 | `const double = computed(() => count.value * 2)` |
+| **组件外使用** | `ref` / `shallowRef` | 不依赖组件实例 | `const globalState = ref({})` |
+
+#### 3. ref 自动解包机制详解
+
+```javascript
+// ⭐ 场景1：在模板中使用（自动解包，无需 .value）
+<template>
+  <!-- ✅ 正确：模板会自动解包 ref -->
+  <div>{{ count }}</div>        <!-- 等同于 count.value -->
+  <button @click="increment">+1</button>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const count = ref(0)
+
+// ✅ 在事件处理函数中可以直接修改（模板编译时会加 .value）
+function increment() {
+  count.value++  // 这里需要 .value
+}
+</script>
+
+// ⭐ 场景2：在 reactive 对象中（自动解包）
+const state = reactive({
+  count: ref(0),        // 自动解包为普通值
+  user: ref({ name: 'Alice' })  // 自动解包
+})
+
+console.log(state.count)   // 输出 0（不是 RefImpl）
+state.count++             // ✅ 直接操作，无需 .value
+
+// ⭐ 但注意：解包是浅层的！
+const state = reactive({
+  nested: {
+    count: ref(0)  // ❌ 这里的 ref 不会被解包！
+  }
+})
+console.log(state.nested.count)  // 输出 RefImpl 对象
+
+// ⭐ 场景3：在普通 JavaScript 中（必须使用 .value）
+const count = ref(0)
+
+// ❌ 错误：忘记 .value
+console.log(count)    // 输出 RefImpl { _value: 0, ... }
+count = count + 1     // NaN！
+
+// ✅ 正确：始终使用 .value
+console.log(count.value)  // 输出 0
+count.value++
+
+// ⭐ 场景4：数组中的 ref（不会自动解包）
+const list = ref([1, 2, 3])
+const item = list.value[0]  // 需要访问 .value 才能拿到数组
+
+const refsList = [ref(0), ref(1), ref(2)]
+refsList[0].value  // 必须使用 .value
+```
+
+**自动解包原理图**：
+
+```mermaid
+flowchart TD
+    A[ref 对象] --> B{使用场景?}
+    
+    B -->|模板中| C[✅ 自动解包<br/>模板编译器处理]
+    B -->|reactive 对象内| D[✅ 浅层自动解包<br/>Proxy getter 拦截]
+    B -->|普通 JS 代码| E[❌ 必须 .value<br/>手动访问]
+    B -->|数组/集合中| F[❌ 不解包<br/>保持原样]
+    
+    C --> G[直接获取 value]
+    D --> H[Proxy.get 返回 .value]
+    E --> I[手动调用 .value]
+    F --> J[返回 RefImpl 对象]
+```
+
+#### 4. computed 缓存机制应用场景
+
+```javascript
+import { ref, computed, watchEffect } from 'vue'
+
+const firstName = ref('John')
+const lastName = ref('Doe')
+const age = ref(25)
+
+// ⭐ 场景1：派生状态（最常用）
+const fullName = computed(() => `${firstName.value} ${lastName.value}`)
+// 只有 firstName 或 lastName 变化时才重新计算
+// 多次访问 fullName.value 返回缓存值
+
+// ⭐ 场景2：过滤/转换列表
+const numbers = ref([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+const evenNumbers = computed(() => 
+  numbers.value.filter(n => n % 2 === 0)
+)
+// numbers 变化时自动重新过滤
+
+// ⭐ 场景3：复杂计算（带缓存优势）
+const expensiveData = ref(/* 大量数据 */)
+
+const sortedAndFiltered = computed(() => {
+  console.log('⚠️ 重新计算！')  // 观察何时触发
+  return expensiveData.value
+    .filter(item => item.active)
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 10)  // 只取前10条
+})
+
+// ⭐ 场景4：可写 computed（双向绑定）
+const upperName = computed({
+  get: () => firstName.value.toUpperCase(),
+  set: (val) => {
+    firstName.value = val.toLowerCase()  // 反向写入
+  }
+})
+
+upperName.value = 'ALICE'  // 触发 set → firstName 变成 'alice'
+
+// ⭐ 性能对比测试
+watchEffect(() => {
+  console.log('访问 fullName:', fullName.value)  // 第1次：计算
+  console.log('再次访问:', fullName.value)       // 第2次：缓存命中
+})
+```
+
+**computed 缓存流程图**：
+
+```mermaid
+sequenceDiagram
+    participant C as computed.value
+    participant D as Dirty Flag
+    participant E as Effect
+    participant G as Getter
+    
+    Note over C: 第一次访问
+    C->>D: 检查 _dirty === true?
+    D-->>C: 是
+    C->>E: 调用 effect.run()
+    E->>G: 执行 getter 函数
+    G-->>E: 返回计算结果 + 收集依赖
+    E-->>C: 缓存结果到 _value
+    C->>D: 设置 _dirty = false
+    
+    Note over C: 第二次访问（无变化）
+    C->>D: 检查 _dirty === true?
+    D-->>C: 否（缓存命中）
+    C-->>C: 直接返回 _value（不重新计算）
+    
+    Note over G: 依赖变化时
+    G->>E: 调度器触发
+    E->>D: 设置 _dirty = true（不立即重算）
+```
+
+#### 5. 响应式数据的组织最佳实践
+
+```javascript
+// ✅ 最佳实践1：按功能域分组
+function useUserState() {
+  // 用户相关状态
+  const profile = reactive({
+    name: '',
+    avatar: '',
+    email: ''
+  })
+  
+  const isLoggedIn = ref(false)
+  const permissions = ref([])
+  
+  return { profile, isLoggedIn, permissions }
+}
+
+// ✅ 最佳实践2：ref vs reactive 选择策略
+function useSmartReactive() {
+  // 策略1：基本类型统一用 ref
+  const count = ref(0)
+  const loading = ref(false)
+  const error = ref(null)
+  
+  // 策略2：结构稳定的对象用 reactive
+  const form = reactive({
+    username: '',
+    password: '',
+    rememberMe: false
+  })
+  
+  // 策略3：可能被整体替换的对象用 ref
+  const currentUser = ref(null)
+  
+  // 后续可能替换整个用户对象
+  async function fetchUser(id) {
+    const user = await api.getUser(id)
+    currentUser.value = user  // ✅ 整体替换
+  }
+  
+  // 策略4：数组通常用 ref（方便替换）
+  const itemList = ref([])
+  
+  async function refreshList() {
+    itemList.value = await api.getList()  // ✅ 整体替换数组
+  }
+  
+  return { count, loading, error, form, currentUser, itemList }
+}
+
+// ✅ 最佳实践3：组合式组织（推荐）
+export default {
+  setup() {
+    // 按职责拆分 composable
+    const { user, login, logout } = useAuth()
+    const { theme, toggleTheme } = useTheme()
+    const { notifications, markAsRead } = useNotifications()
+    
+    // 跨域逻辑
+    const greeting = computed(() => 
+      user.isLoggedIn ? `欢迎回来，${user.name}` : '请登录'
+    )
+    
+    return {
+      // 用户相关
+      ...toRefs(user),
+      login, logout,
+      
+      // 主题相关
+      theme, toggleTheme,
+      
+      // 通知相关
+      notifications, markAsRead,
+      
+      // 跨域
+      greeting
+    }
+  }
+}
+```
+
+#### 6. 设计意图
+
+**为什么要这样设计？**
+
+1. **ref vs reactive 的分工**：
+   - `reactive` 基于 Proxy，适合对象（可以代理属性的 get/set）
+   - `ref` 基于 Object.defineProperty（getter/setter），适合基本类型（无法 Proxy）
+   - 两者互补，覆盖所有数据类型
+
+2. **自动解包的设计哲学**：
+   - **模板中解包**：减少样板代码，提升开发体验
+   - **reactive 内解包**：统一访问方式，避免嵌套 `.value`
+   - **JS 中不解包**：明确区分"响应式容器"和"值"，保持可预测性
+
+3. **computed 的惰性求值**：
+   - **性能优化**：只在需要时计算，避免不必要的开销
+   - **缓存一致性**：同一渲染周期内多次访问返回相同结果
+   - **调度优化**：依赖变化时不立即重算，而是批量处理
+
+4. **设计权衡**：
+   - ✅ **优点**：类型安全、灵活、性能好
+   - ❌ **代价**：需要理解 `.value`、解包规则等概念
+   - 🎯 **目标**：在易用性和正确性之间取得平衡
+
+#### 7. 常见错误与解决方案
+
+```javascript
+// ❌ 错误1：解构 reactive 丢失响应性
+const state = reactive({ count: 0, name: 'vue' })
+const { count, name } = state  // count 和 name 只是普通值！
+
+// 解决方案：使用 toRefs
+const { count, name } = toRefs(state)  // count 和 name 都是 Ref
+count.value++  // ✅ 正确触发更新
+
+// ❌ 错误2：ref 在模板中忘记 .value（JS 代码中）
+const count = ref(0)
+function add() {
+  count++  // NaN！应该是 count.value++
+}
+
+// 说明：模板中确实不需要 .value，但 JS 代码中必须写
+
+// ❌ 错误3：尝试直接修改 computed 的值（只读 computed）
+const double = computed(() => count.value * 2)
+double.value = 10  // ⚠️ 控制台警告：Write operation failed
+
+// 解决方案：使用 writable computed
+const writableDouble = computed({
+  get: () => count.value * 2,
+  set: (val) => { count.value = val / 2 }
+})
+writableDouble.value = 10  // ✅ count 会变成 5
+
+// ❌ 错误4：在 reactive 中混用 ref 导致混乱
+const state = reactive({
+  count: ref(0),  // 会被自动解包
+  nested: { value: ref(1) }  // 不会被解包！
+})
+
+console.log(typeof state.count)       // "number"
+console.log(typeof state.nested.value) // "object" (RefImpl)
+
+// 建议：要么全用 reactive，要么全用 ref，避免混用
+
+// ❌ 错误5：异步操作后丢失响应式上下文
+async function fetchData() {
+  const data = ref([])
+  const res = await api.getData()
+  data.value = res  // ✅ 这是对的
+  
+  // 但如果这样：
+  setTimeout(() => {
+    data.value = []  // ✅ 这也是对的（ref 本身不受影响）
+  }, 1000)
+}
+```
+
+#### 8. 关联面试题
+
+**→ Q: 为什么官方推荐使用 ref 而不是 reactive？**
+
+**答案要点**：
+1. **一致性**：ref 可以用于任何类型，学习成本低
+2. **可替换性**：ref 可以整体替换值（`user.value = newUser`），reactive 不能
+3. **解构友好**：配合 toRefs 使用更直观
+4. **调试容易**：ref 结构简单，更容易在 DevTools 中观察
+5. **函数传参**：传递 ref 时语义清晰（知道它是响应式的）
+
+**→ Q: toRefs 的作用是什么？什么时候需要使用？**
+
+**答案要点**：
+1. **作用**：将 reactive 对象的每个属性都转换为 ref
+2. **场景**：需要在 setup 返回值或 composable 中解构 reactive 对象时
+3. **原理**：创建 ObjectRefImpl（自定义 ref），get/set 操作映射回原对象
+4. **好处**：解构后仍保持响应性，且支持展开运算符（...）
+
+**→ Q: computed 和 methods 有什么区别？为什么优先使用 computed？**
+
+**答案要点**：
+1. **缓存**：computed 有缓存（依赖不变则不重算），methods 每次调用都执行
+2. **依赖追踪**：computed 自动收集依赖，methods 不会
+3. **声明式**：computed 描述"是什么"，methods 描述"怎么做"
+4. **性能**：在模板中多次使用 computed 更高效
+
+---
+
+### 3.8 【自定义 Hook（Composable）设计模式】⭐⭐ 核心章节
+
+> **源码位置**：`packages/runtime-core/src/component.ts:450-520`（setup 执行上下文）
+> **对应版本**：Vue 3.4.x
+
+#### 1. 什么是 Composable？
+
+**定义**：Composable（组合式函数）是一个利用 Vue Composition API 封装的**可复用有状态逻辑**的函数。
+
+**命名约定**：以 `use` 开头（如 `useMouse`、`useTheme`、`useFetch`、`useLocalStorage`）
+
+**核心特征**：
+- ✅ 纯函数（不依赖组件实例的 `this`）
+- ✅ 返回响应式数据（ref / reactive / computed）
+- ✅ 可包含副作用（生命周期钩子、事件监听、定时器等）
+- ✅ 可自由组合（一个 composable 可以调用其他 composable）
+
+```javascript
+// 最简单的 composable 示例
+import { ref } from 'vue'
+
+// ✅ 符合规范的 composable
+function useCounter(initialValue = 0) {
+  const count = ref(initialValue)      // 响应式状态
+  const increment = () => count.value++
+  const decrement = () => count.value--
+  const reset = () => count.value = initialValue
+  
+  // 返回响应式数据和操作方法
+  return { count, increment, decrement, reset }
+}
+
+// 在组件中使用
+export default {
+  setup() {
+    const { count, increment, decrement, reset } = useCounter(10)
+    
+    return { count, increment, decrement, reset }
+  }
+}
+```
+
+#### 2. 核心设计原则
+
+| 原则 | 说明 | 示例 |
+|------|------|------|
+| **原则1：只接收参数** | 不依赖 `this` / 组件实例，完全独立 | `useFetch(url)` 而非 `this.useFetch()` |
+| **原则2：返回响应式数据** | 返回 ref/reactive/computed，保证响应性 | `return { data: ref(null), loading: ref(false) }` |
+| **原则3：副作用可控制** | 使用生命周期钩子注册和清理副作用 | `onMounted` 注册，`onUnmounted` 清理 |
+| **原则4：完全无耦合** | 可独立测试，可在任意组件/上下文中使用 | 单元测试无需挂载组件 |
+
+**反模式示例**：
+
+```javascript
+// ❌ 反模式1：依赖组件实例
+function useBadExample() {
+  // 错误：试图访问组件实例
+  const instance = getCurrentInstance()
+  instance.proxy.$emit('event')  // ❌ 耦合组件实现细节
+}
+
+// ❌ 反模式2：返回非响应式数据
+function useBadExample2() {
+  let count = 0  // ❌ 普通变量，不是响应式
+  
+  return {
+    count,           // 永远是初始值
+    increment: () => count++  // 不会触发视图更新
+  }
+}
+
+// ❌ 反模式3：异步调用后使用生命周期钩子
+async function useBadExample3() {
+  await someAsyncOperation()
+  
+  // ❌ 错误：此时已经脱离 setup 上下文
+  onMounted(() => {
+    // 这个钩子不会被注册！
+  })
+}
+```
+
+#### 3. 完整示例代码（3 个由简到繁的 Composable）
+
+##### 示例 1：useCounter — 最简单的 composable
+
+```javascript
+// composables/useCounter.js
+import { ref, computed } from 'vue'
+
+/**
+ * 计数器 composable
+ * @param {number} initialValue - 初始值，默认 0
+ * @returns {Object} 响应式状态和方法
+ */
+export function useCounter(initialValue = 0) {
+  // ⭐ 响应式状态
+  const count = ref(initialValue)
+  
+  // ⭐ 派生状态（computed）
+  const doubled = computed(() => count.value * 2)
+  const isPositive = computed(() => count.value > 0)
+  
+  // ⭐ 操作方法
+  function increment(step = 1) {
+    count.value += step
+  }
+  
+  function decrement(step = 1) {
+    count.value -= step
+  }
+  
+  function reset() {
+    count.value = initialValue
+  }
+  
+  function setValue(newValue: number) {
+    count.value = newValue
+  }
+  
+  // ⭐ 返回所有需要暴露的状态和方法
+  return {
+    count,           // Ref<number>
+    doubled,         // ComputedRef<number>
+    isPositive,      // ComputedRef<boolean>
+    increment,
+    decrement,
+    reset,
+    setValue
+  }
+}
+
+// 使用示例
+export default {
+  setup() {
+    const {
+      count,
+      doubled,
+      increment,
+      decrement,
+      reset
+    } = useCounter(100)
+    
+    return {
+      count,
+      doubled,
+      increment,
+      decrement,
+      reset
+    }
+  }
+}
+```
+
+##### 示例 2：useMousePosition — 含生命周期和事件监听
+
+```javascript
+// composables/useMousePosition.js
+import { ref, onMounted, onUnmounted } from 'vue'
+
+/**
+ * 鼠标位置追踪 composable
+ * ⭐ 展示如何在 composable 中使用生命周期钩子
+ * 
+ * @returns {Object} x, y 坐标（响应式）
+ */
+export function useMousePosition() {
+  // ⭐ 响应式状态：鼠标坐标
+  const x = ref(0)
+  const y = ref(0)
+  
+  /**
+   * ⭐ 事件处理函数
+   * 注意：这里使用普通函数而非箭头函数也可以，
+   * 因为不涉及 this 绑定问题（composable 不依赖 this）
+   */
+  function update(event: MouseEvent) {
+    x.value = event.pageX
+    y.value = event.pageY
+  }
+  
+  // ⭐ 在 composable 中使用生命周期钩子
+  // 源码位置：packages/runtime-core/src/apiLifecycle.ts
+  // 
+  // 🔍 原理说明：
+  // 这些钩子函数会在 setup() 同步执行期间被调用，
+  // 它们会从全局变量 currentInstance 获取当前组件实例，
+  // 然后将回调函数注册到对应的生命周期钩子数组中。
+  //
+  // 这就是为什么：
+  // 1. composable 必须在 setup() 同步执行期间调用
+  // 2. 不能在异步操作（如 setTimeout、await）之后调用
+  // 3. 多个 composable 可以同时注册钩子（数组 push）
+  
+  onMounted(() => {
+    console.log('🖱️ useMousePosition: 开始监听鼠标移动')
+    window.addEventListener('mousemove', update)
+  })
+  
+  onUnmounted(() => {
+    console.log('🧹 useMousePosition: 清理事件监听')
+    window.removeEventListener('mousemove', update)  // ⭐ 清理副作用！
+  })
+  
+  // ⭐ 返回响应式坐标
+  return { x, y }
+}
+
+// 使用示例
+<template>
+  <div class="mouse-tracker">
+    鼠标位置：({{ x }}, {{ y }})
+  </div>
+</template>
+
+<script setup>
+import { useMousePosition } from './composables/useMousePosition'
+
+// ⭐ 一行代码获得完整的鼠标追踪功能！
+const { x, y } = useMousePosition()
+</script>
+```
+
+##### 示例 3：useFetch — 异步 composable + 错误处理 + 请求取消
+
+```javascript
+// composables/useFetch.js
+import { ref, onUnmounted } from 'vue'
+
+/**
+ * 数据请求 composable
+ * ⭐ 展示异步逻辑、错误处理、请求取消等高级特性
+ * 
+ * @template T - 响应数据类型
+ * @param {string} url - 请求地址
+ * @param {Object} options - fetch 配置选项
+ * @returns {Object} 响应式状态和控制方法
+ */
+export function useFetch<T>(url: string, options?: RequestInit) {
+  // ⭐ 响应式状态
+  const data = ref<T | null>(null)
+  const error = ref<Error | null>(null)
+  const loading = ref(false)
+  
+  // ⭐ 使用 AbortController 实现请求取消
+  // 这是现代浏览器原生支持的 API，用于取消 fetch 请求
+  let controller: AbortController | null = null
+  
+  /**
+   * ⭐ 执行请求的核心方法
+   * 包含完整的错误处理和状态管理
+   */
+  async function execute(): Promise<void> {
+    loading.value = true
+    error.value = null
+    
+    // 创建新的 AbortController（每次请求都要新的实例）
+    controller = new AbortController()
+    
+    try {
+      // ⭐ 将 signal 传入 fetch，以便后续可以取消
+      const response = await fetch(url, {
+        signal: controller.signal,
+        ...options
+      })
+      
+      // 检查 HTTP 状态码
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      // 解析 JSON 数据
+      data.value = await response.json() as T
+      
+    } catch (e) {
+      // ⭐ 区分"主动取消"和"真正的错误"
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        console.log('📛 请求已被取消（这是预期行为）')
+        // 取消不是错误，不设置 error 状态
+      } else {
+        // 真正的错误（网络错误、JSON 解析错误等）
+        error.value = e as Error
+        console.error('❌ 请求失败:', e)
+      }
+    } finally {
+      // ⭐ 无论成功失败都会执行
+      loading.value = false
+    }
+  }
+  
+  /**
+   * ⭐ 手动取消当前请求
+   */
+  function abort(): void {
+    if (controller) {
+      controller.abort()
+      controller = null
+    }
+  }
+  
+  /**
+   * ⭐ 重置所有状态
+   */
+  function reset(): void {
+    data.value = null
+    error.value = null
+    loading.value = false
+  }
+  
+  // ⭐ 组件卸载时自动取消进行中的请求
+  // 这是一个重要的清理步骤，避免内存泄漏和无效的状态更新
+  onUnmounted(() => {
+    if (controller && loading.value) {
+      console.log('🧹 组件卸载，自动取消进行中的请求')
+      controller.abort()
+    }
+  })
+  
+  // ⭐ 自动执行（可选策略）
+  // 有些场景希望自动发起请求，有些则需要手动触发
+  execute()
+  
+  // ⭐ 返回完整的响应式状态和控制方法
+  return {
+    data,       // Ref<T | null> - 响应数据
+    error,      // Ref<Error | null> - 错误信息
+    loading,    // Ref<boolean> - 加载状态
+    execute,    // () => Promise<void> - 手动执行请求
+    abort,      // () => void - 取消请求
+    reset       // () => void - 重置状态
+  }
+}
+
+// 使用示例
+<template>
+  <div v-if="loading">加载中...</div>
+  <div v-else-if="error">错误：{{ error.message }}</div>
+  <div v-else-if="data">
+    {{ data }}
+  </div>
+  <button @click="execute" :disabled="loading">刷新</button>
+  <button @click="abort" :disabled="!loading">取消</button>
+</template>
+
+<script setup>
+import { useFetch } from './composables/useFetch'
+
+const { data, error, loading, execute, abort } = useFetch<User[]>('/api/users')
+</script>
+```
+
+#### 4. Composable 嵌套组合示例
+
+```javascript
+// composables/usePagination.js
+import { ref, computed } from 'vue'
+
+/**
+ * 分页逻辑 composable
+ * @param {Ref<number>} total - 总条数（响应式）
+ * @param {number} pageSize - 每页条数
+ */
+export function usePagination(total: import('vue').Ref<number>, pageSize = 10) {
+  const currentPage = ref(1)
+  
+  // ⭐ 总页数（computed，随 total 变化自动更新）
+  const totalPages = computed(() => Math.ceil(total.value / pageSize))
+  
+  function nextPage() {
+    if (currentPage.value < totalPages.value) {
+      currentPage.value++
+    }
+  }
+  
+  function prevPage() {
+    if (currentPage.value > 1) {
+      currentPage.value--
+    }
+  }
+  
+  function goToPage(page: number) {
+    if (page >= 1 && page <= totalPages.value) {
+      currentPage.value = page
+    }
+  }
+  
+  return { currentPage, totalPages, nextPage, prevPage, goToPage }
+}
+
+// composables/usePaginatedFetch.js
+import { computed } from 'vue'
+import { useFetch } from './useFetch'
+import { usePagination } from './usePagination'
+
+/**
+ * ⭐ 组合式 composable：useFetch + usePagination
+ * 展示如何通过组合简单的 composable 构建复杂功能
+ * 
+ * @template T
+ * @param {string} url - 请求地址
+ * @param {number} pageSize - 每页条数
+ */
+export function usePaginatedFetch<T>(url: string, pageSize = 10) {
+  // ⭐ 组合其他 composable（复用已有逻辑）
+  const { data, error, loading, execute } = useFetch<{ items: T[]; total: number }>(url)
+  
+  // ⭐ 将 data.total 转换为 computed（因为 data 可能初始为 null）
+  const totalCount = computed(() => data.value?.total ?? 0)
+  
+  // ⭐ 组合分页逻辑
+  const {
+    currentPage,
+    totalPages,
+    nextPage,
+    prevPage,
+    goToPage
+  } = usePagination(totalCount, pageSize)
+  
+  // ⭐ 当前页的数据切片（computed，自动缓存）
+  const pageData = computed<T[]>(() => {
+    if (!data.value?.items || data.value.items.length === 0) {
+      return []
+    }
+    
+    const start = (currentPage.value - 1) * pageSize
+    const end = start + pageSize
+    
+    return data.value.items.slice(start, end)
+  })
+  
+  // ⭐ 刷新时回到第一页
+  function refresh(): void {
+    currentPage.value = 1
+    execute()
+  }
+  
+  return {
+    // 分页数据
+    pageData,        // ComputedRef<T[]> - 当前页数据
+    currentPage,     // Ref<number> - 当前页码
+    totalPages,      // ComputedRef<number> - 总页数
+    
+    // 请求状态
+    error,           // Ref<Error | null>
+    loading,         // Ref<boolean>
+    
+    // 操作方法
+    nextPage,        // 下一页
+    prevPage,        // 上一页
+    goToPage,        // 跳转到指定页
+    refresh          // 刷新并重置到第一页
+  }
+}
+
+// 使用示例：一行代码获得完整的分页列表功能！
+export default {
+  setup() {
+    const {
+      pageData,
+      currentPage,
+      totalPages,
+      error,
+      loading,
+      nextPage,
+      prevPage,
+      refresh
+    } = usePaginatedFetch<Post>('/api/posts', 20)
+    
+    return {
+      pageData,
+      currentPage,
+      totalPages,
+      error,
+      loading,
+      nextPage,
+      prevPage,
+      refresh
+    }
+  }
+}
+```
+
+**Composable 组合关系图**：
+
+```mermaid
+graph TD
+    subgraph "基础 Composables"
+        A[useCounter<br/>计数器]
+        B[useMousePosition<br/>鼠标追踪]
+        C[useFetch<br/>数据请求]
+        D[usePagination<br/>分页逻辑]
+        E[useLocalStorage<br/>本地存储]
+    end
+    
+    subgraph "组合 Composables"
+        F[usePaginatedFetch<br/>= useFetch + usePagination]
+        G[useInfiniteScroll<br/>= useFetch + useIntersectionObserver]
+        H[useUserPreferences<br/>= useLocalStorage + useTheme]
+    end
+    
+    subgraph "业务 Composables"
+        I[useUserList<br/>= usePaginatedFetch + 过滤/排序]
+        J[useDataTable<br/>= usePaginatedFetch + useSort + useFilter]
+        K[useAdminDashboard<br/>多个业务 composable 组合]
+    end
+    
+    C --> F
+    D --> F
+    F --> I
+    C --> G
+    E --> H
+    I --> J
+    I --> K
+    J --> K
+    
+    style A fill:#e1f5fe
+    style B fill:#e1f5fe
+    style C fill:#e1f5fe
+    style D fill:#e1f5fe
+    style E fill:#e1f5fe
+    style F fill:#fff3e0
+    style G fill:#fff3e0
+    style H fill:#fff3e0
+    style I fill:#f3e5f5
+    style J fill:#f3e5f5
+    style K fill:#fce4ec
+```
+
+#### 5. 源码原理：为什么可以在 Composable 中使用生命周期钩子？
+
+```typescript
+// packages/runtime-core/src/apiLifecycle.ts（精简版实现）
+
+// ⭐ 全局变量：存储当前正在初始化的组件实例
+let currentInstance: ComponentInternalInstance | null = null
+
+/**
+ * ⭐ 获取当前组件实例（只能在 setup 期间调用）
+ * 这是所有 composition API 能够工作的基础
+ */
+export function getCurrentInstance(): ComponentInternalInstance | null {
+  return currentInstance
+}
+
+/**
+ * ⭐ 注册 mounted 生命周期钩子
+ * @param hook - 钩子回调函数
+ * @param targetInstance - 目标组件实例（可选，用于 keep-alive 等场景）
+ */
+export function onMounted(
+  hook: () => void,
+  targetInstance?: ComponentInternalInstance
+): void {
+  // ⭐ 关键1：确定目标组件实例
+  const instance = targetInstance ?? currentInstance
+  
+  // ⭐ 关键2：必须在 setup 期间注册（否则实例为 null）
+  if (instance) {
+    // ⭐ 关键3：将 hook push 到组件实例的 mounted 钩子数组中
+    // bh = beforeHook（beforeCreate/created 等早期钩子）
+    // m = mounted hooks 数组
+    // bu = beforeUpdate hooks 数组
+    // u = updated hooks 数组
+    // um = unmounted hooks 数组
+    instance.m.push(hook)
+  } else if (__DEV__) {
+    // 开发环境警告：在 setup 外部调用了生命周期钩子
+    warn(
+      `\`${apiName}\` is called when there is no active component instance to be ` +
+      `associated with. ` +
+      `Lifecycle injection APIs can only be used during execution of setup().`
+    )
+  }
+}
+
+// 其他生命周期钩子的实现完全类似：
+export function onUnmounted(hook: () => void): void {
+  const instance = currentInstance
+  if (instance) {
+    instance.um.push(hook)  // 注册到 unmounted 数组
+  }
+}
+
+// packages/runtime-core/src/component.ts（setup 执行部分）
+
+// ⭐ setup 函数的实际执行过程
+function setupComponent(instance: ComponentInternalInstance) {
+  // 1. 设置全局变量（让 getCurrentInstance() 能工作）
+  setCurrentInstance(instance)
+  
+  try {
+    // 2. 执行 setup() 函数
+    // 此时如果在 setup 中调用 onMounted，currentInstance 就是当前组件
+    const setupResult = setup(instance.props, setupContext)
+    
+    // 3. 处理返回值
+    handleSetupResult(instance, setupResult)
+  } finally {
+    // 4. 清除全局变量（setup 执行完毕）
+    setCurrentInstance(null)
+  }
+}
+
+// ⭐ 这就是为什么有这些限制：
+//
+// 限制1：composable 必须在 setup() 同步执行期间调用
+//   → 因为只有在 setup 执行期间，currentInstance 才指向正确的组件
+//   → 异步操作（setTimeout、await）之后，currentInstance 已经是 null
+//
+// 限制2：不能在条件语句/循环中调用 composable（虽然 Vue3 比 React 宽松）
+//   → 不是语法限制，而是逻辑上的最佳实践
+//   → 确保每次渲染时 hooks 以相同顺序调用
+//
+// 限制3：多个 composable 可以同时注册钩子
+//   → 因为每个钩子都是独立的函数，push 到同一个数组即可
+//   → 组件卸载时按顺序执行所有 um（unmounted）钩子
+```
+
+**生命周期钩子注册流程图**：
+
+```mermaid
+sequenceDiagram
+    participant S as setup()
+    participant C as Composable
+    participant L as onMounted()
+    participant I as Component Instance
+    
+    Note over S,I: 组件初始化阶段
+    
+    S->>I: setCurrentInstance(instance)<br/>设置全局变量
+    S->>C: 调用 useMousePosition()
+    
+    C->>L: onMounted(callback)
+    L->>L: 检查 currentInstance
+    alt currentInstance 存在
+        L->>I: instance.m.push(callback)<br/>注册到 mounted 数组
+        L-->>C: ✅ 注册成功
+    else currentInstance 为 null
+        L-->>C: ⚠️ 发出警告
+    end
+    
+    C-->>S: 返回 {x, y}
+    
+    Note over S,I: 组件挂载阶段（稍后发生）
+    
+    I->>I: 遍历 instance.m 数组
+    I->>I: 依次执行所有 mounted 回调
+    I-->>I: callback() 执行<br/>window.addEventListener(...)
+```
+
+#### 6. Vue3 Composable vs React Custom Hook 对比
+
+| 维度 | Vue3 Composable | React Custom Hook |
+|------|----------------|-------------------|
+| **调用时机限制** | 必须在 setup 中同步调用 | 必须在组件顶层调用 |
+| **状态管理** | ref/reactive（细粒度响应式） | useState（每次渲染新引用） |
+| **依赖追踪** | 自动（Proxy 响应式系统） | 手动（依赖数组） |
+| **性能模型** | 更优（精确依赖收集） | 需要 memo/useCallback/useMemo 优化 |
+| **命名规范** | useXxx（社区约定） | useXxx（强制 eslint 规则） |
+| **闭包陷阱** | ❌ 无（ref 始终指向同一对象） | ⚠️ 有（state 可能是旧快照） |
+| **测试难度** | 更容易（无需 render/act 包装） | 需要 act() + render() 包装 |
+| **条件调用** | ⚠️ 不推荐但技术上可行 | ❌ 严格禁止（hooks 规则） |
+| **TypeScript 支持** | ✅ 类型推断优秀 | ✅ 泛型支持好 |
+| **生态成熟度** | VueUse（快速增长） | 几十万个 custom hooks（非常成熟） |
+
+**代码对比：同样的鼠标追踪功能**
+
+```javascript
+// ===== Vue3 Composable =====
+// composables/useMousePosition.js
+import { ref, onMounted, onUnmounted } from 'vue'
+
+export function useMousePosition() {
+  const x = ref(0)
+  const y = ref(0)
+  
+  function update(e) {
+    x.value = e.pageX
+    y.value = e.pageY
+  }
+  
+  onMounted(() => window.addEventListener('mousemove', update))
+  onUnmounted(() => window.removeEventListener('mousemove', update))
+  
+  return { x, y }
+}
+
+// 使用
+const { x, y } = useMousePosition()  // ✅ 简洁明了
+
+
+// ===== React Custom Hook =====
+// hooks/useMousePosition.js
+import { useState, useEffect } from 'react'
+
+export function useMousePosition() {
+  // ⚠️ 每次渲染都是新的状态引用
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  
+  useEffect(() => {
+    function update(e) {
+      setPosition({ x: e.pageX, y: e.pageY })  // 创建新对象
+    }
+    
+    window.addEventListener('mousemove', update)
+    
+    // ⚠️ 必须返回清理函数
+    return () => window.removeEventListener('mousemove', update)
+  }, [])  // ⚠️ 空依赖数组（mount/unmount 各执行一次）
+  
+  return position  // 返回普通对象（不是响应式）
+}
+
+// 使用
+const { x, y } = useMousePosition()
+
+// ⚠️ 问题：如果要在 useEffect 中访问最新的 x/y，
+// 需要用 useRef 或者将 x/y 加入依赖数组
+useEffect(() => {
+  console.log(`Mouse at (${x}, ${y})`)  // 可能捕获旧值！闭包陷阱
+}, [x, y])  // 必须显式声明依赖
+```
+
+#### 7. 设计意图与最佳实践总结
+
+**为什么要设计 Composable 这种模式？**
+
+1. **解决 Mixins 的问题**：
+   - ❌ Mixins：命名冲突、来源不明、隐式依赖
+   - ✅ Composable：显式导入、来源清晰、无冲突
+
+2. **解决高阶组件（HOC）的问题**：
+   - ❌ HOC：嵌套地狱（Wrapper Hell）、props 被劫持
+   - ✅ Composable：扁平组合、返回值可控
+
+3. **解决 Renderless Components 的问题**：
+   - ❌ 无渲染组件：额外的组件实例开销、slot 限制
+   - ✅ Composable：零运行时开销、纯函数
+
+**高质量 Composable 的 Checklist**：
+
+```markdown
+## Composable 质量检查清单
+
+### 功能完整性
+- [ ] 接收清晰的参数（有 TypeScript 类型更好）
+- [ ] 返回响应式数据（ref/reactive/computed）
+- [ ] 处理边界情况（null/undefined/空数组）
+- [ ] 提供错误处理机制
+
+### 副作用管理
+- [ ] onMounted 中注册的事件监听/定时器/订阅
+- [ ] onUnmounted 中清理所有副作用
+- [ ] 支持外部取消（如 AbortController）
+- [ ] 异步操作的竞态条件处理
+
+### 文档和可用性
+- [ ] JSDoc 注释（参数、返回值、示例）
+- [ ] 命名符合 useXxx 约定
+- [ ] 单一职责（一个 composable 做一件事）
+- [ ] 可独立于组件测试
+
+### 性能考虑
+- [ ] 避免不必要的重复计算（使用 computed）
+- [ ] 大数据集使用 shallowRef/shallowReactive
+- [ ] 提供手动控制选项（如 lazy execute）
+```
+
+#### 8. 关联面试题
+
+**→ Q: Composable 和 Mixin 的区别是什么？**
+
+**答案要点**：
+1. **数据来源**：Mixin 隐式合并，Composable 显式导入
+2. **命名冲突**：Mixin 可能冲突，Composable 通过解构避免
+3. **可追溯性**：Mixin 难以追溯数据来源，Composable 来源清晰
+4. **类型安全**：Mixins 对 TypeScript 不友好，Composable 天然支持
+5. **灵活性**：Mixin 是对象合并，Composable 是函数组合（更灵活）
+
+**→ Q: 为什么 Composable 比 Mixins/HOC 更好？**
+
+**答案要点**：
+1. **没有隐式依赖**：所有依赖都是参数传入
+2. **没有命名冲突**：通过解构重命名轻松解决
+3. **更好的 IDE 支持**：可以跳转到定义、查看类型
+4. **Tree-shaking 友好**：未使用的 composable 不会打包
+5. **更少的运行时开销**：纯函数，无额外组件实例
+
+**→ Q: 如何设计一个高质量的 Composable？**
+
+**答案要点**：
+1. **单一职责**：每个 composable 只做一件事
+2. **参数化配置**：通过参数控制行为，不要硬编码
+3. **响应式返回**：始终返回 ref/reactive/computed
+4. **副作用清理**：配对 onMounted/onUnmounted
+5. **错误处理**：提供 error 状态和错误边界
+6. **文档完善**：JSDoc + 使用示例 + TypeScript 类型
+
+**→ Q: Composable 中的生命周期钩子是如何工作的？**
+
+**答案要点**：
+1. **全局变量机制**：`currentInstance` 存储当前组件实例
+2. **setup 期间有效**：只在 setup 同步执行期间才能注册
+3. **数组收集**：hook 函数被 push 到组件实例对应的数组（m/bu/u/um）
+4. **顺序执行**：组件生命周期触发时按注册顺序执行
+5. **多 composable 安全**：每个 composable 都往同一个数组 push，互不影响
+
+---
+
+### 3.9 【Composition API 常见陷阱与避坑指南】⭐ 实战章节
+
+> **源码位置**：`packages/reactivity/src/reactive.ts`, `packages/reactivity/src/ref.ts`, `packages/reactivity/src/computed.ts`
+> **对应版本**：Vue 3.4.x
+
+#### 陷阱 1：响应式丢失问题（⭐⭐⭐ 最高频陷阱）
+
+**问题描述**：解构 `reactive` 对象会导致属性失去响应性
+
+```javascript
+// ❌ 错误示范：解构导致响应式丢失
+import { reactive, watchEffect } from 'vue'
+
+const state = reactive({
+  count: 0,
+  name: 'Vue',
+  user: { id: 1, nickname: 'vue3' }
+})
+
+// ⚠️ 解构出来的只是普通值，不再是响应式
+const { count, name, user } = state
+
+watchEffect(() => {
+  console.log(count)   // 永远输出 0（初始值）
+  console.log(name)    // 永远输出 'Vue'
+})
+
+// 修改原对象
+state.count = 100
+state.name = 'Nuxt'
+
+// ⚠️ watchEffect 不会触发，因为 count/name 不是响应式
+count++            // 不会触发视图更新
+name = 'React'     // 不会触发视图更新
+```
+
+**原因分析**（源码层面）：
+
+```typescript
+// packages/reactivity/src/reactive.ts
+
+// reactive 返回的是 Proxy 对象
+export function reactive<T extends object>(target: T): UnwrapNestedRefs<T> {
+  return createReactiveObject(target, false, mutableHandlers, ...)
+}
+
+// 当你访问 state.count 时，实际上走的是 Proxy.get
+// Proxy.get 会执行 track() 收集依赖
+
+// 但是当你 const { count } = state 时：
+// 这只是普通的赋值操作，把当前值复制给了 count 变量
+// count 变量只是一个 number 类型，没有 Proxy 包装
+// 所以对 count 的修改不会触发任何响应式系统
+
+// ✅ 解决方案 1：使用 toRefs（推荐）
+import { reactive, toRefs, watchEffect } from 'vue'
+
+const state = reactive({ count: 0, name: 'Vue' })
+
+// ⭐ toRefs 将每个属性转换为 ref
+const { count, name } = toRefs(state)
+
+// 现在 count 和 name 都是 Ref<number> 对象
+watchEffect(() => {
+  console.log(count.value)  // ✅ 响应式正常工作
+})
+
+count.value++        // ✅ 触发更新
+name.value = 'Nuxt'  // ✅ 触发更新
+
+// ✅ 解决方案 2：直接访问 reactive 对象（不解构）
+const state = reactive({ count: 0 })
+
+watchEffect(() => {
+  console.log(state.count)  // ✅ 通过 Proxy 访问，响应式正常
+})
+
+state.count++  // ✅ 触发更新
+
+// ✅ 解决方案 3：对于单个值，直接使用 ref
+const count = ref(0)  // 一开始就用 ref，不存在解构问题
+```
+
+**toRefs 源码解析**：
+
+```typescript
+// packages/reactivity/src/ref.ts
+
+// ⭐ toRefs 的实现
+export function toRefs<T extends object>(object: T): ToRefs<T> {
+  // 如果不是 reactive 对象，开发环境发出警告
+  if (__DEV__ && !isProxy(object)) {
+    warn(`toRefs() expects a reactive object but received a plain one.`)
+  }
+  
+  const result: any = isArray(object) ? new Array(object.length) : {}
+  
+  // 遍历对象的每个 key
+  for (const key in object) {
+    // ⭐ 为每个属性创建 ObjectRefImpl（自定义 ref）
+    result[key] = toRef(object, key)
+  }
+  
+  return result
+}
+
+// ⭐ ObjectRefImpl：连接原对象和 ref 的桥梁
+class ObjectRefImpl<T extends object, K extends keyof T> {
+  public readonly __v_isRef = true
+  
+  constructor(
+    private readonly _object: T,  // 原始 reactive 对象
+    private readonly _key: K,     // 属性名
+    private readonly _defaultValue?: T[K]  // 默认值
+  ) {}
+  
+  get value(): T[K] {
+    // ⭐ 读取时：从原对象获取值（触发 Proxy.get → track）
+    const val = this._object[this._key]
+    return val === undefined ? (this._defaultValue!) : val
+  }
+  
+  set value(newVal) {
+    // ⭐ 写入时：设置到原对象（触发 Proxy.set → trigger）
+    this._object[this._key] = newVal
+  }
+}
+
+// 这就是为什么 toRefs 后的属性仍然保持响应性：
+// 它们不是真正的 ref，而是一个"代理 ref"
+// 所有的读写操作都会转发给原 reactive 对象
+```
+
+---
+
+#### 陷阱 2：ref 在 JS 中的 .value 遗忘（⭐⭐ 新手常犯）
+
+**问题描述**：在 JavaScript 代码中忘记访问 `.value`
+
+```javascript
+import { ref, watchEffect } from 'vue'
+
+const count = ref(0)
+const message = ref('Hello')
+
+// ❌ 错误 1：打印 ref 对象本身
+console.log(count)
+// 输出：RefImpl { _value: 0, __v_isRef: true, dep: Set {...}, ... }
+// 而不是数字 0
+
+// ❌ 错误 2：数学运算
+const double = count * 2  // NaN！（对象 * 数字）
+const next = count + 1    // "0[object Object]"（字符串拼接）
+
+// ❌ 错误 3：条件判断
+if (count) {
+  // 永远为真（对象是 truthy），即使 count.value === 0
+}
+
+// ❌ 错误 4：传递给函数
+function printNum(num: number) {
+  console.log(num)
+}
+printNum(count)  // 传入的是 RefImpl 对象，不是 number
+
+// ✅ 正确做法：始终使用 .value
+console.log(count.value)        // 输出 0
+const double = count.value * 2  // 0
+const next = count.value + 1    // 1
+
+if (count.value > 0) {         // 正确的条件判断
+  // ...
+}
+
+printNum(count.value)          // 传入 number 类型
+```
+
+**RefImpl 类的 get/set 实现**：
+
+```typescript
+// packages/reactivity/src/ref.ts
+
+class RefImpl<T> {
+  private _value: T
+  public readonly __v_isRef = true
+  
+  constructor(value: T, public readonly __v_isShallow: boolean) {
+    this._rawValue = __v_isShallow ? value : toRaw(value)
+    this._value = __v_isShallow ? value : convert(value)  // ⭐ 对象转为 reactive
+  }
+  
+  // ⭐ getter：依赖收集
+  get value(): T {
+    // 收集依赖：记录谁用了这个 ref
+    track(toRaw(this), TrackOpTypes.GET, 'value')
+    return this._value
+  }
+  
+  // ⭐ setter：触发更新
+  set value(newVal: T) {
+    // 检测值是否真的变了（优化：相同值不触发更新）
+    const useDirectValue = this.__v_isShallow || isShallow(newVal) || isReadonly(newVal)
+    newVal = useDirectValue ? newVal : toRaw(newVal)
+    
+    if (hasChanged(newVal, this._rawValue)) {
+      this._rawValue = newVal
+      this._value = useDirectValue ? newVal : convert(newVal)
+      
+      // ⭐ 触发依赖更新
+      trigger(toRaw(this), TriggerOpTypes.SET, 'value', newVal, this._rawValue)
+    }
+  }
+}
+
+// 💡 关键点：
+// 1. value 是 getter/setter，不是普通属性
+// 2. 读 value → track（收集依赖）
+// 3. 写 value → trigger（通知更新）
+// 4. 所以必须通过 .value 访问才能触发响应式系统
+```
+
+**快速记忆口诀**：
+- 📌 **模板里不用 .value**（编译器自动处理）
+- 📌 **reactive 对象内的 ref 不用 .value**（自动解包）
+- 📌 **其他所有地方都要 .value**（JS 逻辑、计算、传参）
+
+---
+
+#### 陷阱 3：watch 的深浅监听陷阱（⭐⭐ 性能相关）
+
+**问题描述**：默认的深度监听可能导致不必要的性能开销
+
+```javascript
+import { reactive, watch, watchEffect } from 'vue'
+
+const state = reactive({
+  user: {
+    name: 'Alice',
+    profile: {
+      avatar: '/avatar.jpg',
+      bio: 'Hello World',
+      social: {
+        github: 'https://github.com/alice',
+        twitter: '@alice'
+      }
+    }
+  },
+  items: Array(10000).fill(0).map((_, i) => ({ id: i, value: Math.random() }))
+})
+
+// ❌ 陷阱 1：监听整个 reactive 对象（默认深度监听）
+watch(
+  () => state.user,
+  (newVal) => {
+    console.log('user 变化了', newVal)
+    // ⚠️ user 内部的任何层级变化都会触发：
+    // - state.user.name 变化 → 触发
+    // - state.user.profile.avatar 变化 → 触发
+    // - state.user.profile.social.github 变化 → 触发
+  }
+)
+
+// 即使只是修改深层属性
+state.user.profile.social.twitter = '@alice_new'  // ⚠️ 触发了 watch！
+
+// ✅ 解决方案 1：明确指定监听的路径（推荐）
+watch(
+  () => state.user.name,  // 只监听 name
+  (newName) => {
+    console.log('name 变成了', newName)
+  }
+)
+// 只有 state.user.name 变化才触发
+
+// ✅ 解决方案 2：使用 shallowRef + triggerRef（性能最优）
+const userList = shallowRef([])  // 浅层响应式
+
+watch(userList, (newList) => {
+  console.log('列表被替换了', newList)
+  // 只有整个列表被替换时才触发
+}, { flush: 'pre' })
+
+// 修改内部元素不会触发 watch
+userList.value.push({ id: 1 })  // ❌ 不触发
+
+// 手动触发更新
+triggerRef(userList)  // ✅ 手动触发
+
+// ✅ 解决方案 3：使用 deep: false（仅监听引用变化）
+watch(
+  () => state.user,
+  (newVal) => {
+    console.log('user 引用变化')
+  },
+  { deep: false }  // ⭐ 关键配置
+)
+// 只有 state.user = {...} （整体替换）才触发
+```
+
+**traverse 函数的递归深度遍历机制**：
+
+```typescript
+// packages/reactivity/src/baseHandlers.ts
+// ⭐ deep watcher 的核心：递归遍历所有嵌套属性
+
+import { traverse } from './effect'
+
+// traverse 函数的实现（简化版）
+export function traverse(value: unknown, seen?: Set<unknown>) {
+  // 如果不是对象或已经被遍历过，直接返回
+  if (!isObject(value) || (value as any).__v_skip) {
+    return value
+  }
+  
+  // 避免循环引用导致的无限递归
+  seen = seen || new Set()
+  if (seen.has(value)) {
+    return value
+  }
+  seen.add(value)
+  
+  // ⭐ 递归遍历
+  if (isArray(value)) {
+    // 数组：遍历每个元素
+    for (let i = 0; i < (value as []).length; i++) {
+      traverse((value as unknown[])[i], seen)
+    }
+  } else if (isSet(value) || isMap(value)) {
+    // Set/Map：遍历每个 entry
+    value.forEach((v: unknown) => {
+      traverse(v, seen)
+    })
+  } else {
+    // 普通对象：遍历每个属性值
+    for (const key in value) {
+      traverse((value as Record<string, unknown>)[key], seen)
+    }
+  }
+  
+  return value
+}
+
+// ⚠️ 性能影响：
+// 对于大型嵌套对象（如 10000 条数据的列表），
+// traverse 会递归访问每一个属性，
+// 这就是为什么 deep: true 在大数据量下会有性能问题。
+```
+
+**性能对比测试**：
+
+```javascript
+// 测试数据：1000 个用户对象，每个有 20 个字段
+const bigData = reactive({
+  users: Array.from({ length: 1000 }, (_, i) => ({
+    id: i,
+    name: `User${i}`,
+    email: `user${i}@example.com`,
+    profile: {
+      avatar: `/avatars/${i}.jpg`,
+      bio: `Bio for user ${i}`,
+      settings: {
+        theme: 'dark',
+        language: 'en',
+        notifications: { email: true, push: false, sms: true }
+      }
+    }
+  }))
+})
+
+console.time('deep watch')
+watch(
+  () => bigData.users,
+  () => {},
+  { deep: true }  // ⚠️ 首次遍历需要访问 1000 × 20 = 20000 个属性
+)
+console.timeEnd('deep watch')
+// 输出：deep watch: 15-30ms（取决于设备性能）
+
+// 修改一个深层属性
+bigData.users[0].profile.settings.theme = 'light'
+// ⚠️ 触发 watch 回调（即使我们可能只关心某个特定用户）
+
+// ✅ 优化：精确监听
+watch(
+  () => bigData.users[0].profile.settings.theme,  // 只监听这一个路径
+  (theme) => {
+    console.log('theme changed to', theme)
+  }
+)
+// 性能提升：O(1) vs O(n×m)
+```
+
+---
+
+#### 陷阱 4：computed 的惰性求值（⭐⭐ 缓存机制误解）
+
+**问题描述**：误解 computed 的计算时机
+
+```javascript
+import { ref, computed, watchEffect } from 'vue'
+
+const count = ref(0)
+const double = computed(() => {
+  console.log('⚠️ 计算 double！')  // 观察计算次数
+  return count.value * 2
+})
+
+// ❌ 误区 1：以为每次访问 double.value 都会重新计算
+console.log(double.value)  // 输出 "⚠️ 计算 double！" 然后 0
+console.log(double.value)  // 只输出 0（不打印！使用缓存）
+console.log(double.value)  // 只输出 0（不打印！使用缓存）
+
+// ❌ 误区 2：以为修改 count 会立即重算
+count.value++
+console.log('count 变了，但 double 还没算')
+
+// 此时 double 的 dirty 标志位是 true，但没有访问就不会计算
+console.log(double.value)  // 输出 "⚠️ 计算 double！" 然后 2（此时才真正计算）
+
+// ✅ 正确理解：computed 的三态模型
+// 1. dirty = true, 未计算过 → 下次访问时计算
+// 2. dirty = false, 已计算 → 直接返回缓存
+// 3. 依赖变化 → dirty = true（但不立即重算，等下次访问）
+```
+
+**ComputedRefImpl 的 dirty 标志位机制**：
+
+```typescript
+// packages/reactivity/src/computed.ts
+
+class ComputedRefImpl<T> {
+  private _value!: T
+  private _dirty = true  // ⭐ 脏标记：初始为 true（未计算）
+  
+  public effect!: ReactiveEffect<T>
+  public readonly __v_isRef = true
+  public readonly [ReactiveFlags.IS_COMPUTED] = true
+  
+  constructor(
+    getter: ComputedGetter<T>,
+    private readonly _setter: ComputedSetter<T>,
+    isReadonly: boolean
+  ) {
+    // ⭐ 创建 effect，设置 scheduler（调度器）
+    this.effect = new ReactiveEffect(getter, (scheduler) => {
+      if (!this._dirty) {
+        // ⭐ 依赖变化时的调度逻辑：
+        // 1. 不立即重新计算
+        // 2. 只标记为 dirty
+        // 3. 触发外部依赖（如果有组件在使用这个 computed）
+        this._dirty = true
+        
+        // 通知所有依赖这个 computed 的 effect
+        triggerToReturn(computed, TriggerOpTypes.SET, 'value')
+        
+        // ⭐ 如果在 SSR 环境，确保同步计算
+        if (this._dirty) {
+          scheduler()  // 强制同步执行一次
+        }
+      }
+    })
+    
+    this.effect.computed = true  // 标记为 computed effect
+  }
+  
+  get value() {
+    // ⭐ 缓存读取逻辑
+    const self = toRaw(this) as ComputedRefImpl<T>
+    
+    // 收集外部依赖（可能有组件在用这个 computed）
+    track(self, TrackOpTypes.GET, 'value')
+    
+    // ⭐ 关键判断：只有 dirty 时才真正计算
+    if (self._dirty) {
+      // ⭐ 执行 getter（这会触发内部依赖收集）
+      self._value = self.effect.run()!
+      self._dirty = false  // ⭐ 计算完成，清除脏标记
+    }
+    
+    return self._value  // 返回缓存值
+  }
+}
+
+// 💡 设计优势：
+// 1. 懒计算：不访问就不计算
+// 2. 缓存：多次访问只计算一次
+// 3. 批量：依赖多次变化，最终只算一次
+// 4. 调度：依赖变化不阻塞，异步批量处理
+```
+
+**computed 缓存流程图**：
+
+```mermaid
+stateDiagram-v2
+    [*] --> Dirty_未计算: 初始状态 / 依赖变化
+    
+    Dirty_未计算 --> Calculating_计算中: 访问 .value
+    Calculating_计算中 --> Cached_已缓存: 计算完成
+    
+    Cached_已缓存 --> Dirty_需重算: 依赖变化
+    Dirty_需重算 --> Calculating_计算中: 再次访问 .value
+    
+    Cached_已缓存 --> Cached_已缓存: 再次访问（命中缓存）
+    
+    note right of Dirty_未计算
+        _dirty = true
+        等待下次访问时计算
+    end note
+    
+    note right of Cached_已缓存
+        _dirty = false
+        直接返回 _value
+    end note
+```
+
+**实战案例：computed vs method 的性能差异**
+
+```javascript
+import { ref, computed } from 'vue'
+
+const items = ref(Array(10000).fill(0).map((_, i) => ({ 
+  id: i, 
+  value: Math.random(),
+  active: i % 2 === 0
+})))
+
+// ❌ 方法版本：每次渲染都重新执行
+function filteredItems_method() {
+  console.log('⚠️ 方法执行了！')
+  return items.value.filter(item => item.active)
+}
+
+// ✅ computed 版本：只在依赖变化时执行
+const filteredItems_computed = computed(() => {
+  console.log('⚠️ Computed 执行了！')
+  return items.value.filter(item => item.active)
+})
+
+// 模板中使用 5 次
+<template>
+  <!-- 方法版本：执行 5 次 -->
+  <div>{{ filteredItems_method().length }}</div>
+  <div>{{ filteredItems_method().length }}</div>
+  <div>{{ filteredItems_method().length }}</div>
+  <div>{{ filteredItems_method().length }}</div>
+  <div>{{ filteredItems_method().length }}</div>
+  
+  <!-- computed 版本：最多执行 1 次 -->
+  <div>{{ filteredItems_computed.length }}</div>
+  <div>{{ filteredItems_computed.length }}</div>
+  <div>{{ filteredItems_computed.length }}</div>
+  <div>{{ filteredItems_computed.length }}</div>
+  <div>{{ filteredItems_computed.length }}</div>
+</template>
+
+// 结果：
+// 方法版本：打印 5 次 "方法执行了"
+// computed 版本：打印 1 次 "Computed 执行了"（首次）
+// 再次渲染（items没变）：打印 0 次
+```
+
+---
+
+#### 陷阱 5：异步操作的竞态条件（⭐⭐⭐ 实战高频问题）
+
+**问题描述**：快速切换 tab/搜索时，旧请求可能晚于新请求返回
+
+```javascript
+// ❌ 问题代码：典型的竞态条件
+import { ref } from 'vue'
+
+const data = ref(null)
+const loading = ref(false)
+
+async function loadData(id: string) {
+  loading.value = true
+  
+  // ⚠️ 假设用户快速切换：
+  // t=0ms:  loadData('A')  →  发起请求 A
+  // t=50ms: loadData('B')  →  发起请求 B（A 还在进行中）
+  // t=100ms: 请求 A 返回   →  data.value = A 的结果
+  // t=150ms: 请求 B 返回   →  data.value = B 的结果
+  // 最终显示的是 B（正确），但如果 B 先返回呢？
+  
+  const res = await fetch(`/api/data/${id}`)
+  const json = await res.json()
+  
+  // ⚠️ 此时可能已经不是用户想要的数据了！
+  data.value = json  // 可能是过期数据
+  loading.value = false
+}
+
+// 场景：搜索框输入
+// 用户输入 "vue" → 请求 vue 相关数据
+// 用户继续输入 "vue3" → 请求 vue3 相关数据
+// 如果 vue 的请求比 vue3 慢，最终显示的是 vue 的结果！❌
+```
+
+**解决方案 1：AbortController（推荐）**
+
+```javascript
+import { ref, onUnmounted } from 'vue'
+
+const data = ref(null)
+const loading = ref(false)
+let currentController: AbortController | null = null
+
+async function loadData(id: string) {
+  // ⭐ 取消上一个请求（如果存在）
+  if (currentController) {
+    currentController.abort()  // 取消之前的请求
+  }
+  
+  loading.value = true
+  
+  // ⭐ 创建新的 AbortController
+  currentController = new AbortController()
+  
+  try {
+    const res = await fetch(`/api/data/${id}`, {
+      signal: currentController.signal  // ⭐ 关联信号
+    })
+    
+    const json = await res.json()
+    
+    // ⭐ 再次检查是否被取消（双重保险）
+    if (!currentController.signal.aborted) {
+      data.value = json
+    }
+  } catch (error) {
+    // ⭐ 区分"取消"和"真正的错误"
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.log('📛 请求被取消（预期行为）')
+    } else {
+      console.error('❌ 请求失败:', error)
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// ⭐ 组件卸载时也要清理
+onUnmounted(() => {
+  if (currentController) {
+    currentController.abort()
+  }
+})
+```
+
+**解决方案 2：版本号/时间戳（兼容性好）**
+
+```javascript
+import { ref } from 'vue'
+
+const data = ref(null)
+const loading = ref(false)
+let requestVersion = 0  // ⭐ 版本计数器
+
+async function loadData(id: string) {
+  const currentVersion = ++requestVersion  // ⭐ 递增版本号
+  loading.value = true
+  
+  try {
+    const res = await fetch(`/api/data/${id}`)
+    const json = await res.json()
+    
+    // ⭐ 关键：检查版本号是否还是当前的
+    if (currentVersion === requestVersion) {
+      // 版本号匹配 → 请求是最新的 → 更新数据
+      data.value = json
+    } else {
+      // 版本号不匹配 → 已经过期 → 丢弃结果
+      console.log('🗑️ 丢弃过期结果', currentVersion, '!=', requestVersion)
+    }
+  } catch (error) {
+    // 只有当前版本的错误才报告
+    if (currentVersion === requestVersion) {
+      console.error('❌ 请求失败:', error)
+    }
+  } finally {
+    // 只有当前版本才关闭 loading
+    if (currentVersion === requestVersion) {
+      loading.value = false
+    }
+  }
+}
+```
+
+**解决方案 3：使用 Composable 封装（最佳实践）**
+
+```javascript
+// composables/useAsyncData.js
+import { ref, onUnmounted } from 'vue'
+
+/**
+ * ⭐ 通用的异步数据 composable
+ * 自动处理竞态条件、加载状态、错误处理
+ */
+export function useAsyncData<T>(asyncFn: () => Promise<T>) {
+  const data = ref<T | null>(null)
+  const error = ref<Error | null>(null)
+  const loading = ref(false)
+  
+  let controller: AbortController | null = null
+  let isCancelled = false
+  
+  async function execute(): Promise<void> {
+    // ⭐ 取消上一次请求
+    abort()
+    
+    loading.value = true
+    error.value = null
+    isCancelled = false
+    
+    controller = new AbortController()
+    
+    try {
+      data.value = await asyncFn()
+    } catch (e) {
+      if (!isCancelled) {
+        error.value = e as Error
+      }
+    } finally {
+      if (!isCancelled) {
+        loading.value = false
+      }
+    }
+  }
+  
+  function abort(): void {
+    if (controller) {
+      controller.abort()
+      isCancelled = true
+      controller = null
+    }
+  }
+  
+  onUnmounted(abort)  // ⭐ 组件卸载时自动取消
+  
+  return { data, error, loading, execute, abort }
+}
+
+// 使用示例
+const { data, loading, error, execute } = useAsyncData(async () => {
+  const res = await fetch(`/api/users`)
+  return res.json()
+})
+
+// 搜索时自动取消上一次
+watch(searchKeyword, () => {
+  execute()  // ⭐ 自动处理竞态
+})
+```
+
+**竞态条件时间线图**：
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as 组件
+    participant A as API 请求
+    
+    Note over U,A: 场景：快速切换 Tab
+    
+    U->>C: 点击 Tab A
+    C->>A: 请求 A (version=1)
+    
+    U->>C: 点击 Tab B (50ms后)
+    C->>C: version++ (version=2)
+    C->>A: 取消请求 A (abort)
+    C->>A: 请求 B (version=2)
+    
+    A-->>C: 请求 A 被取消 (100ms)
+    Note over C: 忽略取消错误
+    
+    A-->>C: 请求 B 成功 (150ms)
+    C->>C: 检查 version (2==2) ✅
+    C->>U: 显示 Tab B 数据
+    
+    Note over U,A: ✅ 无竞态问题！<br/>用户看到的是最新请求数据
+```
+
+---
+
+#### 陷阱 6：provide/inject 的响应式陷阱（⭐⭐ 状态共享常见问题）
+
+**问题描述**：provide 非响应式值导致 inject 端无法感知变化
+
+```javascript
+// ParentComponent.vue
+import { provide, ref, reactive } from 'vue'
+
+export default {
+  setup() {
+    // ❌ 错误 1：provide 非响应式值
+    let theme = 'dark'  // 普通字符串
+    provide('theme', theme)
+    
+    // 后续修改
+    theme = 'light'  // ⚠️ inject 端仍然是 'dark'！无法感知变化
+    
+    // ❌ 错误 2：provide 后再修改（即使原本是响应式）
+    const user = ref({ name: 'Alice' })
+    provide('user', user)  // ✅ provide 了 ref
+    
+    user.value.name = 'Bob'  // ✅ 这个可以（修改了 ref 内部）
+    
+    user.value = { name: 'Charlie' }  // ⚠️ 这个也可以（ref 本身没变）
+    
+    // ❌ 错误 3：provide 一个临时计算的值
+    provide('currentTime', new Date().toLocaleString())
+    // ⚠️ 这个值永远不会更新！
+  }
+}
+
+// ChildComponent.vue
+import { inject } from 'vue'
+
+export default {
+  setup() {
+    const theme = inject('theme', 'default-theme')
+    const user = inject('user')
+    
+    // theme 永远是 'dark'（初始值）
+    // user 会跟随变化（因为是 ref）
+    
+    return { theme, user }
+  }
+}
+```
+
+**正确做法**：
+
+```javascript
+// ✅ 正确 1：provide 响应式对象
+import { provide, ref, readonly } from 'vue'
+
+export default {
+  setup() {
+    // 使用 ref 或 reactive
+    const theme = ref('dark')
+    const userInfo = reactive({
+      name: 'Alice',
+      role: 'admin'
+    })
+    
+    // ⭐ provide 响应式对象
+    provide('theme', theme)
+    provide('userInfo', userInfo)
+    
+    // 后续修改会自动传播到 inject 端
+    function toggleTheme() {
+      theme.value = theme.value === 'dark' ? 'light' : 'dark'
+      // ✅ 所有 inject('theme') 的组件都会感知到变化
+    }
+    
+    return { toggleTheme }
+  }
+}
+
+// ✅ 正确 2：使用 readonly 保护（防止子组件直接修改）
+provide('theme', readonly(theme))
+// 子组件只能读取，不能修改
+// 修改必须通过父组件提供的方法
+
+// ✅ 正确 3：provide 响应式 + 修改方法
+const theme = ref('dark')
+
+provide('theme', readonly(theme))
+provide('toggleTheme', () => {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+})
+
+// 子组件
+const theme = inject('theme')
+const toggleTheme = inject('toggleTheme')
+// 可以读取 theme，可以通过 toggleTheme 修改
+```
+
+**provide/inject 的原型链继承机制**：
+
+```typescript
+// packages/runtime-core/src/apiProvide.ts（简化版）
+
+// ⭐ 组件实例的 provides 对象
+// 每个组件实例都有一个 provides 属性
+// 默认指向父组件的 provides（原型链继承）
+
+export function provide(key: InjectionKey<string> | string, value: any): void {
+  if (!currentInstance) {
+    // ⚠️ 必须在 setup 中调用
+    warn(`provide() can only be used inside setup()`)
+    return
+  }
+  
+  let provides = currentInstance.provides
+  
+  // ⭐ 关键：首次调用 provide 时，
+  // 创建一个新的 provides 对象，原型指向父组件的 provides
+  // 这样就可以在不影响父组件的情况下添加新的 provide
+  const parentProvides = currentInstance.parent?.provides
+  
+  if (provides === parentProvides) {
+    // 首次 provide：创建新对象，原型链指向父级
+    provides = currentInstance.provides = Object.create(parentProvides)
+  }
+  
+  // 在当前组件的 provides 上设置值
+  provides[key] = value
+}
+
+export function inject(key: InjectionKey<string> | string, defaultValue?: any): any {
+  if (!currentInstance) {
+    warn(`inject() can only be used inside setup()`)
+    return defaultValue
+  }
+  
+  // ⭐ 从当前组件开始，沿着原型链向上查找
+  const provides = currentInstance.provides
+  
+  // JavaScript 原型链查找：
+  // 1. 先在当前组件的 provides 中找
+  // 2. 找不到就沿着 __proto__ 向父组件找
+  // 3. 直到找到或到达顶级（null）
+  
+  if (key in provides) {
+    // 找到了
+    return provides[key]
+  } else if (arguments.length > 1) {
+    // 有默认值
+    return defaultValue
+  } else {
+    // ⚠️ 找不到且没有默认值
+    warn(`injection "${String(key)}" not found.`)
+  }
+}
+
+// 💡 原型链示意：
+// GrandChild.provides = { theme: 'dark' }
+//   └─ __proto__ → Child.provides = { locale: 'zh-CN' }
+//     └─ __proto__ → Parent.provides = { user: ref(...) }
+//       └─ __proto__ → App.provides = { }
+//         └─ __proto__ → null
+
+// inject('theme') → 在 GrandChild.provides 找到 ✅
+// inject('locale') → GrandChild 没有 → Child.provides 找到 ✅
+// inject('user') → GrandChild/Child 都没有 → Parent.provides 找到 ✅
+// inject('notExist') → 都找不到 → 返回 undefined 或默认值
+```
+
+---
+
+#### 陷阱 7：setup 返回值的类型限制（⭐⭐ 高级话题）
+
+**问题描述**：Vue3 不支持 async setup（除非配合 Suspense）
+
+```typescript
+// ❌ 错误：返回 Promise（不支持！）
+export default {
+  async setup() {
+    // ⚠️ 编译通过，但运行时报错！
+    const data = await fetchData()  // 等待异步操作
+    
+    return {
+      data  // ⚠️ 实际返回的是 Promise<{data}>，不是 {data}
+    }
+  }
+}
+
+// Vue3 源码中的类型检查（简化版）
+// packages/runtime-core/src/component.ts
+
+function handleSetupResult(
+  instance: ComponentInternalInstance,
+  setupResult: unknown
+): void {
+  // ⭐ 检查 setup 返回值的类型
+  if (isFunction(setupResult)) {
+    // 返回了函数 → 当作 render 函数使用
+    instance.render = setupResult as InternalRenderFunction
+  } else if (isObject(setupResult)) {
+    // ✅ 返回了对象 → 合并到 ctx（渲染上下文）
+    instance.setupState = proxyRefs(setupResult)
+  } else if (__DEV__) {
+    // ❌ 返回了其他类型（包括 Promise）
+    warn(
+      `setup() should return an object, but returned ${typeof setupResult}`
+    )
+  }
+  
+  // ⚠️ Promise 也是 object，所以上面的 isObject 检查会通过
+  // 但后续使用 setupState 时会因为它是 Promise 而出错
+}
+```
+
+**解决方案 1：内部处理异步（推荐）**
+
+```javascript
+// ✅ 正确：在 setup 内部处理异步，返回同步的响应式数据
+export default {
+  setup() {
+    const data = ref(null)
+    const loading = ref(true)
+    const error = ref(null)
+    
+    // ⭐ 异步操作在内部完成
+    fetchData()
+      .then(res => {
+        data.value = res
+        loading.value = false
+      })
+      .catch(err => {
+        error.value = err
+        loading.value = false
+      })
+    
+    // ⭐ 返回同步的响应式对象
+    return { data, loading, error }
+  }
+}
+
+// 使用
+<template>
+  <div v-if="loading">Loading...</div>
+  <div v-else-if="error">Error: {{ error.message }}</div>
+  <div v-else>{{ data }}</div>
+</template>
+```
+
+**解决方案 2：配合 Suspense（实验性/高级用法）**
+
+```javascript
+// AsyncComponent.vue
+import { defineComponent } from 'vue'
+
+export default defineComponent({
+  async setup() {
+    // ✅ 配合 Suspense，可以返回 Promise
+    const data = await fetchData()
+    
+    return { data }
+  }
+})
+
+// Parent.vue
+<template>
+  <Suspense>
+    <!-- ⭐ 异步组件 -->
+    <template #default>
+      <AsyncComponent />
+      <!-- 显示加载完成后内容 -->
+    </template>
+    
+    <!-- ⭐ 加载中占位 -->
+    <template #fallback>
+      <div>Loading...</div>
+    </template>
+  </Suspense>
+</template>
+
+// ⚠️ 注意事项：
+// 1. Suspense 在 Vue3.2+ 是稳定特性
+// 2. 异步 setup 中可以使用 await
+// 3. 但仍然建议使用方案 1（更可控）
+```
+
+**解决方案 3：封装为 Composable（最佳实践）**
+
+```javascript
+// composables/useUserData.js
+import { ref, onMounted } from 'vue'
+
+/**
+ * ⭐ 封装异步逻辑为 composable
+ * setup 保持同步，异步逻辑封装在内部
+ */
+export function useUserData(userId: string) {
+  const user = ref(null)
+  const loading = ref(false)
+  const error = ref(null)
+  
+  // ⭐ 异步函数
+  async function fetchUser() {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const res = await fetch(`/api/users/${userId}`)
+      user.value = await res.json()
+    } catch (e) {
+      error.value = e as Error
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  // ⭐ 可以选择自动执行或手动执行
+  onMounted(fetchUser)  // 自动执行
+  // 或者暴露出来让调用者决定何时执行
+  
+  return { user, loading, error, fetchUser }
+}
+
+// 组件中使用（setup 保持简洁同步）
+export default {
+  setup() {
+    const { user, loading, error } = useUserData('123')
+    
+    return { user, loading, error }
+  }
+}
+```
+
+---
+
+#### 陷阱总结速查表
+
+| 陷阱编号 | 问题描述 | 危险等级 | 解决方案 |
+|---------|---------|:-------:|----------|
+| **#1** | 解构 reactive 丢失响应性 | ⭐⭐⭐ | 使用 `toRefs()` 或不解构 |
+| **#2** | ref 忘记 `.value` | ⭐⭐ | 模板除外，其他地方都用 `.value` |
+| **#3** | watch 深度监听性能问题 | ⭐⭐ | 精确监听路径 / `shallowRef` / `{deep: false}` |
+| **#4** | computed 误解缓存机制 | ⭐⭐ | 理解 dirty 标志位的懒计算 |
+| **#5** | 异步竞态条件 | ⭐⭐⭐ | `AbortController` / 版本号 / composable 封装 |
+| **#6** | provide 非响应式值 | ⭐⭐ | provide ref/reactive + `readonly` 保护 |
+| **#7** | async setup 返回 Promise | ⭐⭐ | 内部处理异步 / 配合 Suspense |
+
+**防坑核心原则**：
+
+```markdown
+## Vue3 Composition API 防坑口诀
+
+1. **reactive 要么不解构，要么 toRefs**
+   → 解构丢响应，toRefs 保活性
+
+2. **ref 除了模板，处处加 .value**
+   → JS 里忘 value，bug 找断肠
+
+3. **watch 监听要精准，避免 deep 乱递归**
+   → 大对象深监听，性能泪满襟
+
+4. **computed 缓存好，不用怕重复调**
+   → dirty 标志位，懒算效率高
+
+5. **异步操作防竞态，AbortController 要带上**
+   → 快速切换 tab，旧请求要取消
+
+6. **provide 必须响应式，readonly 来保护**
+   → 非响应 provide，子组件干着急
+
+7. **setup 返回要同步，异步交给 composable**
+   → async setup 悬而未决，Suspense 来救急
+```
+
+---
+
+### 3.10 【Vue3 Composition API vs React Hooks 深度对比】⭐ 对比章节
+
+> **源码位置**：Vue3 `packages/reactivity/src/` vs React `packages/react-reconciler/src/ReactFiberHooks.new.js`
+> **对应版本**：Vue 3.4.x vs React 18.x
+
+#### 10.1 设计哲学对比
+
+| 维度 | Vue3 Composition API | React Hooks |
+|------|---------------------|-------------|
+| **核心理念** | **响应式自动追踪**（基于 Proxy） | **显式声明依赖**（基于数组） |
+| **状态更新** | 修改值自动触发视图更新 | 必须调用 setState/setter |
+| **依赖收集** | **自动**（Proxy 拦截 get/set） | **手动**（依赖数组 `[dep1, dep2]`） |
+| **调用规则** | setup 内同步调用（相对宽松） | **严格顶层调用**（不能在条件/循环中） |
+| **闭包陷阱** | **无**（ref 始终指向同一对象） | **有**（state 可能是旧的快照） |
+| **性能模型** | **精确依赖收集**（只追踪实际访问的属性） | **需要手动优化**（memo/callback/useMemo） |
+| **心智负担** | **较低**（不用想依赖数组） | **较高**（必须正确声明依赖） |
+| **学习曲线** | 平缓（渐进式） | 陡峭（需要理解闭包、引用相等性） |
+| **调试体验** | 直观（DevTools 显示响应式依赖链） | 需要理解 Hooks 执行时机 |
+
+**核心差异可视化**：
+
+```mermaid
+graph TB
+    subgraph "Vue3 响应式系统"
+        V1["state = ref(0)"] --> V2["state.value++"]
+        V2 --> V3["🔄 Proxy.set 触发"]
+        V3 --> V4["自动收集依赖"]
+        V4 --> V5["精确更新依赖的组件"]
+        
+        style V3 fill:#4caf50,color:white
+        style V4 fill:#2196f3,color:white
+        style V5 fill:#ff9800,color:white
+    end
+    
+    subgraph "React Hooks 系统"
+        R1["const [n, setN] = useState(0)"]
+        R2["setN(n + 1)"]
+        R2 --> R3["🔄 触发 re-render"]
+        R3 --> R4["重新执行组件函数"]
+        R4 --> R5["对比依赖数组决定是否执行 effect"]
+        
+        style R3 fill:#f44336,color:white
+        style R5 fill:#9c27b0,color:white
+    end
+```
+
+#### 10.2 代码对比：同一功能的实现
+
+**示例 1：计数器功能**
+
+```javascript
+// ===== Vue3 Composition API =====
+import { ref, computed, watch } from 'vue'
+
+export default {
+  setup() {
+    // ⭐ 状态声明
+    const count = ref(0)
+    
+    // ⭐ 派生状态（自动追踪依赖，无需声明）
+    const double = computed(() => count.value * 2)
+    const isEven = computed(() => count.value % 2 === 0)
+    
+    // ⭐ 方法
+    function increment() {
+      count.value++  // 直接修改，自动触发更新
+    }
+    function decrement() {
+      count.value--
+    }
+    function reset() {
+      count.value = 0
+    }
+    
+    // ⭐ 副作用（自动追踪依赖，无需声明）
+    watch(count, (newVal, oldVal) => {
+      console.log(`Count: ${oldVal} → ${newVal}`)
+      document.title = `Count: ${newVal}`
+    })
+    
+    // ⭐ 返回所有需要暴露的内容
+    return {
+      count,
+      double,
+      isEven,
+      increment,
+      decrement,
+      reset
+    }
+  }
+}
+
+
+// ===== React Hooks =====
+import { useState, useMemo, useEffect, useCallback } from 'react'
+
+function Counter() {
+  // ⭐ 状态声明
+  const [count, setCount] = useState(0)
+  
+  // ⭐ 派生状态（⚠️ 必须声明依赖数组！）
+  const double = useMemo(() => count * 2, [count])        // 依赖：count
+  const isEven = useMemo(() => count % 2 === 0, [count])  // 依赖：count
+  
+  // ⭐ 方法（⚠️ 需要用 useCallback 优化，否则每次渲染创建新函数）
+  const increment = useCallback(() => {
+    setCount(c => c + 1)  // ⚠️ 函数式更新避免闭包陷阱
+  }, [])  // 空依赖：不依赖外部变量
+  
+  const decrement = useCallback(() => {
+    setCount(c => c - 1)
+  }, [])
+  
+  const reset = useCallback(() => {
+    setCount(0)
+  }, [])
+  
+  // ⭐ 副作用（⚠️ 必须声明依赖数组！漏写会导致 bug）
+  useEffect(() => {
+    console.log(`Count changed to ${count}`)
+    document.title = `Count: ${count}`
+    
+    // ⚠️ cleanup 函数（可选）
+    return () => {
+      console.log('Cleanup or prepare for next effect')
+    }
+  }, [count])  // ⚠️ 依赖：count（漏写会导致使用旧值）
+  
+  return (
+    <div>
+      <p>Count: {count}</p>
+      <p>Double: {double}</p>
+      <p>Is Even: {isEven ? 'Yes' : 'No'}</p>
+      <button onClick={increment}>+</button>
+      <button onClick={decrement}>-</button>
+      <button onClick={reset}>Reset</button>
+    </div>
+  )
+}
+```
+
+**关键差异分析**：
+
+```javascript
+// 差异 1：依赖管理
+// Vue3：自动追踪，零心智负担
+const double = computed(() => count.value * 2)
+// 自动知道依赖了 count，count 变化时自动重算
+
+// React：必须手动声明，漏写导致 bug
+const double = useMemo(() => count * 2, [count])
+// ⚠️ 如果漏写 [count]，double 永远不会更新！
+
+// 差异 2：性能优化
+// Vue3：天然精确，无需额外优化
+// 只有真正被访问的响应式属性才会建立依赖关系
+
+// React：需要大量手动优化
+const memoizedValue = useMemo(() => computeExpensive(a, b), [a, b])
+const handleClick = useCallback(() => doSomething(a), [a])
+const MemoizedComponent = React.memo(MyComponent)
+
+// 差异 3：闭包问题
+// Vue3：不存在（ref 始终是同一个对象引用）
+const count = ref(0)
+
+setTimeout(() => {
+  console.log(count.value)  // ✅ 始终是最新值
+}, 1000)
+
+// React：常见的闭包陷阱
+const [count, setCount] = useState(0)
+
+useEffect(() => {
+  const timer = setInterval(() => {
+    console.log(count)  // ⚠️ 可能是旧值！闭包捕获了渲染时的快照
+  }, 1000)
+  
+  return () => clearInterval(timer)
+}, [])  // ⚠️ 空依赖意味着 count 永远是初始值 0
+
+// React 的解决方案：使用 ref 或调整依赖
+const countRef = useRef(count)
+countRef.current = count  // 手动保持最新
+
+useEffect(() => {
+  const timer = setInterval(() => {
+    console.log(countRef.current)  // ✅ 最新值
+  }, 1000)
+  return () => clearInterval(timer)
+}, [])
+```
+
+**示例 2：表单验证（复杂场景）**
+
+```javascript
+// ===== Vue3 Composition API =====
+import { ref, reactive, computed, watch } from 'vue'
+
+export function useFormValidation(initialValues, rules) {
+  // ⭐ 表单数据（reactive 适合结构稳定的对象）
+  const form = reactive({ ...initialValues })
+  
+  // ⭐ 错误信息
+  const errors = reactive({})
+  
+  // ⭐ 验证状态
+  const isValid = computed(() => {
+    return Object.keys(errors).every(key => !errors[key])
+  })
+  
+  // ⭐ 自动验证（响应式，无需依赖数组）
+  watch(
+    () => ({ ...form }),  // 深度监听表单变化
+    (newForm) => {
+      Object.keys(rules).forEach(field => {
+        const rule = rules[field]
+        const value = newForm[field]
+        const error = rule.validator(value)
+        errors[field] = error || null
+      })
+    },
+    { immediate: true, deep: true }
+  )
+  
+  function reset() {
+    Object.assign(form, initialValues)
+  }
+  
+  function validate() {
+    Object.keys(rules).forEach(field => {
+      const rule = rules[field]
+      errors[field] = rule.validator(form[field]) || null
+    })
+    return isValid.value
+  }
+  
+  return { form, errors, isValid, reset, validate }
+}
+
+
+// ===== React Hooks =====
+import { useState, useMemo, useEffect, useCallback } from 'react'
+
+function useFormValidation(initialValues, rules) {
+  // ⭐ 表单数据
+  const [form, setForm] = useState(initialValues)
+  
+  // ⭐ 错误信息
+  const [errors, setErrors] = useState({})
+  
+  // ⭐ 验证状态（⚠️ 依赖 form 和 errors）
+  const isValid = useMemo(() => {
+    return Object.values(errors).every(error => !error)
+  }, [errors])  // ⚠️ 必须声明依赖
+  
+  // ⭐ 字段更新（⚠️ 需要用 useCallback）
+  const handleChange = useCallback((field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }, [])
+  
+  // ⭐ 验证逻辑（⚠️ 依赖 form）
+  useEffect(() => {
+    const newErrors = {}
+    Object.keys(rules).forEach(field => {
+      const rule = rules[field]
+      const error = rule.validator(form[field])
+      if (error) newErrors[field] = error
+    })
+    setErrors(newErrors)
+  }, [form, rules])  // ⚠️ 必须声明所有依赖
+  
+  const reset = useCallback(() => {
+    setForm(initialValues)
+    setErrors({})
+  }, [initialValues])
+  
+  const validate = useCallback(() => {
+    const newErrors = {}
+    Object.keys(rules).forEach(field => {
+      const error = rules[field].validator(form[field])
+      if (error) newErrors[field] = error
+    })
+    setErrors(newErrors)
+    return Object.values(newErrors).every(e => !e)
+  }, [form, rules])  // ⚠️ 依赖
+  
+  return { form, errors, isValid, handleChange, reset, validate }
+}
+```
+
+#### 10.3 高级特性对比
+
+| 特性 | Vue3 | React | 详细说明 |
+|------|:----:|:-----:|----------|
+| **自定义 Hook 组合** | ✅ 自然嵌套，无特殊限制 | ✅ 支持，但需遵守 Rules of Hooks | Vue 更灵活 |
+| **并发模式** | ⚠️ Suspense（实验性/有限支持） | ✅ Concurrent Mode（成熟，React 18） | React 更成熟 |
+| **服务端渲染 (SSR)** | ✅ 天然支持，序列化/激活简单 | ⚠️ 需要特殊处理 hooks | Vue 更简单 |
+| **DevTools 集成** | ✅ 完美支持（响应式依赖追踪） | ✅ 完美支持（Components/Profiler） | 平分秋色 |
+| **TypeScript 支持** | ✅ 推断更准确（基于泛型） | ✅ 泛型支持良好 | 各有优势 |
+| **生态系统** | VueUse（快速增长，质量高） | 几十万个 custom hooks（非常成熟） | React 生态更大 |
+| **静态分析** | ✅ 容易（响应式关系明确） | ⚠️ 困难（依赖数组动态性） | Vue 更优 |
+| **Tree-shaking** | ✅ 优秀（ESM + 按需引入） | ✅ 优秀（Webpack/Rollup 优化） | 平分秋色 |
+| **最小打包体积** | ~33kb (gzip) | ~42kb (gzip, React + DOM) | Vue 更小 |
+| **学习资源** | 官方文档 + 少量优质教程 | 海量教程 + 官方文档 + 社区文章 | React 资源更多 |
+
+#### 10.4 迁移指南（React → Vue3）
+
+如果你熟悉 React Hooks，迁移到 Vue3 Composition API 会感觉**非常解脱**：
+
+**1. 最大的解脱：不再需要依赖数组** 🎉
+
+```javascript
+// React（时刻担心依赖数组）
+useEffect(() => {
+  fetchData(userId)
+}, [userId])  // ⚠️ 漏写 = bug，多写 = 性能问题
+
+// Vue3（完全不用担心）
+watchEffect(() => {
+  fetchData(userId.value)  // ✅ 自动追踪 userId
+})
+// 或
+watch(userId, (newId) => {
+  fetchData(newId)  // ✅ 明确监听 userId
+})
+```
+
+**2. ref 替代 useState（但记得 .value）**
+
+```javascript
+// React
+const [count, setCount] = useState(0)
+setCount(prev => prev + 1)
+
+// Vue3
+const count = ref(0)
+count.value++
+// 模板中：{{ count }} （不需要 .value）
+```
+
+**3. computed 替代 useMemo（自动缓存，无需依赖）**
+
+```javascript
+// React
+const double = useMemo(() => count * 2, [count])
+
+// Vue3
+const double = computed(() => count.value * 2)
+// ✅ 自动追踪 count，自动缓存
+```
+
+**4. watch/watchEffect 替代 useEffect**
+
+```javascript
+// React（副作用 + 清理）
+useEffect(() => {
+  const subscription = subscribe(props.source)
+  return () => subscription.unsubscribe()
+}, [props.source])
+
+// Vue3（副作用 + 清理）
+watch(
+  () => props.source,
+  (source, _oldSource, onCleanup) => {
+    const subscription = subscribe(source)
+    onCleanup(() => subscription.unsubscribe())
+  }
+)
+```
+
+**5. 没有闭包陷阱** 🎉
+
+```javascript
+// React（闭包陷阱）
+const [count, setCount] = useState(0)
+
+useEffect(() => {
+  const id = setInterval(() => {
+    console.log(count)  // ⚠️ 永远是 0！
+  }, 1000)
+}, [])  // 空依赖 = 只执行一次 = 闭包锁定
+
+// Vue3（无闭包问题）
+const count = ref(0)
+
+onMounted(() => {
+  setInterval(() => {
+    console.log(count.value)  // ✅ 始终是最新值！
+  }, 1000)
+})
+```
+
+**6. 自定义 Hook 更自由（不需要 eslint-plugin-react-hooks）**
+
+```javascript
+// React（必须安装 eslint 插件来检查 hooks 规则）
+// npm install eslint-plugin-react-hooks --save-dev
+
+function useFriendStatus(friendID) {
+  const [isOnline, setIsOnline] = useState(null)
+
+  // ⚠️ 不能在条件/循环/嵌套函数中调用
+  // if (friendID) {  // ❌ 违反 Rules of Hooks
+  //   const [data] = useState()
+  // }
+
+  function handleStatusChange(status) {
+    setIsOnline(status.isOnline)
+  }
+
+  useEffect(() => {
+    ChatAPI.subscribeToFriendStatus(friendID, handleStatusChange)
+    return () => {
+      ChatAPI.unsubscribeFromFriendStatus(friendID, handleStatusChange)
+    }
+  }, [friendID])
+
+  return isOnline
+}
+
+// Vue3（更自由，只需在 setup 中同步调用）
+function useFriendStatus(friendId: string) {
+  const isOnline = ref<boolean | null>(null)
+
+  // ✅ 可以在 composable 内部使用条件/逻辑
+  if (friendId) {
+    // 合理的逻辑分支是可以的
+    const { data } = useFetch(`/api/friends/${friendId}`)
+    watch(data, (newData) => {
+      isOnline.value = newData?.isOnline ?? null
+    })
+  }
+
+  // ⭐ 生命周期钩子
+  onUnmounted(() => {
+    // 清理...
+  })
+
+  return isOnline
+}
+```
+
+**迁移对照速查表**：
+
+| React Hook | Vue3 Composition API | 主要差异 |
+|------------|---------------------|----------|
+| `useState` | `ref` / `reactive` | Vue3 需 `.value`（模板除外） |
+| `useReducer` | `ref` + 自定义函数 | Vue3 用起来更简单 |
+| `useEffect` | `watch` / `watchEffect` | Vue3 自动依赖追踪 |
+| `useMemo` | `computed` | Vue3 无需依赖数组 |
+| `useCallback` | 普通函数 | Vue3 不需要优化（无引用相等性问题） |
+| `useRef` | `ref` / `templateRef` | 类似，但 Vue3 ref 更强大 |
+| `useContext` | `provide` / `inject` | Vue3 支持响应式 |
+| `useLayoutEffect` | `watch` + `{flush: 'sync'}` | Vue3 更灵活的刷新策略 |
+| `useImperativeHandle` | `expose`（`<script setup>`） | Vue3 更简洁 |
+| `custom Hook` | Composable (`useXxx`) | Vue3 更自由，无 strict rules |
+
+#### 10.5 总结：如何选择？
+
+**选择 Vue3 Composition API 的场景**：
+- ✅ 项目追求开发效率和低心智负担
+- ✅ 团队熟悉 Vue/Options API，想平滑过渡
+- ✅ 需要优秀的 TypeScript 支持
+- ✅ 关注打包体积和性能
+- ✅ 希望更直观的调试体验
+
+**选择 React Hooks 的场景**：
+- ✅ 团队已经精通 React 生态
+- ✅ 需要成熟的并发模式（Suspense/Concurrent Features）
+- ✅ 需要海量第三方 Hooks 库
+- ✅ 项目已经在 React 技术栈中
+
+**客观评价**：
+
+```javascript
+// Vue3 的优势
+const vueAdvantages = [
+  '响应式系统更智能（自动依赖追踪）',
+  '心智负担更低（无需管理依赖数组）',
+  '不存在闭包陷阱',
+  'API 更简洁（computed/watchEffect）',
+  'TypeScript 推断更准确',
+  '打包体积更小'
+]
+
+// React 的优势
+const reactAdvantages = [
+  '生态系统更庞大（数十万第三方库）',
+  '社区资源和教程更多',
+  '并发模式更成熟（React 18）',
+  '就业市场需求更大',
+  'Hooks 规则虽然严格但提供了更好的静态分析能力',
+  '跨平台支持更广泛（React Native）'
+]
+
+// 结论：两者都是优秀的方案
+// 选择取决于团队背景、项目需求和长期规划
+// 从技术角度看，Vue3 Composition API 在开发体验上有明显优势
+// 从生态角度看，React 仍然领先
+```
+
+---
+
 ### 3.6 设计意图总结
 
 **Composition API 的优势**：

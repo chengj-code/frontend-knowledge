@@ -6142,6 +6142,682 @@ function createCanvasRenderer(canvas: HTMLCanvasElement) {
 
 ---
 
+# Composition API（Hooks）专项面试题
+
+---
+
+## Q51：Vue3 的 Composition API 和 React Hooks 有哪些核心区别？
+
+- **难度**：★★☆
+- **知识点**：[Composition API] / [React Hooks对比] / [设计哲学]
+- **题型**：对比分析题
+- **关联源码**：`packages/reactivity/src/reactive.ts` vs `react/src/ReactHooks.js`
+
+### 参考答案要点：
+
+#### 1. **依赖管理机制**
+```javascript
+// Vue3：自动依赖追踪，无需声明
+const count = ref(0)
+watch(() => console.log(count.value))  // 自动追踪count
+
+// React：必须手动声明依赖数组
+useEffect(() => {
+  console.log(count)  // 闭包可能捕获旧值！
+}, [count])  // 漏写会导致bug
+```
+→ Vue3使用Proxy自动收集依赖，React需手动声明
+
+#### 2. **调用规则**
+- Vue3：必须在`setup()`中同步调用（但限制较少）
+- React：必须在组件顶层调用（eslint-plugin-react-hooks强制）
+→ 原理差异：Vue3基于实例上下文(currentInstance)，React基于链表(memoizedState)
+
+#### 3. **闭包陷阱问题**
+- Vue3：**不存在**（ref始终指向同一对象引用）
+- React：**常见问题**（state是渲染快照，异步回调可能拿到旧值）
+→ 示例代码展示React的stale closure问题及解决方案
+
+#### 4. **性能优化模型**
+- Vue3：精确依赖收集，天然高效
+- React：需手动memo/useMemo/useCallback优化
+→ 性能测试对比数据
+
+#### 5. **状态更新方式**
+- Vue3：修改值即可触发（`count.value++`）
+- React：必须调用setter（`setCount(c => c+1)`）
+→ 设计哲学差异：可变 vs 不可变
+
+### 🔍 追问链
+1. **为什么Vue3不需要依赖数组？**
+   → 方向：Proxy响应式系统自动追踪、track()机制、WeakMap存储结构
+2. **React的stale closure问题怎么解决？**
+   → 方向：useRef保存最新值、函数式更新、自定义hook封装
+3. **从迁移角度，React开发者转Vue3有哪些"解脱"？**
+   → 方向：不再想依赖数组、不再担心闭包、不再需要大量memo
+
+---
+
+## Q52：如何实现一个高质量的 Composable（自定义Hook）？有哪些设计原则？
+
+- **难度**：★★☆
+- **知识点**：[Composable] / [设计模式] / [最佳实践]
+- **题型**：编程实践题 + 架构设计题
+- **关联源码**：`packages/runtime-core/src/apiLifecycle.ts`, `apiSetup.ts`
+
+### 参考答案要点：
+
+#### 1. **核心设计原则（4大原则）**
+
+| 原则 | 说明 | 反模式示例 |
+|------|------|-----------|
+| **只接收参数** | 不依赖this或组件实例 | ❌ 使用this.$props |
+| **返回响应式数据** | 返回ref/reactive/computed | ❌ 返回普通值 |
+| **副作用可控** | 提供清理机制 | ❌ 事件监听不清理 |
+| **完全无耦合** | 可独立测试和使用 | ❌ 依赖外部全局变量 |
+
+#### 2. **完整示例：useLocalStorage（带类型支持）**
+```typescript
+function useLocalStorage<T>(
+  key: string,
+  initialValue: T,
+  options?: { serializer?: (v: T) => string; deserializer?: (s: string) => T }
+) {
+  // ⭐ 从localStorage读取初始值
+  const stored = localStorage.getItem(key)
+  const data = ref<T>(
+    stored 
+      ? (options?.deserializer ? options.deserializer(stored) : JSON.parse(stored))
+      : initialValue
+  )
+
+  // ⭐ 监听变化，自动持久化
+  watch(data, (newVal) => {
+    localStorage.setItem(
+      key, 
+      options?.serializer ? options.serializer(newVal) : JSON.stringify(newVal)
+    )
+  }, { deep: true })
+
+  // ⭐ 提供手动移除方法
+  function remove() {
+    localStorage.removeItem(key)
+    data.value = initialValue
+  }
+
+  return { data, remove }
+}
+
+// 使用示例
+const { data: theme, remove: resetTheme } = useLocalStorage<'light' | 'dark'>(
+  'theme',
+  'dark'
+)
+```
+
+#### 3. **高级模式：Composable组合**
+```typescript
+// useUser = useFetch + useLocalStorage + usePermission
+function useUser(userId: Ref<number>) {
+  // 组合其他composable
+  const { data: userData, loading, error } = useFetch(
+    computed(() => `/api/users/${userId.value}`)
+  )
+  
+  // 本地缓存
+  const { data: cachedUser } = useLocalStorage(`user-${userId}`, null)
+  
+  // 权限计算
+  const isAdmin = computed(() => userData.value?.role === 'admin')
+  
+  return { userData, loading, error, cachedUser, isAdmin }
+}
+```
+
+#### 4. **源码原理：为什么可以在Composable中使用生命周期钩子？**
+```typescript
+// packages/runtime-core/src/apiLifecycle.ts 精简版
+const currentInstance = null  // 全局变量：当前组件实例
+
+export function onMounted(hook: () => void) {
+  if (currentInstance) {
+    currentInstance.m.push(hook)  // 注册到组件的mounted钩子数组
+  }
+}
+
+// setup执行时：
+function setupComponent(instance) {
+  setCurrentInstance(instance)  // 设置全局变量
+  const result = setup(instance.props, setupContext)
+  unsetCurrentInstance()       // 清除全局变量
+}
+// 所以composable中的onMounted能找到currentInstance并注册钩子
+```
+
+#### 5. **质量检查清单**
+- [ ] 是否可以在不同组件中复用？
+- [ ] 副作用是否正确清理？
+- [ ] 类型是否完善（TypeScript泛型）？
+- [ ] 是否处理了边界情况（null/undefined）？
+- [ ] 是否提供了清晰的API文档？
+
+### 🔍 追问链
+1. **Composable和Mixin的区别？**
+   → 方向：命名冲突、数据来源不明、逻辑复用粒度
+2. **Composable和高阶组件(HOC)的区别？**
+   → 方向：Props嵌套地狱、静态类型丢失、性能开销
+3. **如何测试一个Composable？**
+   → 方向：@vue/test-utils的mount()、独立调用（无需渲染组件）
+
+---
+
+## Q53：Vue3 中 ref 和 reactive 应该如何选择？官方推荐策略是什么？
+
+- **难度**：★☆☆
+- **知识点**：[ref] / [reactive] / [最佳实践]
+- **题型**：简答题 + 场景分析题
+- **关联源码**：`packages/reactivity/src/ref.ts`, `reactive.ts`
+
+### 参考答案要点：
+
+#### 1. **官方推荐策略**
+
+| 场景 | 推荐API | 原因 |
+|------|---------|------|
+| **基本类型**（string/number/boolean） | `ref()` | Proxy无法代理基本类型 |
+| **对象（不需替换整体）** | `reactive()` | 无需.value，更简洁 |
+| **对象（需要替换整体）** | `ref()` | reactive替换会丢失响应性 |
+| **模板中使用** | 都可以 | 模板自动解包ref |
+| **组合式函数返回** | `ref()` 或 `toRefs()` | 避免解构丢失响应性 |
+| **大型响应式对象** | `reactive()` | 减少代理对象数量 |
+
+#### 2. **关键差异源码解析**
+```typescript
+// ref的实现：包装为对象
+class RefImpl<T> {
+  private _value: T
+  get value() { trackRefValue(this); return this._value }
+  set value(newVal) { triggerRefValue(this, this._value = newVal) }
+}
+
+// reactive的实现：Proxy代理
+function reactive(target) {
+  return new Proxy(target, {
+    get(target, key) { track(target, key); return Reflect.get(...) },
+    set(target, key, val) { trigger(target, key); return Reflect.set(...) }
+  })
+}
+```
+
+#### 3. **常见错误场景**
+```javascript
+// ❌ 错误1：reactive解构丢失响应性
+const state = reactive({ count: 0, name: 'vue' })
+let { count, name } = state  // count和name不再是响应式！
+
+// ✅ 解决：toRefs
+let { count, name } = toRefs(state)
+
+// ❌ 错误2：reactive整体替换
+let state = reactive({ count: 0 })
+state = reactive({ count: 1 })  // 新对象没有响应性！
+
+// ✅ 解决：用ref包裹对象
+let state = ref({ count: 0 })
+state.value = { count: 1 }  // 正常触发更新
+```
+
+### 🔍 追问链
+1. **toRefs的内部实现原理是什么？**
+   → 方向：ObjectRefImpl类、创建Ref对象的循环
+2. **ref在模板中为什么不需要.value？**
+   → 方向：编译器优化、unref()自动调用
+3. **shallowRef和shallowReactive的使用场景？**
+   → 方向：大数据量性能优化、避免深层响应式开销
+
+---
+
+## Q54：Vue3 Composition API 中有哪些常见的"响应式丢失"场景？如何避免？
+
+- **难度**：★★☆
+- **知识点**：[响应式] / [陷阱] / [toRefs]
+- **题型**：代码分析题 + 问题解决题
+- **关联源码**：`packages/reactivity/src/ref.ts`, `baseHandlers.ts`, `reactive.ts`
+
+### 参考答案要点：
+
+#### 1. **场景1：reactive 对象解构**
+```javascript
+const state = reactive({
+  user: { name: 'Alice', age: 25 },
+  items: [1, 2, 3]
+})
+
+// ❌ 解构后丢失响应性
+const { user, items } = state
+user.name = 'Bob'      // 不触发更新！
+items.push(4)          // 不触发更新！
+
+// ✅ 方案1：toRefs
+const { user, items } = toRefs(state)
+// user和items现在是Ref对象
+user.value.name = 'Bob'  // 触发更新 ✅
+
+// ✅ 方案2：不解构，直接访问
+state.user.name = 'Bob'  // 触发更新 ✅
+```
+**原因**：解构是值拷贝，脱离了Proxy代理
+
+#### 2. **场景2：props 解构**
+```javascript
+// 子组件
+const props = defineProps<{ count: number; name: string }>()
+
+// ❌ 直接解构props
+const { count, name } = props  // count和name不是响应式！
+
+// ✅ 官方方案：使用toRefs
+const { count, name } = toRefs(props)
+
+// ✅ 或使用解构默认值（Vue3.2+）
+const { count = 0, name = '' } = defineProps(['count', 'name'])
+// 但这也不是响应式的，只是默认值
+```
+
+#### 3. **场景3：展开运算符**
+```javascript
+const state = reactive({ a: 1, b: 2 })
+
+// ❌ 展开后丢失响应性
+const newState = { ...state }  // 普通对象
+newState.a = 100               // 不触发更新
+
+// ✅ 保持响应式：不使用展开
+state.a = 100                  // 触发更新 ✅
+```
+
+#### 4. **场景4：传递给非Vue函数**
+```javascript
+const count = ref(0)
+
+// ❌ 传给不支持ref的第三方库
+someLibrary.process(count)  // 库收到的是RefImpl对象，不是数字
+
+// ✅ 显式取值
+someLibrary.process(count.value)
+```
+
+#### 5. **源码层面的根本原因**
+```typescript
+// reactive使用Proxy代理整个对象
+const proxy = new Proxy(target, handler)
+// 只有通过proxy访问的属性才是响应式
+
+// 解构操作等价于：
+const user = proxy.user  // 这一步有响应式（触发了get trap）
+// 但后续 user.name = 'Bob' 没有经过proxy，所以无响应式
+```
+
+### 🔍 追问链
+1. **toRefs的内部实现是怎样的？**
+   → 方向：遍历对象属性，为每个属性创建ObjectRef
+2. **为什么template中解构props不会丢失响应性？**
+   → 方向：编译器在编译时自动添加.toRefs()
+3. **如何检测响应式是否丢失？**
+   → 方向：Vue DevTools、isRef()/isReactive()工具函数
+
+---
+
+## Q55：watch 和 watchEffect 的区别是什么？各自适用什么场景？
+
+- **难度**：★★☆
+- **知识点**：[watch] / [watchEffect] / [侦听器]
+- **题型**：对比分析题 + 场景设计题
+- **关联源码**：`packages/runtime-core/src/apiWatch.ts`, `packages/reactivity/src/watch.ts`
+
+### 参考答案要点：
+
+#### 1. **核心差异对比表**
+
+| 维度 | watch | watchEffect |
+|------|-------|-------------|
+| **懒执行** | ✅ 默认不执行（immediate:false） | ❌ 立即执行一次 |
+| **依赖声明** | ✅ 手动指定source | ✅ 自动追踪内部依赖 |
+| **回调参数** | (newVal, oldVal, onCleanup) | (onCleanup) 无新旧值 |
+| **访问旧值** | ✅ 可以获取oldVal | ❌ 无法获取 |
+| **性能** | 更优（只监听指定源） | 可能不必要的触发 |
+| **适用场景** | 需要旧值/精确控制 | 简单副作用/日志 |
+
+#### 2. **源码级差异**
+```typescript
+// watch：需要明确指定source
+watch(
+  () => state.count,        // source getter
+  (newVal, oldVal) => { ... },  // callback
+  { immediate: false }       // options
+)
+
+// watchEffect：自动追踪
+watchEffect((onCleanup) => {
+  console.log(state.count)  // 自动追踪state.count
+  console.log(state.name)   // 自动追踪state.name
+  // 所有被访问的响应式数据都会触发重新执行
+})
+```
+
+**watchEffect内部实现原理**：
+```typescript
+function watchEffect(effect: EffectFunction, options?) {
+  // ⭐ 创建一个特殊的effect，自动追踪依赖
+  const runner = effect(typeof effect === 'function' ? effect : effect.fn)
+  
+  // ⭐ 立即执行一次（收集依赖）
+  if (!options?.lazy) {
+    runner()
+  }
+  
+  // ⭐ 返回停止函数
+  return () => stop(runner)
+}
+```
+
+#### 3. **使用场景选择决策树**
+```
+需要侦听？
+├── 需要获取旧值？
+│   └── ✅ 使用 watch
+├── 只需要在新值时执行？
+│   └── 需要精确控制触发时机？
+│       └── ✅ 使用 watch（可配置flush:'pre'|'post'|'sync'）
+│   └── 不关心具体依赖？
+│       └── ✅ 使用 watchEffect（自动追踪）
+└── 需要清理副作用？
+    └── 两者都支持 onCleanup 回调
+```
+
+### 🔍 追问链
+1. **watch的flush选项（pre/post/sync）有什么区别？**
+   → 方向：DOM更新前/后/同步执行的时机差异
+2. **watchEffect如何停止？**
+   → 方向：返回stop函数、组件卸载自动清理
+3. **watch和computed的区别？**
+   → 方向：computed有缓存返回值，watch是纯副作用
+
+---
+
+## Q56：手写一个完整的 Vue3 自定义 Hook（Composable）：useVirtualList（虚拟滚动列表）
+
+- **难度**：★★★
+- **知识点**：[Composable] / [虚拟滚动] / [性能优化] / [手写实现]
+- **题型**：编程实践题
+- **关联源码**：`packages/reactivity/src/ref.ts`, `computed.ts`, `watch.ts`
+
+### 参考答案要点：
+
+### 📝 完整实现代码
+
+```typescript
+/**
+ * ========================================
+ * useVirtualList: 虚拟滚动列表 Composable
+ * 支持动态高度、缓冲区、平滑滚动
+ * ========================================
+ */
+
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+
+interface UseVirtualListOptions {
+  /** 所有列表项数据 */
+  items: any[]
+  /** 容器高度（px） */
+  containerHeight: number
+  /** 每项预估高度（px），用于动态高度时的初始估算 */
+  estimatedItemHeight?: number
+  /** 缓冲区大小（额外渲染的条数） */
+  overscan?: number
+  /** 获取实际高度的函数（用于动态高度） */
+  getItemHeight?: (item: any, index: number) => number
+}
+
+export function useVirtualList(options: UseVirtualListOptions) {
+  const {
+    items,
+    containerHeight,
+    estimatedItemHeight = 40,
+    overscan = 5,
+    getItemHeight
+  } = options
+
+  // ==================== 1. 核心状态 ====================
+  
+  /** 当前滚动偏移量 */
+  const scrollTop = ref(0)
+  
+  /** 容器元素引用 */
+  const containerRef = ref<HTMLElement | null>(null)
+  
+  /** 各项的实际高度缓存（用于动态高度） */
+  const measuredHeights = ref<Map<number, number>>(new Map())
+  
+  // ==================== 2. 计算属性 ====================
+  
+  /** 列表总高度（所有项的高度之和） */
+  const totalHeight = computed(() => {
+    if (getItemHeight) {
+      // 动态高度模式：已知高度 + 未知高度*预估高度
+      let knownHeight = 0
+      let unknownCount = 0
+      
+      for (let i = 0; i < items.length; i++) {
+        const h = measuredHeights.value.get(i)
+        if (h !== undefined) {
+          knownHeight += h
+        } else {
+          unknownCount++
+          knownHeight += getItemHeight(items[i], i)  // 用测量函数估算
+        }
+      }
+      
+      return knownHeight + unknownCount * estimatedItemHeight - knownHeight % unknownCount
+    }
+    
+    // 固定高度模式
+    return items.length * estimatedItemHeight
+  })
+  
+  /** 可见区域起始索引 */
+  const startIndex = computed(() => {
+    if (getItemHeight && measuredHeights.value.size > 0) {
+      // 动态高度：遍历找到startIndex
+      let accumulated = 0
+      for (let i = 0; i < items.length; i++) {
+        const h = measuredHeights.value.get(i) ?? estimatedItemHeight
+        if (accumulated + h > scrollTop.value) {
+          return Math.max(0, i - overscan)  // 包含缓冲区
+        }
+        accumulated += h
+      }
+      return Math.max(0, items.length - overscan)
+    }
+    
+    // 固定高度模式：简单计算
+    return Math.max(0, Math.floor(scrollTop.value / estimatedItemHeight) - overscan)
+  })
+  
+  /** 可见区域结束索引 */
+  const endIndex = computed(() => {
+    const visibleEnd = startIndex.value + Math.ceil(containerHeight / estimatedItemHeight) + overscan * 2
+    return Math.min(items.length - 1, visibleEnd)
+  })
+  
+  /** 当前可见的子集 */
+  const visibleItems = computed(() => {
+    return items.slice(startIndex.value, endIndex.value + 1).map((item, index) => ({
+      item,
+      index: startIndex.value + index,
+      // 用于定位的样式
+      style: getItemHeight 
+        ? { position: 'absolute' as const }  // 动态高度需要绝对定位
+        : undefined
+    }))
+  })
+  
+  /** 起始项的偏移量（用于将可见项放到正确的位置） */
+  const offsetTop = computed(() => {
+    if (getItemHeight && measuredHeights.value.size > 0) {
+      let offset = 0
+      for (let i = 0; i < startIndex.value; i++) {
+        offset += measuredHeights.value.get(i) ?? estimatedItemHeight
+      }
+      return offset
+    }
+    
+    return startIndex.value * estimatedItemHeight
+  })
+
+  // ==================== 3. 方法 ====================
+  
+  /** 滚动到指定索引 */
+  async function scrollToIndex(index: number) {
+    if (getItemHeight) {
+      let offset = 0
+      for (let i = 0; i < index; i++) {
+        offset += measuredHeights.value.get(i) ?? estimatedItemHeight
+      }
+      scrollTop.value = offset
+    } else {
+      scrollTop.value = index * estimatedItemHeight
+    }
+    
+    await nextTick()
+  }
+  
+  /** 测量某一项的实际高度 */
+  function measureItem(index: number, height: number) {
+    if (!measuredHeights.value.has(index) || measuredHeights.value.get(index) !== height) {
+      measuredHeights.value.set(index, height)
+      // 高度变化可能影响totalHeight，触发重新计算
+    }
+  }
+
+  // ==================== 4. 事件处理 ====================
+  
+  /** 滚动事件处理器 */
+  function handleScroll(e: Event) {
+    const target = e.target as HTMLElement
+    scrollTop.value = target.scrollTop
+  }
+
+  // ==================== 5. 生命周期 ====================
+  
+  onMounted(() => {
+    if (containerRef.value) {
+      containerRef.value.addEventListener('scroll', handleScroll, { passive: true })
+    }
+  })
+  
+  onUnmounted(() => {
+    if (containerRef.value) {
+      containerRef.value.removeEventListener('scroll', handleScroll)
+    }
+  })
+
+  // ==================== 6. 返回值 ====================
+  
+  return {
+    // 状态
+    containerRef,
+    totalHeight,
+    offsetTop,
+    visibleItems,
+    scrollTop,
+    
+    // 方法
+    scrollToIndex,
+    measureItem,
+    
+    // 计算属性（调试用）
+    startIndex,
+    endIndex
+  }
+}
+```
+
+### 💡 使用示例
+
+```vue
+<template>
+  <div 
+    ref="containerRef"
+    class="virtual-list-container"
+    style="height: 500px; overflow-y: auto; position: relative;"
+    @scroll="handleScroll"
+  >
+    <!-- 占位元素：撑开滚动条 -->
+    <div :style="{ height: totalHeight + 'px', position: 'relative' }">
+      <!-- 可见项 -->
+      <div
+        v-for="{ item, index } in visibleItems"
+        :key="index"
+        :style="{ 
+          transform: `translateY(${offsetTop}px)`,
+          position: 'absolute',
+          top: `${getOffsetForIndex(index)}px`,
+          left: 0,
+          right: 0
+        }"
+        :ref="(el) => measureIfVisible(el, index)"
+      >
+        <slot :item="item" :index="index" />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { useVirtualList } from './useVirtualList'
+
+const props = defineProps<{
+  items: Array<{ id: number; content: string }>
+}>()
+
+const {
+  containerRef,
+  totalHeight,
+  offsetTop,
+  visibleItems,
+  measureItem
+} = useVirtualList({
+  items: props.items,
+  containerHeight: 500,
+  estimatedItemHeight: 60,
+  overscan: 3,
+  getItemHeight: (item) => item.content.length > 50 ? 80 : 60
+})
+
+function measureIfVisible(el: Element | null, index: number) {
+  if (el) {
+    nextTick(() => {
+      measureItem(index, el.clientHeight)
+    })
+  }
+}
+</script>
+```
+
+### 🔍 与官方实现的对比
+
+| 能力 | 手写版 | @vueuse/virtual | 差异说明 |
+|------|:------:|:---------------:|---------|
+| 固定高度 | ✅ | ✅ | 一致 |
+| 动态高度 | ✅ | ✅ | 官方更完善（预测算法） |
+| 缓冲区 | ✅ | ✅ | 一致 |
+| 滚动到指定项 | ✅ | ✅ | 官方支持动画 |
+| 无限滚动 | ❌ | ✅ | 可扩展 |
+| 横向虚拟列表 | ❌ | ✅ | 可扩展 |
+
+---
+
 ## 附录A：Vue3 源码高频考点速查表
 
 ### 按包分类的核心文件

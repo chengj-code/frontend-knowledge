@@ -25,8 +25,8 @@
 
 | 模块 | 基础知识 | 面试题 | 状态 |
 |------|:--------:|:------:|:----:| Vue2 源码解读 | ✅ 12章+2附录 | ✅ 50题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-16 |
-| Vue3 源码解读 | ✅ 12章+2附录 | ✅ 48题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-16 |
-| React 源码解读 | 📋 待生成 | 📋 待生成 | — | ⚪ 待开始 | — |
+| Vue3 源码解读 | ✅ 12章+2附录 | ✅ 54题 | ⭐ **9.5** | 🟢 已优化 | 2026-06-17 |
+| React 源码解读 | ✅ 12章+2附录 | ✅ 50题 | ⭐ **9.3** | 🟢 已优化 | 2026-06-17 |
 
 > 详细规划见 [源码分析/README.md](源码分析/README.md)
 
@@ -101,16 +101,22 @@ frontend-knowledge/
 │   └── interviews/
 │       └── 网络-Interview-Questions.md           # ~6091行 (50题)
 │
-├── 源码分析/                  # 框架源码逐行解读（进阶）      📋 规划中
+├── 源码分析/                  # 框架源码逐行解读（进阶）      ✅ 三大框架已完成
 │   ├── Vue2/
-│   │   ├── basics/    # Vue2 源码解读（12章：响应式/Diff/编译/组件/Router/Vuex）
+│   │   ├── basics/    # Vue2 源码解读（12章：响应式/Diff/编译/组件/Router/Vuex）⭐9.3
+│   │   │   └── Vue2-源码解读-Guide.md              # ~6490行
 │   │   └── interviews/
+│   │       └── Vue2-源码解读-Questions.md           # ~6643行 (50题)
 │   ├── Vue3/
-│   │   ├── basics/    # Vue3 源码解读（12章：Proxy响应式/Composition API/PatchFlags/编译优化）
+│   │   ├── basics/    # Vue3 源码解读（12章：Proxy响应式/Composition API/PatchFlags/编译优化）⭐9.5
+│   │   │   └── Vue3-源码解读-Guide.md              # ~8095行
 │   │   └── interviews/
+│   │       └── Vue3-源码解读-Questions.md           # ~6923行 (54题)
 │   └── React/
-│       ├── basics/    # React 源码解读（12章：Fiber架构/Hooks/调度器/并发模式/SSR）
+│       ├── basics/    # React 源码解读（12章：Fiber架构/Hooks/调度器/并发模式/SSR）⭐9.3
+│       │   └── React-源码解读-Guide.md              # ~9165行
 │       └── interviews/
+│           └── React-源码解读-Questions.md          # ~7128行 (50题)
 ```
 
 ---
@@ -200,6 +206,52 @@ frontend-knowledge/
 
 ---
 
+## 源码分析模块详情（进阶 — 框架源码逐行解读）
+
+> **定位**：面向中高级开发者，从「会用」进阶到「懂原理」，每个知识点包含**真实源码片段 + 行号引用 + 设计意图分析 + 版本对比**
+
+### Vue2 源码解读 ⭐ 9.3 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](源码分析/Vue2/basics/Vue2-源码解读-Guide.md) | ~6490 行 | 12 章 + 附录 A（源码调试指南）+ 附录 B（mini-vue 完整实现 500+ 行）|
+| [面试题库](源码分析/Vue2/interviews/Vue2-源码解读-Questions.md) | ~6643 行 | 50 题 / 6 题追问链 / 4 道手写实现（响应式系统/Diff算法/keep-alive/nextTick）|
+
+**核心覆盖**：项目结构与构建、数据响应式原理（Object.defineProperty/Observer/Dep/Watcher）、虚拟DOM与Diff算法、模板编译（parse/optimize/codegen）、组件化机制（生命周期/$mount/合并策略）、计算属性与侦听（Watcher三种类型/computed缓存）、事件系统（$on/$emit/$off）、指令系统（v-model/v-if/v-for）、keep-alive与LRU缓存、nextTick原理（微任务降级策略）、Vue Router源码（hash/history模式）、Vuex源码（Store/响应式state/mutation/action）
+
+### Vue3 源码解读 ⭐ 9.5 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](源码分析/Vue3/basics/Vue3-源码解读-Guide.md) | ~8095 行 | 12 章 + 附录 A（调试指南含20个断点）+ 附录 B（mini-vue3 项目规划）+ **Composition API专项补充**（4个新小节：使用模式/Composable设计/陷阱避坑/React对比）|
+| [面试题库](源码分析/Vue3/interviews/Vue3-源码解读-Questions.md) | ~6923 行 | **54 题** / **8 题追问链** / 4 道手写实现（响应式系统/编译器/scheduler/createRenderer）+ **6道Composition API专项题**（Q51-Q56）|
+
+**核心覆盖**：Monorepo架构（pnpm workspace/packages划分）、Proxy响应式系统（reactive/ref/effect/track/trigger/WeakMap三层存储）、Composition API（setup执行时机/provide/inject/生命周期/⭐自定义Composable设计模式/⭐常见陷阱与避坑/⭐Vue3 vs React Hooks对比）、虚拟DOM重构（PatchFlags/ShapeFlags/Block Tree/LIS Diff）、编译器优化（hoistStatic/cacheHandler/prepatch）、组件调度（scheduler/queueJob/flushJobs）、Suspense与异步组件、Teleport与Fragments、自定义渲染器（createRenderer跨平台抽象）、Pinia源码（defineStore/setup+options风格）、Vue Router 4（useRoute/useRouter组合式API）、Vue2↔Vue3核心差异总结
+
+**🎯 Vue3特色**：
+- Composition API章节从6小节扩展至10小节（+67%内容量）
+- 新增7大陷阱完整指南（响应式丢失/.value遗忘/watch深浅监听/异步竞态等）
+- 3个由简到繁的Composable示例（useCounter→useMousePosition→useFetch）
+- Vue3 vs React Hooks 11维度深度对比（含迁移指南）
+
+### React 源码解读 ⭐ 9.3 分
+
+| 文档 | 规模 | 内容亮点 |
+|------|------|----------|
+| [基础知识指南](源码分析/React/basics/React-源码解读-Guide.md) | ~9165 行 | 12 章 + 附录 A（调试指南含20个断点）+ 附录 B（mini-react 完整实现 500+ 行）|
+| [面试题库](源码分析/React/interviews/React-源码解读-Questions.md) | ~7128 行 | 50 题 / **47 题追问链**（行业领先）/ 3 道手写实现（Fiber调度器/Hooks系统/Diff算法）|
+
+**核心覆盖**：项目结构与Monorepo（packages/react/react-dom/react-reconciler/scheduler）、⭐Fiber架构（FiberNode数据结构/双缓存current&workInProgress/workLoop循环）、⭐调度系统（优先级队列Immediate/UserBlocking/Normal/Low/Idle/lanes二进制位模型/时间切片MessageChannel）、Render阶段（beginWork→completeWork/reconcileChildren/Diff算法O(n)同层级比较）、Commit阶段（beforeMutation/mutation/layout三子阶段/DOM操作/ref处理/不可中断性）、⭐Hooks原理（useState memoizedState链表/useEffect effect链+flush/useMemo缓存/Hook规则底层保证）、并发特性（Suspense/startTransition/useDeferredValue/workLoopConcurrent中断恢复）、状态管理（Context Provider/Consumer value传播/useReducer/Redux/Zustand/Jotai对比）、⭐事件系统（合成事件SyntheticEvent/事件委托root/优先级事件DiscreteUserBlockingContinuous/事件池复用）、服务端渲染（renderToString/hydrate/流式SSR renderToPipeableStream/选择性Hydration）、React 18新特性（Automatic Batching createRoot/并发模式/useId/useSyncExternalStore）、性能优化源码视角（shallowEqual比较/bailout canSkipRendering/DevTools Profiler）
+
+**🎯 React文档特色**：
+- **47处追问链设计**（Vue2: 6处, Vue3: 8处, React: **47处** - 行业领先）
+- **257个代码块**（比Vue系列多46%，含大量Mermaid图和ASCII图）
+- **20个关键断点位置**的详细调试指南
+- **14道专家级架构设计/趋势预测题**（Q39-Q50）
+- mini-react完整实战项目（500+行可运行代码，含Counter和Todo示例）
+
+---
+
 ## 文档规范
 
 ### 内容结构
@@ -262,6 +314,9 @@ code frontend-knowledge
 
 第三阶段：工程化与生态
   工程化 → 性能优化 → 网络 → 浏览器 → Node.js
+
+第四阶段：源码级进阶（中高级开发者）
+  Vue2 源码解读 → Vue3 源码解读（含Composition API专项）→ React 源码解读
 ```
 
 ---

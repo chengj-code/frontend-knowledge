@@ -15,59 +15,59 @@
 
 | 题号 | 题目 | 难度 |
 |:----:|------|:----:|
-| [题 1](#题-1-typescript-的基本类型系统中anyunknownnever-三者的核心区别是) | TypeScript 的基本类型系统中，`any`、`unknown`、`never` 三者的核心区别是？ | ★☆☆ |
-| [题 2](#题-2-以下关于接口interface和类型别名type-alias的说法错误的是) | 以下关于接口（Interface）和类型别名（Type Alias）的说法，**错误**的是？ | ★☆☆ |
-| [题 3](#题-3-以下-typescript-代码的输出结果是什么) | 以下 TypeScript 代码的输出结果是什么？ | ★☆☆ |
-| [题 4](#题-4-以下关于元组tuple的描述正确的是) | 以下关于元组（Tuple）的描述，**正确**的是？ | ★☆☆ |
-| [题 5](#题-5-以下代码中哪个位置会产生编译错误) | 以下代码中，哪个位置会产生**编译错误**？ | ★☆☆ |
-| [题 6](#题-6-请解释-typescript-与-javascript-的核心区别并说明在什么场景下应该选择-typescript) | 请解释 TypeScript 与 JavaScript 的核心区别，并说明在什么场景下应该选择 TypeScript？ | ★☆☆ |
-| [题 8](#题-8-请解释-publicprivateprotected-三种访问修饰符的作用并给出代码示例) | 请解释 `public`、`private`、`protected` 三种访问修饰符的作用，并给出代码示例。 | ★☆☆ |
-| [题 11](#题-11-分析以下代码找出所有类型错误并说明原因) | 分析以下代码，找出所有类型错误并说明原因。 | ★☆☆ |
+| [Q01](#q01-typescript-的基本类型系统中anyunknownnever-三者的核心区别是) | TypeScript 的基本类型系统中，`any`、`unknown`、`never` 三者的核心区别是？ | ★☆☆ |
+| [Q02](#q02-以下关于接口interface和类型别名type-alias的说法错误的是) | 以下关于接口（Interface）和类型别名（Type Alias）的说法，**错误**的是？ | ★☆☆ |
+| [Q03](#q03-以下-typescript-代码的输出结果是什么) | 以下 TypeScript 代码的输出结果是什么？ | ★☆☆ |
+| [Q04](#q04-以下关于元组tuple的描述正确的是) | 以下关于元组（Tuple）的描述，**正确**的是？ | ★☆☆ |
+| [Q05](#q05-以下代码中哪个位置会产生编译错误) | 以下代码中，哪个位置会产生**编译错误**？ | ★☆☆ |
+| [Q06](#q06-请解释-typescript-与-javascript-的核心区别并说明在什么场景下应该选择-typescript) | 请解释 TypeScript 与 JavaScript 的核心区别，并说明在什么场景下应该选择 TypeScript？ | ★☆☆ |
+| [Q08](#q08-请解释-publicprivateprotected-三种访问修饰符的作用并给出代码示例) | 请解释 `public`、`private`、`protected` 三种访问修饰符的作用，并给出代码示例。 | ★☆☆ |
+| [Q11](#q11-分析以下代码找出所有类型错误并说明原因) | 分析以下代码，找出所有类型错误并说明原因。 | ★☆☆ |
 
 ### 进阶层（★★☆）
 
 | 题号 | 题目 | 难度 |
 |:----:|------|:----:|
-| [题 7](#题-7-什么是类型推断type-inference举例说明-typescript-在哪些情况下会进行类型推断) | 什么是类型推断（Type Inference）？举例说明 TypeScript 在哪些情况下会进行类型推断。 | ★★☆ |
-| [题 9](#题-9-什么是类型断言type-assertionas-语法和-语法有什么区别什么时候应该使用非空断言-) | 什么是类型断言（Type Assertion）？`as` 语法和 `<>` 语法有什么区别？什么时候应该使用非空断言 `!`？ | ★★☆ |
-| [题 10](#题-10-如何定义一个函数的类型请写出函数重载的完整示例) | 如何定义一个函数的类型？请写出函数重载的完整示例。 | ★★☆ |
-| [题 12](#题-12-以下代码的输出是什么请解释每一步的类型变化) | 以下代码的输出是什么？请解释每一步的类型变化。 | ★★☆ |
-| [题 13](#题-13-阅读以下代码指出-void-和-undefined-作为返回类型的区别) | 阅读以下代码，指出 `void` 和 `undefined` 作为返回类型的区别。 | ★★☆ |
-| [题 14](#题-14-实现一个泛型-identity-函数并扩展为可以获取数组首元素的-first-函数) | 实现一个泛型 identity 函数，并扩展为可以获取数组首元素的 `first` 函数。 | ★★☆ |
-| [题 15](#题-15-定义一个-user-接口和一个-formatuser-函数要求处理可选字段和默认值) | 定义一个 `User` 接口和一个 `formatUser` 函数，要求处理可选字段和默认值。 | ★★☆ |
-| [题 16](#题-16-以下关于泛型约束generic-constraints的代码输出结果是) | 以下关于泛型约束（Generic Constraints）的代码，输出结果是？ | ★★☆ |
-| [题 18](#题-18-以下联合类型与交叉类型的代码运行结果正确的是) | 以下联合类型与交叉类型的代码，运行结果正确的是？ | ★★☆ |
-| [题 20](#题-20-什么是泛型请列举泛型的三种主要应用场景函数接口类并说明泛型约束的作用) | 什么是泛型？请列举泛型的三种主要应用场景（函数、接口、类），并说明泛型约束的作用。 | ★★☆ |
-| [题 22](#题-22-typescript-中的模块系统如何工作importexport-和-namespace-各自的使用场景是什么) | TypeScript 中的模块系统如何工作？`import/export` 和 `namespace` 各自的使用场景是什么？ | ★★☆ |
-| [题 24](#题-24-分析以下泛型代码解释每个泛型参数的含义和约束条件) | 分析以下泛型代码，解释每个泛型参数的含义和约束条件。 | ★★☆ |
-| [题 31](#题-31-typescript-5x-中装饰器的执行顺序是什么) | TypeScript 5.x 中装饰器的执行顺序是什么？ | ★★☆ |
-| [题 36](#题-36-在一个大型项目中如何设计-typescript-配置以兼顾开发体验和构建性能请给出推荐的-tsconfigjson-配置策略) | 在一个大型项目中，如何设计 TypeScript 配置以兼顾开发体验和构建性能？请给出推荐的 tsconfig.json 配置策略。 | ★★☆ |
-| [题 39](#题-39-分析以下-typescript-5x-新特性代码解释-const-类型参数的作用) | 分析以下 TypeScript 5.x 新特性代码，解释 `const` 类型参数的作用。 | ★★☆ |
+| [Q07](#q07-什么是类型推断type-inference举例说明-typescript-在哪些情况下会进行类型推断) | 什么是类型推断（Type Inference）？举例说明 TypeScript 在哪些情况下会进行类型推断。 | ★★☆ |
+| [Q09](#q09-什么是类型断言type-assertionas-语法和-语法有什么区别什么时候应该使用非空断言-) | 什么是类型断言（Type Assertion）？`as` 语法和 `<>` 语法有什么区别？什么时候应该使用非空断言 `!`？ | ★★☆ |
+| [Q10](#q10-如何定义一个函数的类型请写出函数重载的完整示例) | 如何定义一个函数的类型？请写出函数重载的完整示例。 | ★★☆ |
+| [Q12](#q12-以下代码的输出是什么请解释每一步的类型变化) | 以下代码的输出是什么？请解释每一步的类型变化。 | ★★☆ |
+| [Q13](#q13-阅读以下代码指出-void-和-undefined-作为返回类型的区别) | 阅读以下代码，指出 `void` 和 `undefined` 作为返回类型的区别。 | ★★☆ |
+| [Q14](#q14-实现一个泛型-identity-函数并扩展为可以获取数组首元素的-first-函数) | 实现一个泛型 identity 函数，并扩展为可以获取数组首元素的 `first` 函数。 | ★★☆ |
+| [Q15](#q15-定义一个-user-接口和一个-formatuser-函数要求处理可选字段和默认值) | 定义一个 `User` 接口和一个 `formatUser` 函数，要求处理可选字段和默认值。 | ★★☆ |
+| [Q16](#q16-以下关于泛型约束generic-constraints的代码输出结果是) | 以下关于泛型约束（Generic Constraints）的代码，输出结果是？ | ★★☆ |
+| [Q18](#q18-以下联合类型与交叉类型的代码运行结果正确的是) | 以下联合类型与交叉类型的代码，运行结果正确的是？ | ★★☆ |
+| [Q20](#q20-什么是泛型请列举泛型的三种主要应用场景函数接口类并说明泛型约束的作用) | 什么是泛型？请列举泛型的三种主要应用场景（函数、接口、类），并说明泛型约束的作用。 | ★★☆ |
+| [Q22](#q22-typescript-中的模块系统如何工作importexport-和-namespace-各自的使用场景是什么) | TypeScript 中的模块系统如何工作？`import/export` 和 `namespace` 各自的使用场景是什么？ | ★★☆ |
+| [Q24](#q24-分析以下泛型代码解释每个泛型参数的含义和约束条件) | 分析以下泛型代码，解释每个泛型参数的含义和约束条件。 | ★★☆ |
+| [Q31](#q31-typescript-5x-中装饰器的执行顺序是什么) | TypeScript 5.x 中装饰器的执行顺序是什么？ | ★★☆ |
+| [Q36](#q36-在一个大型项目中如何设计-typescript-配置以兼顾开发体验和构建性能请给出推荐的-tsconfigjson-配置策略) | 在一个大型项目中，如何设计 TypeScript 配置以兼顾开发体验和构建性能？请给出推荐的 tsconfig.json 配置策略。 | ★★☆ |
+| [Q39](#q39-分析以下-typescript-5x-新特性代码解释-const-类型参数的作用) | 分析以下 TypeScript 5.x 新特性代码，解释 `const` 类型参数的作用。 | ★★☆ |
 
 ### 专家层（★★★）
 
 | 题号 | 题目 | 难度 |
 |:----:|------|:----:|
-| [题 17](#题-17-以下自定义类型守卫的实现最佳的是) | 以下自定义类型守卫的实现，**最佳**的是？ | ★★★ |
-| [题 19](#题-19-请详细解释-typescript-中的四种内置类型守卫并分别给出示例) | 请详细解释 TypeScript 中的四种内置类型守卫，并分别给出示例。 | ★★★ |
-| [题 21](#题-21-请解释-typescript-内置工具类型-partialtrequiredtpickt-komitt-k-的作用及实现原理) | 请解释 TypeScript 内置工具类型 `Partial<T>`、`Required<T>`、`Pick<T, K>`、`Omit<T, K>` 的作用及实... | ★★★ |
-| [题 23](#题-23-什么是声明合并declaration-merging它在实际开发中有哪些应用场景) | 什么是声明合并（Declaration Merging）？它在实际开发中有哪些应用场景？ | ★★★ |
-| [题 25](#题-25-以下使用了多种高级特性的代码请逐行分析其类型行为) | 以下使用了多种高级特性的代码，请逐行分析其类型行为。 | ★★★ |
-| [题 26](#题-26-请分析以下代码中协变covariance和逆变contravariance的表现) | 请分析以下代码中协变（covariance）和逆变（contravariance）的表现。 | ★★★ |
-| [题 27](#题-27-实现一个类型安全的深拷贝函数-deepclonet要求保持泛型类型不变) | 实现一个类型安全的深拷贝函数 `deepClone<T>`，要求保持泛型类型不变。 | ★★★ |
-| [题 28](#题-28-实现一个-optionalizet-k-工具类型使对象-t-中由-k-指定的属性及其嵌套路径下的属性全部变为可选) | 实现一个 `Optionalize<T, K>` 工具类型，使对象 T 中由 K 指定的属性及其嵌套路径下的属性全部变为可选。 | ★★★ |
-| [题 29](#题-29-实现一个类型安全的-http-请求封装支持泛型响应类型和错误处理) | 实现一个类型安全的 HTTP 请求封装，支持泛型响应类型和错误处理。 | ★★★ |
-| [题 30](#题-30-以下条件类型代码的结果是什么) | 以下条件类型代码的结果是什么？ | ★★★ |
-| [题 32](#题-32-请详细解释条件类型conditional-types的语法和-infer-关键字的工作原理并手写实现-returntypeparametersawaited-三个工具类型) | 请详细解释条件类型（Conditional Types）的语法和 `infer` 关键字的工作原理，并手写实现 `ReturnType`、`Parameters... | ★★★ |
-| [题 33](#题-33-请解释映射类型mapped-types的语法并实现以下高级映射类型-1-deepreadonlyt深度只读-2-mutablet移除所有-readonly-3-renamekeyt-oldk-newk重命名键) | 请解释映射类型（Mapped Types）的语法，并实现以下高级映射类型： 1. `DeepReadonly<T>`：深度只读 2. `Mutable<T>`：... | ★★★ |
-| [题 34](#题-34-请解释-typescript-5x-中装饰器decorators的新旧两种模式差异并实现一个实用的方法日志装饰器和缓存装饰器) | 请解释 TypeScript 5.x 中装饰器（Decorators）的新旧两种模式差异，并实现一个实用的方法日志装饰器和缓存装饰器。 | ★★★ |
-| [题 35](#题-35-什么是模板字面量类型template-literal-types请用它实现一个类型安全的路由参数提取工具) | 什么是模板字面量类型（Template Literal Types）？请用它实现一个类型安全的路由参数提取工具。 | ★★★ |
-| [题 37](#题-37-分析以下类型体操代码解释每一步的类型变换过程) | 分析以下"类型体操"代码，解释每一步的类型变换过程。 | ★★★ |
-| [题 38](#题-38-以下代码利用了互斥联合类型exclusive-union来防止非法-props-组合请分析其工作原理) | 以下代码利用了互斥联合类型（Exclusive Union）来防止非法 Props 组合，请分析其工作原理。 | ★★★ |
-| [题 40](#题-40-以下是一个类型驱动的状态机实现请分析其类型安全保障机制) | 以下是一个类型驱动的状态机实现，请分析其类型安全保障机制。 | ★★★ |
-| [题 41](#题-41-实现一个完整的-typescript-类型-safe-eventbus事件总线要求-1-支持注册触发移除事件监听-2-事件名称和载荷类型严格对应-3-支持一次性监听once) | 实现一个完整的 TypeScript 类型-safe EventBus（事件总线），要求： 1. 支持注册/触发/移除事件监听 2. 事件名称和载荷类型严格对应... | ★★★ |
-| [题 42](#题-42-实现一个-typescript-orm-查询构建器的基础类型系统支持链式调用的类型安全) | 实现一个 TypeScript ORM 查询构建器的基础类型系统，支持链式调用的类型安全。 | ★★★ |
-| [题 43](#题-43-设计一个-typescript-项目迁移策略将一个-5-万行的纯-javascript-项目逐步迁移到-typescript要求不影响现有功能开发) | 设计一个 TypeScript 项目迁移策略：将一个 5 万行的纯 JavaScript 项目逐步迁移到 TypeScript，要求不影响现有功能开发。 | ★★★ |
+| [Q17](#q17-以下自定义类型守卫的实现最佳的是) | 以下自定义类型守卫的实现，**最佳**的是？ | ★★★ |
+| [Q19](#q19-请详细解释-typescript-中的四种内置类型守卫并分别给出示例) | 请详细解释 TypeScript 中的四种内置类型守卫，并分别给出示例。 | ★★★ |
+| [Q21](#q21-请解释-typescript-内置工具类型-partialtrequiredtpickt-komitt-k-的作用及实现原理) | 请解释 TypeScript 内置工具类型 `Partial<T>`、`Required<T>`、`Pick<T, K>`、`Omit<T, K>` 的作用及实... | ★★★ |
+| [Q23](#q23-什么是声明合并declaration-merging它在实际开发中有哪些应用场景) | 什么是声明合并（Declaration Merging）？它在实际开发中有哪些应用场景？ | ★★★ |
+| [Q25](#q25-以下使用了多种高级特性的代码请逐行分析其类型行为) | 以下使用了多种高级特性的代码，请逐行分析其类型行为。 | ★★★ |
+| [Q26](#q26-请分析以下代码中协变covariance和逆变contravariance的表现) | 请分析以下代码中协变（covariance）和逆变（contravariance）的表现。 | ★★★ |
+| [Q27](#q27-实现一个类型安全的深拷贝函数-deepclonet要求保持泛型类型不变) | 实现一个类型安全的深拷贝函数 `deepClone<T>`，要求保持泛型类型不变。 | ★★★ |
+| [Q28](#q28-实现一个-optionalizet-k-工具类型使对象-t-中由-k-指定的属性及其嵌套路径下的属性全部变为可选) | 实现一个 `Optionalize<T, K>` 工具类型，使对象 T 中由 K 指定的属性及其嵌套路径下的属性全部变为可选。 | ★★★ |
+| [Q29](#q29-实现一个类型安全的-http-请求封装支持泛型响应类型和错误处理) | 实现一个类型安全的 HTTP 请求封装，支持泛型响应类型和错误处理。 | ★★★ |
+| [Q30](#q30-以下条件类型代码的结果是什么) | 以下条件类型代码的结果是什么？ | ★★★ |
+| [Q32](#q32-请详细解释条件类型conditional-types的语法和-infer-关键字的工作原理并手写实现-returntypeparametersawaited-三个工具类型) | 请详细解释条件类型（Conditional Types）的语法和 `infer` 关键字的工作原理，并手写实现 `ReturnType`、`Parameters... | ★★★ |
+| [Q33](#q33-请解释映射类型mapped-types的语法并实现以下高级映射类型-1-deepreadonlyt深度只读-2-mutablet移除所有-readonly-3-renamekeyt-oldk-newk重命名键) | 请解释映射类型（Mapped Types）的语法，并实现以下高级映射类型： 1. `DeepReadonly<T>`：深度只读 2. `Mutable<T>`：... | ★★★ |
+| [Q34](#q34-请解释-typescript-5x-中装饰器decorators的新旧两种模式差异并实现一个实用的方法日志装饰器和缓存装饰器) | 请解释 TypeScript 5.x 中装饰器（Decorators）的新旧两种模式差异，并实现一个实用的方法日志装饰器和缓存装饰器。 | ★★★ |
+| [Q35](#q35-什么是模板字面量类型template-literal-types请用它实现一个类型安全的路由参数提取工具) | 什么是模板字面量类型（Template Literal Types）？请用它实现一个类型安全的路由参数提取工具。 | ★★★ |
+| [Q37](#q37-分析以下类型体操代码解释每一步的类型变换过程) | 分析以下"类型体操"代码，解释每一步的类型变换过程。 | ★★★ |
+| [Q38](#q38-以下代码利用了互斥联合类型exclusive-union来防止非法-props-组合请分析其工作原理) | 以下代码利用了互斥联合类型（Exclusive Union）来防止非法 Props 组合，请分析其工作原理。 | ★★★ |
+| [Q40](#q40-以下是一个类型驱动的状态机实现请分析其类型安全保障机制) | 以下是一个类型驱动的状态机实现，请分析其类型安全保障机制。 | ★★★ |
+| [Q41](#q41-实现一个完整的-typescript-类型-safe-eventbus事件总线要求-1-支持注册触发移除事件监听-2-事件名称和载荷类型严格对应-3-支持一次性监听once) | 实现一个完整的 TypeScript 类型-safe EventBus（事件总线），要求： 1. 支持注册/触发/移除事件监听 2. 事件名称和载荷类型严格对应... | ★★★ |
+| [Q42](#q42-实现一个-typescript-orm-查询构建器的基础类型系统支持链式调用的类型安全) | 实现一个 TypeScript ORM 查询构建器的基础类型系统，支持链式调用的类型安全。 | ★★★ |
+| [Q43](#q43-设计一个-typescript-项目迁移策略将一个-5-万行的纯-javascript-项目逐步迁移到-typescript要求不影响现有功能开发) | 设计一个 TypeScript 项目迁移策略：将一个 5 万行的纯 JavaScript 项目逐步迁移到 TypeScript，要求不影响现有功能开发。 | ★★★ |
 
 
 ## 第一部分：基础层（初级难度）
@@ -79,7 +79,8 @@
 
 ### 一、选择题（5道）
 
-#### 题 1：TypeScript 的基本类型系统中，`any`、`unknown`、`never` 三者的核心区别是？ `⭐ 难度：★☆☆（初级）`
+## Q01: TypeScript 的基本类型系统中，`any`、`unknown`、`never` 三者的核心区别是？
+- **难度**：★☆☆
 
 **A)** `any` 绕过所有类型检查；`unknown` 使用前需类型收窄；`never` 表示永不存在的值  
 **B)** `any` 和 `unknown` 完全等价；`never` 只用于抛异常的函数  
@@ -123,7 +124,8 @@ function throwError(msg: string): never {
 
 ---
 
-#### 题 2：以下关于接口（Interface）和类型别名（Type Alias）的说法，**错误**的是？ `⭐ 难度：★☆☆（初级）`
+## Q02: 以下关于接口（Interface）和类型别名（Type Alias）的说法，**错误**的是？
+- **难度**：★☆☆
 
 **A)** 接口支持声明合并（同名接口自动合并）  
 **B)** 类型别名支持联合类型、交叉类型等高级特性  
@@ -168,7 +170,8 @@ type Combined = { a: number } & { b: string };
 
 ---
 
-#### 题 3：以下 TypeScript 代码的输出结果是什么？ `⭐ 难度：★☆☆（初级）`
+## Q03: 以下 TypeScript 代码的输出结果是什么？
+- **难度**：★☆☆
 
 ```typescript
 function greet(name: string, greeting?: string): string {
@@ -192,7 +195,8 @@ console.log(greet('Jerry', 'Hi'));
 
 ---
 
-#### 题 4：以下关于元组（Tuple）的描述，**正确**的是？ `⭐ 难度：★☆☆（初级）`
+## Q04: 以下关于元组（Tuple）的描述，**正确**的是？
+- **难度**：★☆☆
 
 **A)** 元组和数组完全相同，没有任何区别  
 **B)** 元组可以随意增删元素，长度不固定  
@@ -217,7 +221,8 @@ let data: Flexible = ['header', 1, 2, 3]; // ✅
 
 ---
 
-#### 题 5：以下代码中，哪个位置会产生**编译错误**？ `⭐ 难度：★☆☆（初级）`
+## Q05: 以下代码中，哪个位置会产生**编译错误**？
+- **难度**：★☆☆
 
 ```typescript
 enum Direction {
@@ -249,7 +254,8 @@ d = Direction.Down; // 位置 C
 
 ### 二、简答题（5道）
 
-#### 题 6：请解释 TypeScript 与 JavaScript 的核心区别，并说明在什么场景下应该选择 TypeScript？ `⭐ 难度：★☆☆（初级）`
+## Q06: 请解释 TypeScript 与 JavaScript 的核心区别，并说明在什么场景下应该选择 TypeScript？
+- **难度**：★☆☆
 
 **参考答案要点**：
 
@@ -272,7 +278,8 @@ d = Direction.Down; // 位置 C
 
 ---
 
-#### 题 7：什么是类型推断（Type Inference）？举例说明 TypeScript 在哪些情况下会进行类型推断。 `⭐ 难度：★★☆（初级+）`
+## Q07: 什么是类型推断（Type Inference）？举例说明 TypeScript 在哪些情况下会进行类型推断。
+- **难度**：★★☆
 
 **参考答案要点**：
 
@@ -306,7 +313,8 @@ let arr = [1, 'hello', true];     // (string | number | boolean)[]
 
 ---
 
-#### 题 8：请解释 `public`、`private`、`protected` 三种访问修饰符的作用，并给出代码示例。 `⭐ 难度：★☆☆（初级）`
+## Q08: 请解释 `public`、`private`、`protected` 三种访问修饰符的作用，并给出代码示例。
+- **难度**：★☆☆
 
 **参考答案要点**：
 
@@ -351,7 +359,8 @@ console.log(dog.name);        // ✅ 外部可访问 public
 
 ---
 
-#### 题 9：什么是类型断言（Type Assertion）？`as` 语法和 `<>` 语法有什么区别？什么时候应该使用非空断言 `!`？ `⭐ 难度：★★☆（初级+）`
+## Q09: 什么是类型断言（Type Assertion）？`as` 语法和 `<>` 语法有什么区别？什么时候应该使用非空断言 `!`？
+- **难度**：★★☆
 
 **参考答案要点**：
 
@@ -389,7 +398,8 @@ el.click(); // ✅ 不需要 el?.click()
 
 ---
 
-#### 题 10：如何定义一个函数的类型？请写出函数重载的完整示例。 `⭐ 难度：★★☆（初级+）`
+## Q10: 如何定义一个函数的类型？请写出函数重载的完整示例。
+- **难度**：★★☆
 
 **参考答案要点**：
 
@@ -435,7 +445,8 @@ format(true);      // 返回 string
 
 ### 三、代码分析题（3道）
 
-#### 题 11：分析以下代码，找出所有类型错误并说明原因。 `⭐ 难度：★☆☆（初级）`
+## Q11: 分析以下代码，找出所有类型错误并说明原因。
+- **难度**：★☆☆
 
 ```typescript
 interface Person {
@@ -464,7 +475,8 @@ p.gender = 'M';      // 行 D
 
 ---
 
-#### 题 12：以下代码的输出是什么？请解释每一步的类型变化。 `⭐ 难度：★★☆（初级+）`
+## Q12: 以下代码的输出是什么？请解释每一步的类型变化。
+- **难度**：★★☆
 
 ```typescript
 let arr = [1, 2, 3];          // 类型？
@@ -493,7 +505,8 @@ tuple[1] = '100';             // ❌ 报错，string 不能赋给 number
 
 ---
 
-#### 题 13：阅读以下代码，指出 `void` 和 `undefined` 作为返回类型的区别。 `⭐ 难度：★★☆（初级+）`
+## Q13: 阅读以下代码，指出 `void` 和 `undefined` 作为返回类型的区别。
+- **难度**：★★☆
 
 ```typescript
 type VoidFunc = () => void;
@@ -533,7 +546,8 @@ const requireUndefined = (): undefined => {
 
 ### 四、编程实践题（2道）
 
-#### 题 14：实现一个泛型 identity 函数，并扩展为可以获取数组首元素的 `first` 函数。 `⭐ 难度：★★☆（初级+）`
+## Q14: 实现一个泛型 identity 函数，并扩展为可以获取数组首元素的 `first` 函数。
+- **难度**：★★☆
 
 **参考答案**：
 
@@ -567,7 +581,8 @@ function firstOrThrow<T>(arr: T[] & { 0: T }): T {
 
 ---
 
-#### 题 15：定义一个 `User` 接口和一个 `formatUser` 函数，要求处理可选字段和默认值。 `⭐ 难度：★★☆（初级+）`
+## Q15: 定义一个 `User` 接口和一个 `formatUser` 函数，要求处理可选字段和默认值。
+- **难度**：★★☆
 
 **参考答案**：
 
@@ -629,7 +644,8 @@ const formatted = formatUser(user);
 
 ### 一、选择题（3道）
 
-#### 题 16：以下关于泛型约束（Generic Constraints）的代码，输出结果是？ `⭐ 难度：★★☆（中级）`
+## Q16: 以下关于泛型约束（Generic Constraints）的代码，输出结果是？
+- **难度**：★★☆
 
 ```typescript
 interface Lengthwise {
@@ -661,7 +677,8 @@ logLength({ length: 10, value: 'test' }); // 结果 D
 
 ---
 
-#### 题 17：以下自定义类型守卫的实现，**最佳**的是？ `⭐ 难度：★★★（中级偏难）`
+## Q17: 以下自定义类型守卫的实现，**最佳**的是？
+- **难度**：★★★
 
 ```typescript
 interface Cat { type: 'cat'; meow(): void; }
@@ -723,7 +740,8 @@ function play(pet: Pet) {
 
 ---
 
-#### 题 18：以下联合类型与交叉类型的代码，运行结果正确的是？ `⭐ 难度：★★☆（中级）`
+## Q18: 以下联合类型与交叉类型的代码，运行结果正确的是？
+- **难度**：★★☆
 
 ```typescript
 type A = { name: string };
@@ -751,7 +769,8 @@ let i: Intersection = { name: 'Tom', age: 25 }; // ②
 
 ### 二、简答题（5道）
 
-#### 题 19：请详细解释 TypeScript 中的四种内置类型守卫，并分别给出示例。 `⭐ 难度：★★★（中级偏难）`
+## Q19: 请详细解释 TypeScript 中的四种内置类型守卫，并分别给出示例。
+- **难度**：★★★
 
 **参考答案要点**：
 
@@ -822,7 +841,8 @@ function handle(result: Success | Error) {
 
 ---
 
-#### 题 20：什么是泛型？请列举泛型的三种主要应用场景（函数、接口、类），并说明泛型约束的作用。 `⭐ 难度：★★☆（中级）`
+## Q20: 什么是泛型？请列举泛型的三种主要应用场景（函数、接口、类），并说明泛型约束的作用。
+- **难度**：★★☆
 
 **参考答案要点**：
 
@@ -894,7 +914,8 @@ function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
 
 ---
 
-#### 题 21：请解释 TypeScript 内置工具类型 `Partial<T>`、`Required<T>`、`Pick<T, K>`、`Omit<T, K>` 的作用及实现原理。 `⭐ 难度：★★★（中级偏难）`
+## Q21: 请解释 TypeScript 内置工具类型 `Partial<T>`、`Required<T>`、`Pick<T, K>`、`Omit<T, K>` 的作用及实现原理。
+- **难度**：★★★
 
 **参考答案要点**：
 
@@ -951,7 +972,8 @@ type UserWithoutEmail = Omit<User, 'email'>;
 
 ---
 
-#### 题 22：TypeScript 中的模块系统如何工作？`import/export` 和 `namespace` 各自的使用场景是什么？ `⭐ 难度：★★☆（中级）`
+## Q22: TypeScript 中的模块系统如何工作？`import/export` 和 `namespace` 各自的使用场景是什么？
+- **难度**：★★☆
 
 **参考答案要点**：
 
@@ -1009,7 +1031,8 @@ Geometry.distance(p1, { x: 3, y: 4 }); // 5
 
 ---
 
-#### 题 23：什么是声明合并（Declaration Merging）？它在实际开发中有哪些应用场景？ `⭐ 难度：★★★（中级偏难）`
+## Q23: 什么是声明合并（Declaration Merging）？它在实际开发中有哪些应用场景？
+- **难度**：★★★
 
 **参考答案要点**：
 
@@ -1492,7 +1515,8 @@ createRouter.clearCache();                 // 清除缓存
 
 ### 三、代码分析题（3道）
 
-#### 题 24：分析以下泛型代码，解释每个泛型参数的含义和约束条件。 `⭐ 难度：★★☆（中级）`
+## Q24: 分析以下泛型代码，解释每个泛型参数的含义和约束条件。
+- **难度**：★★☆
 
 ```typescript
 interface ApiResponse<T> {
@@ -1534,7 +1558,8 @@ async function getUser(id: number) {
 
 ---
 
-#### 题 25：以下使用了多种高级特性的代码，请逐行分析其类型行为。 `⭐ 难度：★★★（中级偏难）`
+## Q25: 以下使用了多种高级特性的代码，请逐行分析其类型行为。
+- **难度**：★★★
 
 ```typescript
 type EventMap = {
@@ -1584,7 +1609,8 @@ emitter.emit('keydown', { key: 'Enter', code: 13 }); // 合法吗？
 
 ---
 
-#### 题 26：请分析以下代码中协变（covariance）和逆变（contravariance）的表现。 `⭐ 难度：★★★（中级偏难）`
+## Q26: 请分析以下代码中协变（covariance）和逆变（contravariance）的表现。
+- **难度**：★★★
 
 ```typescript
 class Animal { name: string = 'animal'; }
@@ -1942,7 +1968,8 @@ class DogGroomer extends AnimalCare {
 
 ### 四、编程实践题（3道）
 
-#### 题 27：实现一个类型安全的深拷贝函数 `deepClone<T>`，要求保持泛型类型不变。 `⭐ 难度：★★★（中级偏难）`
+## Q27: 实现一个类型安全的深拷贝函数 `deepClone<T>`，要求保持泛型类型不变。
+- **难度**：★★★
 
 **参考答案**：
 
@@ -1997,7 +2024,8 @@ console.log(cloned.meta.created instanceof Date); // true
 
 ---
 
-#### 题 28：实现一个 `Optionalize<T, K>` 工具类型，使对象 T 中由 K 指定的属性及其嵌套路径下的属性全部变为可选。 `⭐ 难度：★★★（中级偏难）`
+## Q28: 实现一个 `Optionalize<T, K>` 工具类型，使对象 T 中由 K 指定的属性及其嵌套路径下的属性全部变为可选。
+- **难度**：★★★
 
 **参考答案**：
 
@@ -2045,7 +2073,8 @@ type FullyOptional = DeepPartial<UserProfile>;
 
 ---
 
-#### 题 29：实现一个类型安全的 HTTP 请求封装，支持泛型响应类型和错误处理。 `⭐ 难度：★★★（中级偏难）`
+## Q29: 实现一个类型安全的 HTTP 请求封装，支持泛型响应类型和错误处理。
+- **难度**：★★★
 
 **参考答案**：
 
@@ -2143,7 +2172,8 @@ async function loadUser(id: number) {
 
 ### 一、选择题（2道）
 
-#### 题 30：以下条件类型代码的结果是什么？ `⭐ 难度：★★★（高级）`
+## Q30: 以下条件类型代码的结果是什么？
+- **难度**：★★★
 
 ```typescript
 type ToArray<T> = T extends any ? T[] : never;
@@ -2302,7 +2332,8 @@ type UnionToIntersection<U> =
 
 ---
 
-#### 题 31：TypeScript 5.x 中装饰器的执行顺序是什么？ `⭐ 难度：★★☆（高级入门）`
+## Q31: TypeScript 5.x 中装饰器的执行顺序是什么？
+- **难度**：★★☆
 
 ```typescript
 function First() {
@@ -2345,7 +2376,8 @@ class Example {
 
 ### 二、简答题（5道）
 
-#### 题 32：请详细解释条件类型（Conditional Types）的语法和 `infer` 关键字的工作原理，并手写实现 `ReturnType`、`Parameters`、`Awaited` 三个工具类型。 `⭐ 难度：★★★（高级）`
+## Q32: 请详细解释条件类型（Conditional Types）的语法和 `infer` 关键字的工作原理，并手写实现 `ReturnType`、`Parameters`、`Awaited` 三个工具类型。
+- **难度**：★★★
 
 **参考答案要点**：
 
@@ -2649,10 +2681,11 @@ const http = createInstance(HttpClient, '/api', 5000);
 
 ---
 
-#### 题 33：请解释映射类型（Mapped Types）的语法，并实现以下高级映射类型：
+## Q33: 请解释映射类型（Mapped Types）的语法，并实现以下高级映射类型：
+- **难度**：★★★
 1. `DeepReadonly<T>`：深度只读
 2. `Mutable<T>`：移除所有 readonly
-3. `RenameKey<T, OldK, NewK>`：重命名键 `⭐ 难度：★★★（高级）`
+3. `RenameKey<T, OldK, NewK>`：重命名键
 
 **参考答案要点**：
 
@@ -3031,7 +3064,8 @@ type SubmittableData = OmitByValue<OmitByValue<UserForm, Function>, File>;
 
 ---
 
-#### 题 34：请解释 TypeScript 5.x 中装饰器（Decorators）的新旧两种模式差异，并实现一个实用的方法日志装饰器和缓存装饰器。 `⭐ 难度：★★★（高级）`
+## Q34: 请解释 TypeScript 5.x 中装饰器（Decorators）的新旧两种模式差异，并实现一个实用的方法日志装饰器和缓存装饰器。
+- **难度**：★★★
 
 **参考答案要点**：
 
@@ -3123,7 +3157,8 @@ class ApiService {
 
 ---
 
-#### 题 35：什么是模板字面量类型（Template Literal Types）？请用它实现一个类型安全的路由参数提取工具。 `⭐ 难度：★★★（高级）`
+## Q35: 什么是模板字面量类型（Template Literal Types）？请用它实现一个类型安全的路由参数提取工具。
+- **难度**：★★★
 
 **参考答案要点**：
 
@@ -3193,7 +3228,8 @@ navigate('/users/:id/posts/:postId', {                     // ✅
 
 ---
 
-#### 题 36：在一个大型项目中，如何设计 TypeScript 配置以兼顾开发体验和构建性能？请给出推荐的 tsconfig.json 配置策略。 `⭐ 难度：★★☆（高级入门）`
+## Q36: 在一个大型项目中，如何设计 TypeScript 配置以兼顾开发体验和构建性能？请给出推荐的 tsconfig.json 配置策略。
+- **难度**：★★☆
 
 **参考答案要点**：
 
@@ -3789,7 +3825,8 @@ interface ProjectReferenceManager {
 
 ### 三、代码分析题（4道）
 
-#### 题 37：分析以下"类型体操"代码，解释每一步的类型变换过程。 `⭐ 难度：★★★（高级）`
+## Q37: 分析以下"类型体操"代码，解释每一步的类型变换过程。
+- **难度**：★★★
 
 ```typescript
 type NonNullable<T> = T extends null | undefined ? never : T;
@@ -3844,7 +3881,8 @@ type O = OptionalKeys<ComplexType>;   // 结果？
 
 ---
 
-#### 题 38：以下代码利用了互斥联合类型（Exclusive Union）来防止非法 Props 组合，请分析其工作原理。 `⭐ 难度：★★★（高级）`
+## Q38: 以下代码利用了互斥联合类型（Exclusive Union）来防止非法 Props 组合，请分析其工作原理。
+- **难度**：★★★
 
 ```typescript
 type ButtonProps = {
@@ -3889,7 +3927,8 @@ const d: ButtonProps = { size: 'md', href: '/', onClick: () => {}, children: 'X'
 
 ---
 
-#### 题 39：分析以下 TypeScript 5.x 新特性代码，解释 `const` 类型参数的作用。 `⭐ 难度：★★☆（高级入门）`
+## Q39: 分析以下 TypeScript 5.x 新特性代码，解释 `const` 类型参数的作用。
+- **难度**：★★☆
 
 ```typescript
 // 普通泛型：类型会被拓宽
@@ -3940,7 +3979,8 @@ const config = defineConfig({
 
 ---
 
-#### 题 40：以下是一个类型驱动的状态机实现，请分析其类型安全保障机制。 `⭐ 难度：★★★（高级）`
+## Q40: 以下是一个类型驱动的状态机实现，请分析其类型安全保障机制。
+- **难度**：★★★
 
 ```typescript
 type State = 'idle' | 'loading' | 'success' | 'error';
@@ -4012,10 +4052,11 @@ const s3 = s2.transition('idle');      // ✅ success → idle 合法
 
 ### 四、编程实践题（3道）
 
-#### 题 41：实现一个完整的 TypeScript 类型-safe EventBus（事件总线），要求：
+## Q41: 实现一个完整的 TypeScript 类型-safe EventBus（事件总线），要求：
+- **难度**：★★★
 1. 支持注册/触发/移除事件监听
 2. 事件名称和载荷类型严格对应
-3. 支持一次性监听（once） `⭐ 难度：★★★（高级）`
+3. 支持一次性监听（once）
 
 **参考答案**：
 
@@ -4118,7 +4159,8 @@ unsub(); // 取消订阅
 
 ---
 
-#### 题 42：实现一个 TypeScript ORM 查询构建器的基础类型系统，支持链式调用的类型安全。 `⭐ 难度：★★★（高级）`
+## Q42: 实现一个 TypeScript ORM 查询构建器的基础类型系统，支持链式调用的类型安全。
+- **难度**：★★★
 
 **参考答案**：
 
@@ -4247,7 +4289,8 @@ const result = query
 
 ---
 
-#### 题 43：设计一个 TypeScript 项目迁移策略：将一个 5 万行的纯 JavaScript 项目逐步迁移到 TypeScript，要求不影响现有功能开发。 `⭐ 难度：★★★（高级）`
+## Q43: 设计一个 TypeScript 项目迁移策略：将一个 5 万行的纯 JavaScript 项目逐步迁移到 TypeScript，要求不影响现有功能开发。
+- **难度**：★★★
 
 **参考答案要点**：
 

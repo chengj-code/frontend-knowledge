@@ -6,63 +6,77 @@
 
 ---
 
-## 📋 目录索引
+## 📚 问题速查目录
 
-| 难度 | 题号 | 题目 | 知识点 |
-|:---:|:---:|------|--------|
-| ★☆☆ | Q01 | JSX 的编译过程与 Babel 转换 | JSX / 编译原理 |
-| ★☆☆ | Q02 | React.createElement 参数含义 | 虚拟 DOM / API |
-| ★☆☆ | Q03 | 虚拟 DOM 元素对象结构 | 虚拟 DOM / 数据结构 |
-| ★☆☆ | Q04 | Fragments 使用场景 | JSX / 组件 |
-| ★☆☆ | Q05 | ReactDOM.createRoot vs ReactDOM.render | React 18 / 渲染 |
-| ★☆☆ | Q06 | 函数组件 vs 类组件对比 | 组件基础 |
-| ★☆☆ | Q07 | Props 只读性与 children | Props / 组件通信 |
-| ★☆☆ | Q08 | useState 基本用法与常见错误 | Hooks / State |
-| ★☆☆ | Q09 | 事件处理机制 | 事件系统 |
-| ★☆☆ | Q10 | 条件渲染的各种写法 | 渲染模式 |
-| ★☆☆ | Q11 | 列表渲染与 key 的作用 | 渲染 / 性能 |
-| ★☆☆ | Q12 | 受控组件与非受控组件 | 表单处理 |
-| ★☆☆ | Q13 | 组件生命周期（类组件） | 生命周期 |
-| ★☆☆ | Q14 | useEffect 基本用法 | Hooks / 副作用 |
-| ★☆☆ | Q15 | 组件样式方案对比 | CSS / 样式 |
-| ★☆☆ | Q16 | React 开发者工具使用 | 工具链 |
-| ★☆☆ | Q17 | 常见 React 错误与调试 | 调试技巧 |
-| ★★☆ | Q18 | Hooks 为什么必须在顶层调用 | Hooks 原理 |
-| ★★☆ | Q19 | useState 批量更新机制 | State 管理 |
-| ★★☆ | Q20 | useEffect 依赖数组工作原理 | Hooks 深入 |
-| ★★☆ | Q21 | useEffect vs useLayoutEffect | Hooks 对比 |
-| ★★☆ | Q22 | useRef vs useState | Hooks 对比 |
-| ★★☆ | Q23 | useMemo vs useCallback | 性能优化 |
-| ★★☆ | Q24 | useContext 性能问题及优化 | Context / 性能 |
-| ★★☆ | Q25 | 自定义 Hook 设计原则 | Hooks 进阶 |
-| ★★☆ | Q26 | useReducer 适用场景 | State 管理 |
-| ★★☆ | Q27 | React 18 新 Hooks 详解 | React 18 |
-| ★★☆ | Q28 | 虚拟 DOM 的优势与劣势 | 虚拟 DOM |
-| ★★☆ | Q29 | Fiber 架构详解 | Fiber / 架构 |
-| ★★☆ | Q30 | Diff 算法（Reconciliation） | Diff 算法 |
-| ★★☆ | Q31 | React 18 并发特性 | 并发模式 |
-| ★★☆ | Q32 | Props 下行 / 回调上行 / Context / 状态提升 | 组件通信 |
-| ★★☆ | Q33 | Render Props 模式 | 设计模式 |
-| ★★☆ | Q34 | Compound Components（组合组件） | 设计模式 |
-| ★★☆ | Q35 | Portal 使用场景 | 高级特性 |
-| ★★☆ | Q36 | forwardRef + useImperativeHandle | Ref 操作 |
-| ★★☆ | Q37 | 全局状态方案选择 | 状态管理 |
-| ★★☆ | Q38 | Redux 核心概念与数据流 | Redux |
-| ★★☆ | Q39 | Redux Toolkit 现代写法 | Redux TK |
-| ★★☆ | Q40 | Zustand vs Redux vs Jotai vs Recoil | 状态管理对比 |
-| ★★☆ | Q41 | TanStack Query 服务端状态 | 服务端状态 |
-| ★★★ | Q42 | Hooks 实现原理（源码级） | 源码分析 |
-| ★★★ | Q43 | React.memo / useMemo / useCallback 正确使用 | 性能优化 |
-| ★★★ | Q44 | 虚拟长列表原理与 react-window | 性能优化 |
-| ★★★ | Q45 | 代码分割与懒加载 | 性能优化 |
-| ★★★ | Q46 | Web Worker 在 React 中的使用 | 性能优化 |
-| ★★★ | Q47 | Key 选择对性能的影响 | 性能优化 |
-| ★★★ | Q48 | Profiler 分析工具使用 | 性能分析 |
-| ★★★ | Q49 | 首屏加载优化策略 | 性能优化 |
-| ★★★ | Q50 | CSR vs SSR vs SSG vs ISR 对比 | SSR |
-| ★★★ | Q51 | Next.js App Router 与 RSC | SSR / RSC |
-| ★★★ | Q52 | Hydration 过程与注意事项 | SSR |
-| ★★★ | Q53 | Streaming SSR 与 Server Components | SSR / RSC |
+> **快速导航**：点击题目即可跳转到对应位置 | 共 **53** 道题（基础17 + 进阶24 + 专家12）
+
+### 基础层（★☆☆）Q01 - Q17
+
+| 题号 | 题目 | 难度 |
+|:----:|------|:----:|
+| [Q01](#q01-请解释-jsx-的编译过程babel-是如何将-jsx-转换为-javascript-的) | JSX 的编译过程与 Babel 转换 | ★☆☆ |
+| [Q02](#q02-请详细说明-reactcreateelement-的参数含义及其返回值结构) | React.createElement 参数含义 | ★☆☆ |
+| [Q03](#q03-请描述虚拟-dom-元素对象的完整数据结构并解释各字段的作用) | 虚拟 DOM 元素对象结构 | ★☆☆ |
+| [Q04](#q04-reactfragments-的使用场景有哪些为什么需要它) | Fragments 使用场景 | ★☆☆ |
+| [Q05](#q05-reactdomcreateroot-和-reactdomrender-有什么区别react-18-的变化是什么) | ReactDOM.createRoot vs render | ★☆☆ |
+| [Q06](#q06-请从多个维度对比函数组件和类组件的区别) | 函数组件 vs 类组件对比 | ★☆☆ |
+| [Q07](#q07-请解释-react-中-props-的只读性原则以及-childrendefaultprops-的使用方式) | Props 只读性与 children | ★☆☆ |
+| [Q08](#q08-usestate-的基本用法是什么有哪些常见的错误使用方式) | useState 基本用法与常见错误 | ★☆☆ |
+| [Q09](#q09-请解释-react-的合成事件syntheticevent-机制以及事件处理的注意事项) | 事件处理机制 | ★☆☆ |
+| [Q10](#q10-react-中有哪些条件渲染的方式各自的适用场景是什么) | 条件渲染的各种写法 | ★☆☆ |
+| [Q11](#q11-列表渲染时为什么要使用-keykey-的选择原则是什么) | 列表渲染与 key 的作用 | ★☆☆ |
+| [Q12](#q12-什么是受控组件和非受控组件它们的区别和使用场景) | 受控组件与非受控组件 | ★☆☆ |
+| [Q13](#q13-类组件的生命周期有哪些请按阶段分类并说明各自用途) | 组件生命周期（类组件） | ★☆☆ |
+| [Q14](#q14-useeffect-的基本用法是什么它的依赖数组是如何工作的) | useEffect 基本用法 | ★☆☆ |
+| [q15](#q15-react-中有哪些常见的css样式方案它们的优缺点是什么) | 组件样式方案对比 | ★☆☆ |
+| [Q16](#q16-react-developer-tools-的主要功能有哪些如何使用它进行调试) | React 开发者工具使用 | ★☆☆ |
+| [Q17](#q17-react-开发中常见的错误有哪些如何快速定位和解决) | 常见 React 错误与调试 | ★☆☆ |
+
+### 进阶层（★★☆）Q18 - Q41
+
+| 题号 | 题目 | 难度 |
+|:----:|------|:----:|
+| [Q18](#q18-为什么-hooks-必须在组件的顶层调用违反规则会发生什么) | Hooks 为什么必须在顶层调用 | ★★☆ |
+| [Q19](#q19-react-16-和-react-18-中-usestate-的批量更新机制有什么区别) | useState 批量更新机制 | ★★☆ |
+| [Q20](#q20-useeffect-的依赖数组的工作原理是什么有哪些常见的误区) | useEffect 依赖数组工作原理 | ★★☆ |
+| [Q21](#q21-useeffect-和-uselayouteffect-有什么区别什么时候应该用哪个) | useEffect vs useLayoutEffect | ★★☆ |
+| [Q22](#q22-useref-和-usestate-有什么区别什么场景应该用哪个) | useRef vs useState | ★★☆ |
+| [Q23](#q23-usememo-和-usecallback-有什么区别什么时候真正需要它们) | useMemo vs useCallback | ★★☆ |
+| [Q24](#q24-usecontext-的性能问题是什么如何优化) | useContext 性能问题及优化 | ★★☆ |
+| [Q25](#q25-自定义-hook-的设计原则和最佳实践有哪些) | 自定义 Hook 设计原则 | ★★☆ |
+| [Q26](#q26-usereducer-的适用场景是什么和-usestate-相比有什么优劣) | useReducer 适用场景 | ★★☆ |
+| [Q27](#q27-react-18-新增了哪些-hooks请详细介绍-useidusetransitionusedeferredvalueusesyncexternalstore) | React 18 新 Hooks 详解 | ★★☆ |
+| [Q28](#q28-虚拟-dom-的优势和劣势分别是什么什么情况下虚拟-dom-反而会成为性能瓶颈) | 虚拟 DOM 的优势与劣势 | ★★☆ |
+| [Q29](#q29-请详细解释-react-fiber-架构为什么引入-fiberfiber-节点的数据结构是怎样的) | Fiber 架构详解 | ★★☆ |
+| [Q30](#q30-请详细解释-react-的-diff-算法reconciliation它是如何实现-on-复杂度的) | Diff 算法（Reconciliation） | ★★☆ |
+| [Q31](#q31-请解释-react-18-的并发特性concurrent-modestarttransitionsuspense-和非阻塞更新是如何工作的) | React 18 并发特性 | ★★☆ |
+| [Q32](#q32-react-中有哪些组件通信方式请详细说明-props-下行回调上行context-api-和状态提升) | 组件通信方式汇总 | ★★☆ |
+| [Q33](#q33-什么是-render-props-模式它的优缺点是什么) | Render Props 模式 | ★★☆ |
+| [Q34](#q34-什么是-compound-components组合组件模式请举例说明) | Compound Components 模式 | ★★☆ |
+| [Q35](#q35-react-portal-的使用场景是什么有什么限制) | Portal 使用场景 | ★★☆ |
+| [Q36](#q36-forwardref-和-useimperativehandle-的使用场景是什么) | forwardRef + useImperativeHandle | ★★☆ |
+| [Q37](#q37-如何选择合适的状态管理方案context-vs-redux-vs-zustand-vs-jotai-的对比) | 全局状态方案选择 | ★★☆ |
+| [Q38](#q38-redux-的核心概念是什么请解释其单向数据流) | Redux 核心概念与数据流 | ★★☆ |
+| [Q39](#q39-redux-toolkitrtk-的现代写法是怎样的请介绍-createslice-和-createasyncthunk) | Redux Toolkit 现代写法 | ★★☆ |
+| [Q40](#q40-tanstack-queryreact-query-是什么它解决了什么问题如何与服务端状态管理配合) | TanStack Query 服务端状态 | ★★☆ |
+| [Q41](#q41-react-router-的核心概念有哪些如何实现路由守卫和权限控制) | React Router 路由守卫 | ★★☆ |
+
+### 专家层（★★★）Q42 - Q53
+
+| 题号 | 题目 | 难度 |
+|:----:|------|:----:|
+| [Q42](#q42-请从源码角度解释-react-hooks-的实现原理usestate-和-useeffect-的内部实现是怎样的) | Hooks 实现原理（源码级） | ★★★ |
+| [Q43](#q43-reactmemousememo-和-usecallback-的正确使用方式是什么如何判断是否需要优化) | React.memo / useMemo / useCallback | ★★★ |
+| [Q44](#q44-虚拟长列表的原理是什么react-window-是如何实现的) | 虚拟长列表原理与 react-window | ★★★ |
+| [Q45](#q45-如何实现代码分割和懒加载reactlazy-和-suspense-的工作原理是什么) | 代码分割与懒加载 | ★★★ |
+| [Q46](#q46-web-worker-在-react-中如何使用有什么应用场景和注意事项) | Web Worker 在 React 中的使用 | ★★★ |
+| [Q47](#q47-key-的选择对-react-性能有什么影响请从-diff-算法的角度详细说明) | Key 选择对性能的影响 | ★★★ |
+| [Q48](#q48-如何使用-react-profiler-进行性能分析有哪些常见的性能问题和解决方案) | Profiler 分析工具使用 | ★★★ |
+| [Q49](#q49-请列举首屏加载优化的完整策略从网络层到渲染层的全方位优化方案) | 首屏加载优化策略 | ★★★ |
+| [Q50](#q50-cssrssrssgisr-各有什么特点如何选择合适的技术方案) | CSR / SSR / SSG / ISR 对比 | ★★★ |
+| [Q51](#q51-nextjs-app-router-的核心概念是什么server-components-rsc-是如何工作的) | Next.js App Router 与 RSC | ★★★ |
+| [Q52](#q52-什么是-hydrationhydration-过程中可能出现哪些问题如何解决) | Hydration 原理与问题解决 | ★★★ |
+| [Q53](#q53-react-18-的-streaming-ssr-是如何工作的请详细说明-rendertopipeablestream-的使用) | React 18 Streaming SSR | ★★★ |
 
 ---
 

@@ -5,12 +5,74 @@
 
 ---
 
-## 目录
+## 📚 问题速查目录
 
-- [基础篇 ★☆☆（Q01-Q15）](#基础篇--q01-q15)
-- [进阶篇 ★★☆（Q16-Q30）](#进阶篇--q16-q30)
-- [专家篇 ★★★（Q31-Q50）](#专家篇--q31-q50)
-- [附录](#附录)
+> **快速导航**：点击题目即可跳转到对应位置 | 共 **50** 道题（基础15 + 进阶15 + 专家20）
+
+### 基础层（★☆☆）Q01 - Q15
+
+| 题号 | 题目 | 难度 |
+|:----:|------|:----:|
+| [Q01](#q01-nodejs-是什么它有哪些核心特点) | Node.js 是什么？它有哪些核心特点？ | ★☆☆ |
+| [Q02](#q02-nodejs-的主要应用场景有哪些请举例说明) | Node.js 的主要应用场景有哪些？请举例说明 | ★☆☆ |
+| [Q03](#q03-commonjs-和-es-module-有什么区别) | CommonJS 和 ES Module 有什么区别？ | ★☆☆ |
+| [Q04](#q04-exports-和-moduleexports-有什么区别) | exports 和 module.exports 有什么区别？ | ★☆☆ |
+| [Q05](#q05-require-的加载机制是怎样的从路径解析到缓存) | require() 的加载机制是怎样的？（从路径解析到缓存） | ★☆☆ |
+| [Q06](#q06-什么是-nodejs-的事件循环和浏览器的事件循环有什么区别) | 什么是 Node.js 的事件循环？和浏览器的事件循环有什么区别？ | ★☆☆ |
+| [Q07](#q07-eventemitter-是怎么工作的有哪些常用方法) | EventEmitter 是怎么工作的？有哪些常用方法？ | ★☆☆ |
+| [Q08](#q08-promiseasyncawait-和回调函数的区别和适用场景) | Promise、async/await 和回调函数的区别和适用场景？ | ★☆☆ |
+| [Q09](#q09-如何处理未捕获的异常uncaughtexception--unhandledrejection) | 如何处理未捕获的异常？（uncaughtException / unhandledRejection） | ★☆☆ |
+| [Q10](#q10-processnexttick-和-setimmediate-的区别) | process.nextTick 和 setImmediate 的区别？ | ★☆☆ |
+| [Q11](#q11-fs-模块的同步和异步方法有什么区别如何选择) | fs 模块的同步和异步方法有什么区别？如何选择？ | ★☆☆ |
+| [Q12](#q12-如何创建一个简单的-http-服务器) | 如何创建一个简单的 HTTP 服务器？ | ★☆☆ |
+| [Q13](#q13-stream流和-buffer-有什么区别) | Stream（流）和 Buffer 有什么区别？ | ★☆☆ |
+| [Q14](#q14-path-模块的-join-和-resolve-区别) | path 模块的 join 和 resolve 区别？ | ★☆☆ |
+| [Q15](#q15-express-和-koa-有什么区别) | Express 和 Koa 有什么区别？ | ★☆☆ |
+
+### 进阶层（★★☆）Q16 - Q30
+
+| 题号 | 题目 | 难度 |
+|:----:|------|:----:|
+| [Q16](#q16-nodejs-事件循环的各个阶段是什么执行顺序是怎样的) | Node.js 事件循环的各个阶段是什么？执行顺序是怎样的？ | ★★☆ |
+| [Q17](#q17-微任务microtask-在-nodejs-中是如何执行的) | 微任务（microtask）在 Node.js 中是如何执行的？ | ★★☆ |
+| [Q18](#q18-settimeoutfn-0-和-setimmediatefn-哪个先执行) | setTimeout(fn, 0) 和 setImmediate(fn) 哪个先执行？ | ★★☆ |
+| [Q19](#q19-如何避免阻塞-nodejs-事件循环) | 如何避免阻塞 Node.js 事件循环？ | ★★☆ |
+| [Q20](#q20-nodejs-的单线程模型有什么优缺点如何充分利用多核-cpu) | Node.js 的单线程模型有什么优缺点？如何充分利用多核 CPU？ | ★★☆ |
+| [Q21](#q21-nodejs-的模块加载机制是怎样的从-require-到执行的全过程) | Node.js 的模块加载机制是怎样的？（从 require 到执行的全过程） | ★★☆ |
+| [Q22](#q22-循环依赖是怎么产生的如何解决) | 循环依赖是怎么产生的？如何解决？ | ★★☆ |
+| [Q23](#q23-npmyarn-和-pnpm-包管理器的区别) | npm、yarn 和 pnpm 包管理器的区别？ | ★★☆ |
+| [Q24](#q24-packagejson-中-dependenciesdevdependenciespeerdependencies-的区别) | package.json 中 dependencies/devDependencies/peerDependencies 的区别？ | ★★☆ |
+| [Q25](#q25-npx-的工作原理是什么) | npx 的工作原理是什么？ | ★★☆ |
+| [Q26](#q26-如何在-nodejs-中防止-sql-注入) | 如何在 Node.js 中防止 SQL 注入？ | ★★☆ |
+| [Q27](#q27-sessioncookiejwt-三种鉴权方式的对比) | Session/Cookie/JWT 三种鉴权方式的对比？ | ★★☆ |
+| [Q28](#q28-redis-在-nodejs-项目中的典型使用场景) | Redis 在 Node.js 项目中的典型使用场景？ | ★★☆ |
+| [Q29](#q29-如何设计一个连接池连接池的核心参数有哪些) | 如何设计一个连接池？连接池的核心参数有哪些？ | ★★☆ |
+| [Q30](#q30-websocket-在-nodejs-中的实现思路) | WebSocket 在 Node.js 中的实现思路？ | ★★☆ |
+
+### 专家层（★★★）Q31 - Q50
+
+| 题号 | 题目 | 难度 |
+|:----:|------|:----:|
+| [Q31](#q31-手写一个简易的-express-风格路由系统支持中间件链) | 手写一个简易的 Express 风格路由系统（支持中间件链） | ★★★ |
+| [Q32](#q32-手写一个-eventemitter-类符合-nodejs-规范) | 手写一个 EventEmitter 类（符合 Node.js 规范） | ★★★ |
+| [Q33](#q33-手写-promiseall--race--allsettled-实现) | 手写 Promise.all / race / allSettled 实现 | ★★★ |
+| [Q34](#q34-手写一个简单的模板引擎支持变量替换和条件判断) | 手写一个简单的模板引擎（支持变量替换和条件判断） | ★★★ |
+| [Q35](#q35-设计一个-bffbackend-for-frontend-层的架构) | 设计一个 BFF（Backend For Frontend）层的架构 | ★★★ |
+| [Q36](#q36-如何设计一个高并发的-nodejs-服务集群负载均衡缓存策略) | 如何设计一个高并发的 Node.js 服务？（集群/负载均衡/缓存策略） | ★★★ |
+| [Q37](#q37-nodejs-内存泄漏的常见原因和排查方法) | Node.js 内存泄漏的常见原因和排查方法？ | ★★★ |
+| [Q38](#q38-设计一个完善的日志系统分级格式化输出目标采样) | 设计一个完善的日志系统（分级/格式化/输出目标/采样） | ★★★ |
+| [Q39](#q39-如何实现一个大文件上传功能分片断点续传秒传) | 如何实现一个大文件上传功能？（分片/断点续传/秒传） | ★★★ |
+| [Q40](#q40-nodejs-服务的优雅关闭graceful-shutdown-怎么实现) | Node.js 服务的优雅关闭（Graceful Shutdown）怎么实现？ | ★★★ |
+| [Q41](#q41-docker-部署-nodejs-服务的最佳实践) | Docker 部署 Node.js 服务的最佳实践？ | ★★★ |
+| [Q42](#q42-如何做-nodejs-服务的性能监控和告警) | 如何做 Node.js 服务的性能监控和告警？ | ★★★ |
+| [Q43](#q43-nodejs-新版本ltscurrent-的特性有哪些值得关注) | Node.js 新版本（LTS/Current）的特性有哪些值得关注？ | ★★★ |
+| [Q44](#q44-bundeno-与-nodejs-的对比和选型) | Bun/Deno 与 Node.js 的对比和选型？ | ★★★ |
+| [Q45](#q45-edge-computing边缘计算-在-nodejs-中的应用) | Edge Computing（边缘计算）在 Node.js 中的应用？ | ★★★ |
+| [Q46](#q46-webassembly-wasm-在-nodejs中的应用前景) | WebAssembly (Wasm) 在 Node.js中的应用前景？ | ★★★ |
+| [Q47](#q47-给定一段-nodejs-代码分析其执行过程和潜在问题) | 给定一段 Node.js 代码，分析其执行过程和潜在问题 | ★★★ |
+| [Q48](#q48-从零到生产一个-nodejs-api-服务的完整搭建流程) | 从零到生产：一个 Node.js API 服务的完整搭建流程 | ★★★ |
+| [Q49](#q49-nodejs-在微服务架构中的角色和实践) | Node.js 在微服务架构中的角色和实践 | ★★★ |
+| [Q50](#q50-综合实战--设计一个完整的即时通讯im-系统后端) | 综合实战 - 设计一个完整的即时通讯（IM）系统后端 | ★★★ |
 
 ---
 

@@ -4435,20 +4435,2712 @@ function detectProps() {
 
 ---
 
-## Q26-Q35：（进阶层其余题目——由于篇幅原因在此省略完整内容，实际文档中包含完整答案）
+## Q26: CSS will-change 属性的作用和使用注意事项
+- **难度**：★★☆
+- **知识点**：性能优化 / GPU加速 / will-change
+- **题型**：简答题
 
-> **以下为进阶层剩余题目的简要索引，完整内容请查看文档原文**
+### 参考答案要点：
 
-- **Q26**: CSS will-change 属性的作用和使用注意事项
-- **Q27**: line-height 的各种单位值表现有何不同
-- **Q28**: margin 合并（折叠）现象及利用/避免方法
-- **Q29**: CSS 变量（Custom Properties）的使用方式和优势
-- **Q30**: CSS Container Queries（容器查询）与 Media Query 的区别
-- **Q31**: aspect-ratio 属性的使用场景
-- **Q32**: CSS clamp() 函数的使用
-- **Q33**: object-fit 属性的作用
-- **Q34**: 如何实现暗黑模式（Dark Mode）
-- **Q35**: Critical CSS（关键 CSS）提取和内联
+1. **will-change 的作用**
+
+   `will-change` 是一个 CSS 属性，用于**提前告知浏览器某个元素即将发生变化**，让浏览器提前做好优化准备。主要用于：
+   - 提示浏览器元素将发生的变化类型
+   - 让浏览器提前创建独立的合成层（Compositing Layer）
+   - 优化动画性能，避免卡顿
+
+   ```css
+   /* 基本语法 */
+   .element {
+     will-change: transform;        /* 告知浏览器 transform 将会改变 */
+     will-change: opacity;          /* 告知浏览器 opacity 将会改变 */
+     will-change: top, left;        /* 可以声明多个属性 */
+     will-change: auto;             /* 默认值，不提示 */
+   }
+   ```
+
+2. **will-change 的工作原理**
+
+   ```
+   普通流程：JS修改样式 → 浏览器检测变化 → 创建合成层 → 执行动画（可能卡顿）
+   使用will-change：浏览器提前创建合成层 → JS修改样式 → 直接执行动画（流畅）
+   ```
+
+   - **提前优化**：浏览器会在元素实际变化前，就为该属性分配资源
+   - **GPU 加速**：对于 `transform`、`opacity` 等可合成属性，会提前提升到 GPU 层
+   - **减少重排重绘**：独立合成层可以避免影响其他元素的渲染
+
+3. **正确使用方式**
+
+   ```css
+   /* ✅ 正确用法1：在动画即将开始前添加 */
+   .card:hover {
+     will-change: transform;
+     transform: scale(1.05);
+   }
+
+   /* ✅ 正确用法2：通过 JavaScript 动态添加/移除 */
+   <style>
+     .animated {
+       will-change: transform;
+       animation: slideIn 0.3s ease-out;
+     }
+   </style>
+   <script>
+     // 动画开始前添加
+     element.classList.add('animated');
+
+     // 动画结束后移除（重要！释放资源）
+     element.addEventListener('animationend', () => {
+       element.classList.remove('animated');
+       // 或者显式设置为 auto
+       element.style.willChange = 'auto';
+     });
+   </script>
+
+   /* ✅ 正确用法3：用于持续动画的元素 */
+   .loading-spinner {
+     will-change: transform;
+     animation: spin 1s linear infinite;
+   }
+   ```
+
+4. **常见错误和注意事项**
+
+   ```css
+   /* ❌ 错误1：全局滥用（性能杀手）*/
+   * {
+     will-change: transform, opacity;
+   }
+   /* 问题：所有元素都创建独立合成层，内存爆炸 */
+
+   /* ❌ 错误2：对大量元素使用 */
+   .list-item:nth-child(1) { will-change: transform; }
+   .list-item:nth-child(2) { will-change: transform; }
+   /* ... 100个元素 */
+   /* 问题：每个元素都占用额外内存和 GPU 资源 */
+
+   /* ❌ 错误3：长期保留（不及时移除）*/
+   .static-element {
+     will-change: transform;  /* 但这个元素根本不会变化！ */
+   }
+   /* 问题：浪费内存，永远不会被回收 */
+
+   /* ❌ 错误4：声明过多属性 */
+   .bad-example {
+     will-change: width, height, top, left, margin, padding,
+                  background, color, border-radius, box-shadow;
+   }
+   /* 问题：浏览器无法有效优化这么多属性 */
+   ```
+
+5. **最佳实践总结**
+
+   | 场景 | 推荐做法 |
+   |------|----------|
+   **hover 动画** | `:hover` 时设置，或用 JS 在 `mouseenter` 时添加 |
+   **点击反馈** | 点击时临时添加，动画结束后移除 |
+   **持续动画**（loading）| 可长期保留，但注意数量控制 |
+   **滚动动画** | 使用 IntersectionObserver 动态管理 |
+   **大量列表项** | 只对可见区域的前后几个元素使用 |
+
+6. **替代方案**
+
+   ```css
+   /* 方案1：transform3d hack（强制 GPU 加速）*/
+   .gpu-accelerated {
+     transform: translateZ(0);  /* 或 translate3d(0, 0, 0) */
+   }
+
+   /* 方案2：使用 contain 属性限制影响范围*/
+   .contained {
+     contain: layout style paint;
+   }
+
+   /* 方案3：backface-visibility（部分情况）*/
+   .backface-hidden {
+     backface-visibility: hidden;
+     perspective: 1000px;
+   }
+   ```
+
+### 🔍 追问链
+1. **will-change 和 translateZ(0) 的区别是什么？哪个更好？**
+   → 方向：will-change 是语义化的提示，浏览器可以智能决策；translateZ(0) 是强制创建合成层的 hack；优先使用 will-change，兼容性要求高时用 translateZ(0)
+2. **如何检测一个元素是否创建了独立的合成层？**
+   → 方向：Chrome DevTools → Layers 面板；或者 Rendering 面板勾选 "Layer borders"，有黄色边框的表示是独立合成层
+3. **移动端使用 will-change 有什么特别需要注意的地方？**
+   → 方向：移动端 GPU 内存有限，大量使用会导致崩溃；建议只对关键动画元素使用，且及时清理；iOS Safari 对合成层数量有限制
+
+---
+
+## Q27: line-height 的各种单位值表现有何不同
+- **难度**：★★☆
+- **知识点**：line-height / 文字排版 / 单位差异
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **line-height 的作用**
+
+   `line-height` 用于设置行间的距离（行高），控制文本垂直方向上的间距。它不仅影响多行文本的行距，还与**垂直居中**密切相关。
+
+   ```css
+   .text {
+     line-height: 1.5;  /* 行高为字体大小的 1.5 倍 */
+   }
+   ```
+
+2. **四种单位值的详细对比**
+
+   ```html
+   <!-- 测试容器 -->
+   <div class="container" style="font-size: 16px;">
+     <p class="test-1">无单位的 line-height: 1.5</p>
+     <p class="test-2">带 px 单位: 24px</p>
+     <p class="test-3">带 em 单位: 1.5em</p>
+     <p class="test-4">带 % 百分比: 150%</p>
+
+     <!-- 嵌套测试 -->
+     <div style="font-size: 32px;">
+       <p class="test-1">父字体32px - 无单位: 1.5</p>
+       <p class="test-2">父字体32px - px: 24px</p>
+       <p class="test-3">父字体32px - em: 1.5em</p>
+       <p class="test-4">父字体32px - %: 150%</p>
+     </div>
+   </div>
+   ```
+
+   ```css
+   /* ===== 方式1：无单位值（推荐）===== */
+   .test-1 { line-height: 1.5; }
+   /*
+    * 特性：继承的是"倍数"而非计算值
+    * 父元素 font-size: 16px → 行高 = 16 × 1.5 = 24px
+    * 子元素 font-size: 32px → 行高 = 32 × 1.5 = 48px（自动适配！）
+    *
+    * ✅ 优点：响应式，子元素自动继承比例
+    * ✅ 推荐场景：大多数文本排版场景
+    */
+
+   /* ===== 方式2：px 固定像素值 ===== */
+   .test-2 { line-height: 24px; }
+   /*
+    * 特性：固定值，不会随字体大小变化
+    * 父元素 font-size: 16px → 行高 = 24px
+    * 子元素 font-size: 32px → 行高 = 24px（不变！可能重叠）
+    *
+    * ⚠️ 缺点：不够灵活，大字体时文字可能重叠
+    * 适用场景：需要精确控制行高的特殊布局
+    */
+
+   /* ===== 方式3：em 相对单位 ===== */
+   .test-3 { line-height: 1.5em; }
+   /*
+    * 特性：相对于当前元素的 font-size 计算
+    * 父元素 font-size: 16px → 行高 = 16 × 1.5 = 24px
+    * 继承时：继承的是计算后的绝对值（24px）！
+    * 子元素 font-size: 32px → 行高 = 24px（继承的计算值，不是重新计算）
+    *
+    * ⚠️ 注意：和无单位值的区别在于继承行为
+    * 类似于 % 的行为
+    */
+
+   /* ===== 方式4：% 百分比值 ===== */
+   .test-4 { line-height: 150%; }
+   /*
+    * 特性：相对于当前元素的 font-size 计算
+    * 行为与 em 完全相同
+    * 父元素 font-size: 16px → 行高 = 16 × 150% = 24px
+    * 子元素 font-size: 32px → 行高 = 24px（继承计算值）
+    *
+    * ⚠️ 不推荐：容易造成嵌套时的行高混乱
+    */
+   ```
+
+3. **实际效果演示**
+
+   ```
+   场景：父元素 16px，子元素 32px
+
+   ┌─────────────────────────────────────┐
+   │ 无单位 (1.5):                       │
+   │   父：16px 字体，24px 行高          │
+   │   子：32px 字体，48px 行高 ✅ 自适应│
+   ├─────────────────────────────────────┤
+   │ px (24px):                          │
+   │   父：16px 字体，24px 行高          │
+   │   子：32px 字体，24px 行高 ⚠️ 重叠  │
+   ├─────────────────────────────────────┤
+   │ em (1.5em) / % (150%):              │
+   │   父：16px 字体，24px 行高          │
+   │   子：32px 字体，24px 行高 ⚠️ 重叠  │
+   └─────────────────────────────────────┘
+   ```
+
+4. **line-height 与垂直居中的关系**
+
+   ```css
+   /* 经典的单行文本垂直居中技巧 */
+   .center-text {
+     height: 100px;
+     line-height: 100px;  /* 与 height 相等 */
+     text-align: center;
+   }
+   /*
+    * 原理：当 line-height 等于容器高度时，
+    * 文字的基线位于行的中间位置，视觉上居中
+    *
+    * ⚠️ 限制：只适用于单行文本！多行文本会失效
+    */
+
+   /* 多行文本垂直居中方案 */
+   .center-multiline {
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     height: 200px;
+   }
+
+   /* 或者使用伪元素方案 */
+   .center-pseudo {
+     height: 200px;
+     text-align: center;
+   }
+   .center-pseudo::before {
+     content: '';
+     display: inline-block;
+     height: 100%;
+     vertical-align: middle;
+   }
+   .center-pseudo > span {
+     display: inline-block;
+     vertical-align: middle;
+   }
+   ```
+
+5. **line-height 的全局设置最佳实践**
+
+   ```css
+   /* 推荐的全局样式设置 */
+   :root {
+     /* 无单位值，便于全局继承和响应式 */
+     --line-height-tight: 1.25;
+     --line-height-normal: 1.5;
+     --line-height-relaxed: 1.75;
+   }
+
+   body {
+     font-size: 16px;
+     line-height: var(--line-height-normal);  /* 1.5 */
+   }
+
+   h1, h2, h3 {
+     line-height: var(--line-height-tight);   /* 标题紧凑一些 */
+   }
+
+   blockquote, .prose {
+     line-height: var(--line-height-relaxed); /* 正文宽松一些 */
+   }
+
+   /* 不同语言的行高调整 */
+   [lang="zh"], [lang="ja"] {
+     line-height: 1.6;  /* CJK字符通常需要更大的行高 */
+   }
+   ```
+
+6. **特殊值**
+
+   ```css
+   .special {
+     line-height: normal;   /* 默认值，浏览器决定（通常约 1.2）*/
+     line-height: inherit;  /* 显式继承父元素的值 */
+     line-height: initial;  /* 重置为初始值（normal）*/
+     line-height: unset;    /* 如果继承则继承，否则为 initial */
+   }
+   ```
+
+### 🔍 追问链
+1. **为什么推荐使用无单位的 line-height？在实际项目中遇到过什么坑吗？**
+   → 方向：无单位值具有"继承比例"的特性，在响应式设计和组件化开发中更灵活；em/% 会继承计算值导致嵌套时行高异常
+2. **line-height 和 vertical-align 是什么关系？它们如何共同影响文本的垂直位置？**
+   → 方向：line-height 决定行框的高度，vertical-align 决定元素在行框内的垂直对齐方式；两者配合才能精确控制文本排版
+3. **CSS 中有没有其他属性也有类似的"无单位 vs 有单位"的继承差异？**
+   → 方向：font-size 使用 em/rem 时也有类似问题；但大多数现代属性（如 padding、margin）使用相对单位时都是基于当前元素计算
+
+---
+
+## Q28: margin 合并（折叠）现象及利用/避免方法
+- **难度**：★★☆
+- **知识点**：margin合并 / BFC / 盒模型
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **什么是 Margin 合并（Margin Collapsing）**
+
+   Margin 合并是指当两个或多个垂直方向的 margin 相遇时，它们会合并成一个 margin，**取其中的最大值**（如果都是正值）。这是 CSS 的标准行为，不是 bug。
+
+   ```html
+   <!-- 示例：相邻兄弟元素的 margin 合并 -->
+   <style>
+     .box { margin: 20px 0; }
+   </style>
+   <div class="box">第一个盒子</div>  <!-- margin-bottom: 20px -->
+   <div class="box">第二个盒子</div>  <!-- margin-top: 20px -->
+   <!-- 实际间距：20px（不是 40px！）-->
+   ```
+
+2. **触发 Margin 合并的三种场景**
+
+   ```html
+   <style>
+     .parent {
+       background-color: #f0f0f0;
+       margin-top: 30px;           /* 场景1：父子 margin 合并 */
+     }
+     .child {
+       margin-top: 50px;
+       height: 100px;
+       background-color: #3498db;
+     }
+
+     .sibling {
+       margin: 20px 0;            /* 场景2：兄弟元素合并 */
+       height: 50px;
+     }
+
+     .empty {
+       margin-top: 40px;          /* 场景3：空块级元素 */
+       margin-bottom: 60px;
+       /* 没有内容、padding、border */
+     }
+   </style>
+
+   <!-- 场景1：父子元素 margin 合并 -->
+   <div class="parent">
+     <div class="child">子元素</div>
+   </div>
+   <!-- 结果：parent 和其前面的元素间距为 max(30, 50) = 50px -->
+
+   <!-- 场景2：相邻兄弟元素 -->
+   <div class="sibling">兄弟1</div>  <!-- margin-bottom: 20px -->
+   <div class="sibling">兄弟2</div>  <!-- margin-top: 20px -->
+   <!-- 结果：间距为 max(20, 20) = 20px -->
+
+   <!-- 场景3：空块级元素 -->
+   <div class="empty"></div>
+   <!-- 结果：上下 margin 合并为 max(40, 60) = 60px -->
+   ```
+
+3. **Margin 合并的计算规则**
+
+   ```
+   当两个 margin 相遇时：
+
+   1. 都为正数 → 取较大值
+      例：margin-top: 30px + margin-bottom: 50px → 50px
+
+   2. 一正一负 → 相减（绝对值相减）
+      例：margin-top: 30px + margin-bottom: -10px → 20px
+
+   3. 都为负数 → 取绝对值最大的负数
+      例：margin-top: -30px + margin-bottom: -50px → -50px
+
+   4. 多个 margin 连续相遇 → 取最极端的值
+      例：10px, 20px, 30px, 15px → 取 30px
+   ```
+
+4. **避免 Margin 合并的方法**
+
+   ```css
+   /* 方法1：触发 BFC（Block Formatting Context）—— 最常用 */
+   .parent {
+     overflow: hidden;  /* 触发 BFC */
+     /* 或者 */
+     display: flow-root;  /* 现代、语义化的 BFC 触发方式（推荐）*/
+     /* 或者 */
+     position: absolute;
+     /* 或者 */
+     display: inline-block;
+     /* 或者 */
+     float: left;
+   }
+
+   /* 方法2：给父元素添加 border 或 padding */
+   .parent-with-border {
+     border-top: 1px solid transparent;  /* 最小的边框 */
+     /* 或者 */
+     padding-top: 1px;  /* 最小的内边距 */
+   }
+
+   /* 方法3：使用 padding 代替 margin（在某些场景）*/
+   .use-padding {
+     padding-top: 20px;  /* 用 padding 替代 margin-top */
+   }
+
+   /* 方法4：使用 flex 或 grid 布局（自动消除合并）*/
+   .flex-container {
+     display: flex;
+     flex-direction: column;
+   }
+   /* Flex/Grid 容器内的子元素不会发生 margin 合并 */
+
+   /* 方法5：给父元素设置 display: flow-root（现代方案）*/
+   .modern-bfc {
+     display: flow-root;  /* 专门用于创建 BFC，无副作用 */
+   }
+   ```
+
+5. **主动利用 Margin 合并的场景**
+
+   ```html
+   <style>
+     /* 场景1：统一段落间距 */
+     article p {
+       margin: 1em 0;  /* 段落之间的间距统一为 1em */
+     }
+     /* 即使连续多个段落，间距也是 1em，不会叠加 */
+
+     /* 场景2：标题与段落的间距 */
+     section h2 {
+       margin-bottom: 0.8em;
+     }
+     section p {
+       margin-top: 1.2em;
+     }
+     /* 标题和段落之间取 max(0.8em, 1.2em) = 1.2em */
+
+     /* 场景3：卡片组件的间距 */
+     .card-list .card {
+       margin-bottom: 20px;
+     }
+     /* 最后一张卡片不需要特殊处理，不会产生多余间距 */
+   </style>
+   ```
+
+6. **常见误区和调试技巧**
+
+   ```css
+   /* ❌ 常见误区1：以为设置了 margin 就一定生效 */
+   .misunderstanding-1 {
+     margin-top: 100px;  /* 可能因为合并而变小 */
+   }
+
+   /* ✅ 调试方法1：使用 outline 查看实际盒模型 */
+   * {
+     outline: 1px solid red;  /* 不影响布局，方便查看边界 */
+   }
+
+   /* ✅ 调试方法2：Chrome DevTools 查看 Computed */
+   /* 在 Elements 面板 → Computed → 查看 margin 的实际计算值 */
+
+   /* ✅ 调试方法3：临时禁用合并来确认是否是合并导致的 */
+   .debug-parent {
+     display: flow-root;  /* 临时添加，看间距是否变大 */
+   }
+   ```
+
+7. **水平方向的 Margin 不会合并**
+
+   ```css
+   /* 重要：只有垂直方向（top/bottom）的 margin 会合并 */
+   /* 水平方向（left/right）的 margin 不会合并，而是直接相加 */
+   .horizontal-demo {
+     display: inline-block;
+     margin-right: 20px;
+   }
+   .next-element {
+     margin-left: 30px;
+   }
+   /* 水平间距 = 20px + 30px = 50px（不是取最大值！）*/
+   ```
+
+### 🔍 追问链
+1. **margin 合并和BFC是什么关系？BFC还有哪些应用场景？**
+   → 方向：BFC 可以阻止 margin 合并；BFC 还能解决浮动高度塌陷、阻止元素被浮动覆盖等；display:flow-root 是创建 BFC 的现代方案
+2. **在大型项目中，如何系统地避免 margin 合并带来的布局意外？**
+   → 方向：建立统一的间距系统（使用 utility classes）；使用 CSS reset 中对 body 设置 overflow: hidden；组件库中使用 padding 代替 margin；或者采用 BEM 命名规范明确层级关系
+3. **Flex 和 Grid 布局中为什么没有 margin 合并？这是好事还是坏事？**
+   → 方向：Flex/Grid 创建了新的 formatting context，子元素处于 flex/grid item 层级，不参与常规流的 margin 合并；这通常是有利的，因为更符合直觉
+
+---
+
+## Q29: CSS 变量（Custom Properties）的使用方式和优势
+- **难度**：★★☆
+- **知识点**：CSS变量 / Custom Properties / 主题切换
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **CSS 变量的基本语法**
+
+   CSS 变量（正式名称为 **Cascading Variables** 或 **Custom Properties**）是以 `--` 开头的自定义属性。
+
+   ```css
+   /* ===== 定义变量（通常在 :root 选择器中）===== */
+   :root {
+     /* 颜色变量 */
+     --primary-color: #3498db;
+     --secondary-color: #2ecc71;
+     --text-color: #333333;
+     --background-color: #ffffff;
+
+     /* 间距变量 */
+     --spacing-xs: 4px;
+     --spacing-sm: 8px;
+     --spacing-md: 16px;
+     --spacing-lg: 24px;
+     --spacing-xl: 32px;
+
+     /* 字体变量 */
+     --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+     --font-size-base: 16px;
+     --line-height-base: 1.5;
+
+     /* 阴影变量 */
+     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+     --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+     --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+   }
+
+   /* ===== 使用变量（通过 var() 函数）===== */
+   .button {
+     background-color: var(--primary-color);
+     color: var(--background-color);
+     padding: var(--spacing-sm) var(--spacing-md);
+     font-family: var(--font-family-base);
+     font-size: var(--font-size-base);
+     box-shadow: var(--shadow-md);
+   }
+
+   .card {
+     background-color: var(--background-color);
+     color: var(--text-color);
+     padding: var(--spacing-lg);
+     margin-bottom: var(--spacing-md);
+     box-shadow: var(--shadow-lg);
+   }
+   ```
+
+2. **CSS 变量的核心特性**
+
+   ```css
+   /* ===== 特性1：级联和继承 ===== */
+   :root {
+     --color: blue;
+   }
+
+   .parent {
+     --color: red;  /* 在父元素上重新定义 */
+   }
+
+   .child {
+     /* 继承父元素的 --color: red */
+     color: var(--color);  /* red */
+   }
+
+   /* ===== 特性2：作用域 ===== */
+   .component {
+     --local-var: value;  /* 只在这个选择器及其后代中有效 */
+   }
+
+   .outside {
+     /* 无法访问 --local-var */
+     /* content: var(--local-var); 无效 */
+   }
+
+   /* ===== 特性3：默认值 ===== */
+   .with-fallback {
+     /* 如果 --undefined-var 未定义，使用默认值 purple */
+     color: var(--undefined-var, purple);
+
+     /* 支持多层回退 */
+     font-size: var(--custom-size, var(--fallback-size, 16px));
+   }
+
+   /* ===== 特性4：JavaScript 动态操作 ===== */
+   <script>
+     // 读取变量值
+     const root = document.documentElement;
+     const primaryColor = getComputedStyle(root).getPropertyValue('--primary-color');
+     console.log(primaryColor);  // " #3498db"
+
+     // 修改变量值（实时更新所有使用该变量的元素！）
+     root.style.setProperty('--primary-color', '#e74c3c');
+     // 所有使用了 var(--primary-color) 的元素立即变为红色
+
+     // 删除变量
+     root.style.removeProperty('--primary-color');
+   </script>
+   ```
+
+3. **CSS 变量相比预处理器变量的优势**
+
+   ```scss
+   /* ========== Sass/Less 变量（预处理器）========== */
+   $primary-color: #3498db;  /* 编译时确定 */
+
+   .button {
+     background: $primary-color;  /* 编译后变成固定的 #3498db */
+   }
+   /* 问题：编译后无法动态修改 */
+
+   /* ========== CSS 变量（运行时）========== */
+   :root {
+     --primary-color: #3498db;  /* 运行时可变 */
+   }
+
+   .button {
+     background: var(--primary-color);  /* 运行时解析 */
+   }
+   /* 优势：可以通过 JS 随时修改，立即生效 */
+   ```
+
+   | 特性 | Sass/Less 变量 | CSS 变量 |
+   |------|---------------|----------|
+   **作用域** | 编译时确定 | 运行时动态 |
+   **动态修改** | ❌ 不支持 | ✅ 支持（JS 修改）|
+   **作用域** | 文件级别 | DOM 选择器级别（支持局部）|
+   **继承** | 不支持 | ✅ 支持级联继承 |
+   **媒体查询** | 需要 mixin | ✅ 原生支持 |
+   **响应式** | 有限 | ✅ 完美支持 |
+   **调试** | 需要查看编译后 CSS | DevTools 可直接查看和修改 |
+
+4. **实战应用场景**
+
+   ```css
+   /* ===== 场景1：主题切换系统 ===== */
+   :root {
+     --bg-color: #ffffff;
+     --text-color: #333333;
+     --card-bg: #f5f5f5;
+   }
+
+   [data-theme="dark"] {
+     --bg-color: #1a1a1a;
+     --text-color: #e0e0e0;
+     --card-bg: #2d2d2d;
+   }
+
+   /* JS 切换主题 */
+   document.documentElement.setAttribute('data-theme', 'dark');
+
+   /* ===== 场景2：响应式设计 ===== */
+   :root {
+     --container-width: 100%;
+     --grid-columns: 1;
+     --gap: 16px;
+   }
+
+   @media (min-width: 768px) {
+     :root {
+       --grid-columns: 2;
+       --gap: 24px;
+     }
+   }
+
+   @media (min-width: 1024px) {
+     :root {
+       --container-width: 1200px;
+       --grid-columns: 3;
+       --gap: 32px;
+     }
+   }
+
+   .grid {
+     display: grid;
+     grid-template-columns: repeat(var(--grid-columns), 1fr);
+     gap: var(--gap);
+     max-width: var(--container-width);
+   }
+
+   /* ===== 场景3：组件库的设计令牌（Design Tokens）===== */
+   .btn {
+     /* 尺寸变体 */
+     --btn-padding-x: var(--spacing-md);
+     --btn-padding-y: var(--spacing-sm);
+     --btn-font-size: var(--font-size-base);
+     --btn-radius: 4px;
+
+     padding: var(--btn-padding-y) var(--btn-padding-x);
+     font-size: var(--btn-font-size);
+     border-radius: var(--btn-radius);
+   }
+
+   .btn--lg {
+     --btn-padding-x: var(--spacing-lg);
+     --btn-padding-y: var(--spacing-md);
+     --btn-font-size: 18px;
+   }
+
+   .btn--sm {
+     --btn-padding-x: var(--spacing-sm);
+     --btn-padding-y: var(--spacing-xs);
+     --btn-font-size: 14px;
+   }
+
+   /* ===== 场景4：复杂的数学运算结合 calc() ===== */
+   :root {
+     --header-height: 64px;
+     --sidebar-width: 250px;
+   }
+
+   .main-content {
+     height: calc(100vh - var(--header-height));
+     width: calc(100% - var(--sidebar-width));
+     margin-left: var(--sidebar-width);
+     padding: calc(var(--spacing-lg) * 2);
+   }
+   ```
+
+5. **高级技巧和最佳实践**
+
+   ```css
+   /* ===== 技巧1：使用 @property 注册变量（增强功能）===== */
+   @property --gradient-angle {
+     syntax: '<angle>';
+     initial-value: 0deg;
+     inherits: false;
+   }
+
+   .animated-gradient {
+     --gradient-angle: 0deg;
+     background: conic-gradient(
+       from var(--gradient-angle),
+       red, yellow, lime, aqua, blue, magenta, red
+     );
+     animation: rotate-gradient 3s linear infinite;
+   }
+
+   @keyframes rotate-gradient {
+     to { --gradient-angle: 360deg; }
+   }
+
+   /* ===== 技巧2：条件逻辑（通过 fallback）===== */
+   .conditional-style {
+     color: var(--is-dark, var(--light-color));
+     /* 如果定义了 --is-dark，使用它；否则使用 --light-color */
+   }
+
+   /* ===== 技巧3：组织变量结构 ===== */
+   :root {
+     /* 按照功能分组 */
+     /* --- 颜色系统 --- */
+     --color-primary: #3498db;
+     --color-primary-hover: #2980b9;
+
+     /* --- 间距系统 --- */
+     --space-1: 4px;
+     --space-2: 8px;
+     /* ... */
+
+     /* --- 排版系统 --- */
+     --font-sans: system-ui, sans-serif;
+     --font-mono: 'Fira Code', monospace;
+   }
+
+   /* ===== 最佳实践清单 ===== */
+   /*
+    ✅ 1. 使用 :root 定义全局变量
+    ✅ 2. 采用语义化命名（--color-primary 而非 --blue）
+    ✅ 3. 为变量设置合理的默认值
+    ✅ 4. 使用中划线分隔多个单词
+    ✅ 5. 不要过度嵌套变量（保持可读性）
+    ⚠️ 6. 注意变量名区分大小写（--Color 和 --color 是不同的）
+    ❌ 7. 不要在变量名中使用 CSS 保留关键字
+    */
+   ```
+
+6. **浏览器兼容性和降级方案**
+
+   ```css
+   /* 降级方案：为不支持 CSS 变量的浏览器提供回退 */
+   .legacy-support {
+     /* 回退值（旧浏览器）*/
+     background-color: #3498db;
+
+     /* 新浏览器使用变量 */
+     background-color: var(--primary-color, #3498db);
+   }
+
+   /* 使用 @supports 特性查询 */
+   @supports (--css: variables) {
+     :root {
+       --supported: true;
+     }
+   }
+   /* 现代浏览器基本都已支持 CSS 变量（IE 除外）*/
+   ```
+
+### 🔍 追问链
+1. **CSS 变量和 Sass 变量能否混用？在实际项目中如何选择？**
+   → 方向：可以混用；Sass 用于编译时常量和复杂逻辑（循环/条件/mixin），CSS 变量用于运行时主题切换和动态配置；两者互补而非替代关系
+2. **CSS 变量的性能如何？大量使用会影响页面性能吗？**
+   → 方向：CSS 变量本身性能很好，浏览器的优化做得很好；但要注意避免过于复杂的 var() 嵌套链；@property 的动画变量会有轻微开销
+3. **如何在 TypeScript 项目中对 CSS 变量进行类型安全的管理？**
+   → 方向：可以使用 CSS Modules + 声明文件；或者使用工具如 typed-css-modules；或者在代码中维护一份 Design Tokens 的类型定义
+
+---
+
+## Q30: CSS Container Queries（容器查询）与 Media Query 的区别
+- **难度**：★★☆
+- **知识点**：Container Queries / 响应式设计 / 组件化
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **Media Query 的局限性**
+
+   传统响应式设计基于**视口大小**（viewport size）进行适配，这存在一个根本性问题：
+
+   ```html
+   <!-- 问题场景：同一个组件在不同上下文中需要不同表现 -->
+   <style>
+     /* 基于 viewport 的媒体查询 */
+     @media (max-width: 768px) {
+       .card {
+         /* 小屏幕时卡片变成单列布局 */
+         flex-direction: column;
+       }
+     }
+   </style>
+
+   <!-- 场景1：主内容区的大卡片（宽）-->
+   <main style="width: 800px;">
+     <article class="card">
+       <!-- 这个卡片很宽，应该显示侧边信息 -->
+     </article>
+   </main>
+
+   <!-- 场景2：侧边栏的小卡片（窄）-->
+   <aside style="width: 300px;">
+     <article class="card">
+       <!-- 这个卡片很窄，应该简化布局 */
+     </article>
+   </aside>
+
+   <!-- 问题：两个卡片看到的是同一个 viewport，无法差异化处理！-->
+   ```
+
+2. **Container Queries 的解决方案**
+
+   Container Queries 允许组件根据**其父容器的尺寸**而非整个视口来响应式地调整样式。
+
+   ```css
+   /* ===== Container Queries 基础语法 ===== */
+
+   /* 步骤1：定义容器（container-type）*/
+   .card-container {
+     container-type: inline-size;  /* 声明这是一个查询容器 */
+     /* 或者 */
+     container-type: size;  /* 同时启用 inline 和 block 方向的查询 */
+     /* 可选：给容器命名 */
+     container-name: card-layout;
+   }
+
+   /* 步骤2：编写容器查询规则 */
+   @container (min-width: 400px) {
+     /* 当容器宽度 >= 400px 时应用的样式 */
+     .card {
+       display: grid;
+       grid-template-columns: 200px 1fr;
+       gap: 20px;
+     }
+   }
+
+   @container (max-width: 399px) {
+     /* 当容器宽度 < 400px 时应用的样式 */
+     .card {
+       display: flex;
+       flex-direction: column;
+     }
+   }
+
+   /* 使用命名的容器 */
+   @container card-layout (min-width: 500px) {
+     .card-title {
+       font-size: 24px;
+     }
+   }
+   ```
+
+3. **完整示例：响应式卡片组件**
+
+   ```html
+   <style>
+     /* 定义容器 */
+     .post-card-wrapper {
+       container-type: inline-size;
+       container-name: post;
+     }
+
+     /* 卡片基础样式 */
+     .post-card {
+       background: white;
+       border-radius: 12px;
+       padding: 20px;
+       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+     }
+
+     .post-card__image {
+       width: 100%;
+       aspect-ratio: 16/9;
+       object-fit: cover;
+       border-radius: 8px;
+     }
+
+     .post-card__content {
+       margin-top: 16px;
+     }
+
+     .post-card__title {
+       font-size: 18px;
+       font-weight: bold;
+       margin-bottom: 8px;
+     }
+
+     .post-card__meta {
+       font-size: 14px;
+       color: #666;
+     }
+
+     /* 容器窄时（< 400px）：单列垂直布局 */
+     @container post (max-width: 399px) {
+       .post-card__title {
+         font-size: 16px;
+       }
+       .post-card__meta {
+         display: none;  /* 隐藏元数据以节省空间 */
+       }
+     }
+
+     /* 容器中等（400px - 600px）：图片+内容横向排列 */
+     @container post (min-width: 400px) and (max-width: 600px) {
+       .post-card {
+         display: grid;
+         grid-template-columns: 150px 1fr;
+         gap: 16px;
+         align-items: start;
+       }
+       .post-card__image {
+         aspect-ratio: 1/1;
+       }
+     }
+
+     /* 容器宽时（> 600px）：完整布局 */
+     @container post (min-width: 600px) {
+       .post-card {
+         display: grid;
+         grid-template-columns: 250px 1fr;
+         gap: 24px;
+       }
+       .post-card__title {
+         font-size: 22px;
+       }
+       .post-card__meta {
+         display: flex;
+         gap: 16px;
+       }
+     }
+   </style>
+
+   <!-- 同一个组件在不同宽度的容器中自适应 -->
+   <div class="post-card-wrapper" style="width: 350px;">
+     <article class="post-card">
+       <!-- 自动应用窄屏样式 -->
+     </article>
+   </div>
+
+   <div class="post-card-wrapper" style="width: 800px;">
+     <article class="post-card">
+       <!-- 自动应用宽屏样式 -->
+     </article>
+   </div>
+   ```
+
+4. **Container Queries vs Media Query 对比**
+
+   | 特性 | **Media Query** | **Container Query** |
+   |------|----------------|---------------------|
+   **查询依据** | 视口（Viewport）尺寸 | 父容器（Container）尺寸 |
+   **粒度** | 页面级别 | 组件级别 |
+   **组件复用性** | 差（依赖上下文）| 好（真正组件化）|
+   **嵌套能力** | 不支持 | ✅ 支持嵌套容器 |
+   **适用场景** | 全局布局（导航栏、页脚）| 可复用组件（卡片、表格、表单）|
+   **兼容性** | ✅ 极好（所有浏览器）| ✅ 现代浏览器已支持（2023+）|
+   **查询维度** | width/height/orientation/resolution | inline-size/block-size/style() |
+
+5. **高级特性**
+
+   ```css
+   /* ===== 1. container-style 查询（查询自定义属性）===== */
+   .themed-component {
+     container-type: inline-size;
+     container-name: theme;
+   }
+
+   /* 根据容器上的 CSS 变量值来应用样式 */
+   @container theme style(--variant: compact) {
+     .component {
+       padding: 8px;
+       font-size: 14px;
+     }
+   }
+
+   @container theme style(--variant: spacious) {
+     .component {
+       padding: 24px;
+       font-size: 18px;
+     }
+   }
+
+   /* HTML 中通过变量控制 */
+   <div class="themed-component" style="--variant: compact;">
+     <div class="component">紧凑模式</div>
+   </div>
+
+   /* ===== 2. 容器查询长度单位（cqw/cqh）===== */
+   .responsive-text {
+     /* cqw = container query width（容器宽度的 1%）*/
+     /* cqh = container query height（容器高度的 1%）*/
+     font-size: clamp(14px, 2cqw + 10px, 24px);
+     padding: 1cqw;
+   }
+
+   /* ===== 3. 结合 CSS Grid 的 auto-fit/auto-fill ===== */
+   .grid-container {
+     container-type: inline-size;
+     display: grid;
+     grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+     gap: 20px;
+   }
+
+   @container (min-width: 1200px) {
+     .grid-container {
+       grid-template-columns: repeat(4, 1fr);
+     }
+   }
+   ```
+
+6. **实际应用策略**
+
+   ```css
+   /* ===== 推荐的组合策略 ===== */
+
+   /* 1. Media Query 处理全局布局 */
+   @media (min-width: 1024px) {
+     .app-layout {
+       display: grid;
+       grid-template-columns: 250px 1fr;
+     }
+   }
+
+   /* 2. Container Query 处理组件内部细节 */
+   .widget {
+     container-type: inline-size;
+   }
+
+   @container (min-width: 300px) {
+     .widget__content {
+       display: grid;
+       grid-template-columns: 1fr 1fr;
+     }
+   }
+
+   /* 3. 两者协同工作 */
+   /*
+    * Media Query 决定整体页面结构（几列布局、侧栏显示等）
+    * Container Query 决定每个组件内部的呈现方式
+    * 这样实现了真正的组件级响应式
+    */
+   ```
+
+7. **兼容性处理**
+
+   ```css
+   /* 优雅降级：在不支持的浏览器中回退到普通样式 */
+   .component {
+     /* 默认样式（Mobile First）*/
+     display: flex;
+     flex-direction: column;
+   }
+
+   /* Progressive Enhancement：支持的浏览器获得更好的体验 */
+   @supports (container-type: inline-size) {
+     .wrapper {
+       container-type: inline-size;
+     }
+
+     @container (min-width: 400px) {
+       .component {
+         flex-direction: row;
+       }
+     }
+   }
+
+   /* 或者使用 PostCSS 插件（postcss-container-query）进行转译 */
+   ```
+
+### 🔍 追问链
+1. **Container Queries 的性能如何？会不会导致过多的重排？**
+   → 方向：浏览器对 Container Queries 有很好的优化；容器尺寸变化时会触发查询评估；但比 JS 监听 resize 高效得多；建议只在需要的组件上使用
+2. **Container Queries 能否完全取代 Media Query？什么时候还应该用 Media Query？**
+   → 方向：不能完全取代；Media Query 适合全局布局（导航栏、页脚、网格系统）、设备特性（orientation、resolution）、打印样式等；Container Queries 适合可复用的 UI 组件
+3. **如何设计一套基于 Container Queries 的组件库？有什么架构建议？**
+   → 方向：每个组件内部封装自己的容器查询逻辑；提供 container-type 和 container-name 作为 props；文档化每个组件的断点阈值；使用 Design Tokens 统一断点标准
+
+---
+
+## Q31: aspect-ratio 属性的使用场景
+- **难度**：★★☆
+- **知识点**：aspect-ratio / 响应式设计 / 图片视频
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **aspect-ratio 属性简介**
+
+   `aspect-ratio` 用于设置元素的**宽高比**，在响应式设计中非常有用，特别是在处理图片、视频、卡片等需要保持固定比例的场景。
+
+   ```css
+   /* 基本语法 */
+   .element {
+     aspect-ratio: 16 / 9;   /* 宽:高 = 16:9 */
+     aspect-ratio: 1 / 1;    /* 正方形 */
+     aspect-ratio: 3 / 4;    /* 竖向 3:4 */
+     aspect-ratio: auto;     /* 默认，由内容决定 */
+   }
+   ```
+
+2. **传统方案的痛点**
+
+   ```css
+   /* ===== 方案1：padding-top hack（老方案）===== */
+   .old-method {
+     width: 100%;
+     position: relative;
+     padding-top: 56.25%;  /* 9/16 = 0.5625 = 56.25% */
+     height: 0;
+     overflow: hidden;
+   }
+
+   .old-method .content {
+     position: absolute;
+     top: 0;
+     left: 0;
+     width: 100%;
+     height: 100%;
+   }
+   /*
+    * 问题：
+    * 1. 计算麻烦（需要手动算百分比）
+    * 2. 语义不清（padding-top 为什么是 56.25%？）
+    * 3. 需要额外的定位代码
+    * 4. 内容溢出时难以处理
+    */
+
+   /* ===== 方案2：固定宽高（不灵活）===== */
+   .fixed-size {
+     width: 320px;
+     height: 180px;  /* 固定尺寸，无法响应式 */
+   }
+   ```
+
+3. **aspect-ratio 的使用场景**
+
+   ```html
+   <style>
+     /* ===== 场景1：图片/视频容器（最常用）===== */
+     .media-container {
+       width: 100%;
+       aspect-ratio: 16 / 9;
+       object-fit: cover;
+       border-radius: 8px;
+     }
+
+     /* ===== 场景2：头像（正方形/圆形）===== */
+     .avatar {
+       width: 80px;
+       aspect-ratio: 1 / 1;
+       border-radius: 50%;  /* 圆形头像 */
+       object-fit: cover;
+     }
+
+     /* ===== 场景3：卡片封面图 ===== */
+     .card-cover {
+       width: 100%;
+       aspect-ratio: 4 / 3;  /* 4:3 的封面图 */
+       object-fit: cover;
+     }
+
+     /* ===== 场景4：社交媒体帖子（Instagram 风格）===== */
+     .instagram-post {
+       aspect-ratio: 1 / 1;  /* 正方形 */
+     }
+
+     /* ===== 场景5：placeholder / skeleton screen ===== */
+     .skeleton {
+       aspect-ratio: 16 / 9;
+       background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+       background-size: 200% 100%;
+       animation: loading 1.5s infinite;
+     }
+
+     @keyframes loading {
+       0% { background-position: 200% 0; }
+       100% { background-position: -200% 0; }
+     }
+
+     /* ===== 场景6：响应式网格中的统一比例 ===== */
+     .gallery-grid {
+       display: grid;
+       grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+       gap: 16px;
+     }
+
+     .gallery-item img {
+       width: 100%;
+       aspect-ratio: 1 / 1;
+       object-fit: cover;
+     }
+   </style>
+
+   <!-- 使用示例 -->
+   <img src="photo.jpg" class="media-container" alt="响应式图片">
+
+   <div class="gallery-grid">
+     <img src="1.jpg" class="gallery-item-img" alt="">
+     <img src="2.jpg" class="gallery-item-img" alt="">
+     <img src="3.jpg" class="gallery-item-img" alt="">
+   </div>
+   ```
+
+4. **aspect-ratio 与其他属性的配合**
+
+   ```css
+   /* ===== 配合 object-fit 处理内容适配 ===== */
+   .video-player {
+     width: 100%;
+     aspect-ratio: 16 / 9;
+     background: #000;
+   }
+
+   .video-player video {
+     width: 100%;
+     height: 100%;
+     object-fit: contain;  /* 保持比例，完整显示 */
+     /* 或者 */
+     object-fit: cover;    /* 保持比例，填满容器（可能裁剪）*/
+   }
+
+   /* ===== 配合 Grid/Flex 实现复杂布局 ===== */
+   .masonry-grid {
+     display: grid;
+     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+     gap: 20px;
+   }
+
+   .masonry-item {
+     /* 不同项目可以有不同比例 */
+     &--landscape { aspect-ratio: 16 / 9; }
+     &--portrait  { aspect-ratio: 3 / 4; }
+     &--square    { aspect-ratio: 1 / 1; }
+     &--wide      { aspect-ratio: 21 / 9; }
+   }
+
+   /* ===== 配合 clamp() 实现流体比例（高级）===== */
+   .fluid-aspect {
+     width: 100%;
+     /* 在小屏幕接近 1:1，大屏幕接近 21:9 */
+     aspect-ratio: clamp(1 / 1, 2.33 / 1, 21 / 9);
+   }
+   ```
+
+5. **常见比例速查表**
+
+   ```css
+   /* 常用宽高比参考 */
+   :root {
+     /* 标准比例 */
+     --ratio-square: 1 / 1;        /* 正方形 */
+     --ratio-landscape-43: 4 / 3;  /* 传统显示器 */
+     --ratio-landscape-169: 16 / 9; /* 高清视频 */
+     --ratio-landscape-219: 21 / 9; /* 超宽屏 */
+
+     /* 竖向比例 */
+     --ratio-portrait-34: 3 / 4;
+     --ratio-portrait-916: 9 / 16;
+
+     /* 特殊比例 */
+     --ratio-golden: 1.618 / 1;    /* 黄金比例 */
+     --ratio-sqrt2: 1 / 1.414;     /* A系列纸张 */
+   }
+
+   /* 应用 */
+   .poster { aspect-ratio: var(--ratio-portrait-23); }  /* 电影海报 */
+   .presentation-slide { aspect-ratio: var(--ratio-landscape-169); }  /* PPT */
+   .photo-print { aspect-ratio: var(--ratio-landscape-43); }  /* 照片冲印 */
+   ```
+
+6. **注意事项和边界情况**
+
+   ```css
+   /* ===== 注意1：同时设置 width/height 和 aspect-ratio ===== */
+   .conflict {
+     width: 200px;
+     height: 100px;          /* 2:1 的比例 */
+     aspect-ratio: 16 / 9;   /* 期望 16:9 */
+     /* 结果：aspect-ratio 会被忽略，以 width/height 为准 */
+   }
+
+   /* 解决：只设置其中一个维度 */
+   .correct {
+     width: 100%;
+     aspect-ratio: 16 / 9;   /* 高度自动计算 */
+     /* 或者 */
+     height: 200px;
+     aspect-ratio: 16 / 9;   /* 宽度自动计算 */
+   }
+
+   /* ===== 注意2：最小/最大尺寸约束 ===== */
+   .constrained {
+     width: 100%;
+     min-width: 200px;
+     max-width: 800px;
+     aspect-ratio: 16 / 9;
+     /* aspect-ratio 会尊重 min/max 约束 */
+   }
+
+   /* ===== 注意3：替换元素的特殊行为 ===== */
+   img, video {
+     /* 对于 img/video，如果同时设置了 width/height 属性，
+        aspect-ratio 会作为首选比例，但可以被 src 的固有尺寸覆盖 */
+     aspect-ratio: 16 / 9;
+   }
+
+   /* ===== 注意4：auto 关键字 ===== */
+   .auto-aspect {
+     aspect-ratio: auto;  /* 使用内容的固有比例 */
+     /* 对于 img/video，就是图片/视频的原始比例 */
+   }
+   ```
+
+### 🔍 追问链
+1. **aspect-ratio 和 padding-top hack 方案在浏览器兼容性方面有何差异？**
+   → 方向：padding-top hack 兼容性更好（IE9+）；aspect-ratio 需要较新浏览器（2021+）；但可以通过 PostCSS 插件自动转换
+2. **在使用 aspect-ratio 时，如果内容超出容器会发生什么？如何处理？**
+   → 方向：内容会正常显示但可能溢出；配合 overflow: hidden 或 object-fit 控制；对于文本内容可以考虑配合 flex/grid 的 align-items 来定位
+3. **aspect-ratio 如何与响应式图片（srcset/sizes）配合使用？**
+   → 方向：aspect-ratio 控制容器比例，srcset/sizes 控制加载哪个分辨率的图片；两者各司其职；sizes 属性可以根据容器宽度描述图片的预期展示尺寸
+
+---
+
+## Q32: CSS clamp() 函数的使用
+- **难度**：★★☆
+- **知识点**：clamp() / 流式排版 / 响应式设计
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **clamp() 函数简介**
+
+   `clamp()` 是一个 CSS 数学函数，用于将值**限制在一个范围内**，接受三个参数：**最小值、首选值、最大值**。它是实现流式（Fluid）响应式设计的利器。
+
+   ```css
+   /* 基本语法 */
+   .element {
+     /* clamp(MIN, PREFERRED, MAX) */
+     font-size: clamp(14px, 2vw + 10px, 24px);
+     /*
+      * 含义：
+      * - 最小值：14px（不会小于这个）
+      * - 首选值：2vw + 10px（理想情况下使用这个，随视口变化）
+      * - 最大值：24px（不会大于这个）
+      */
+   }
+   ```
+
+2. **工作原理详解**
+
+   ```
+   clamp() 的计算逻辑：
+
+   if (PREFERRED < MIN) {
+     return MIN;  /* 首选值太小，使用最小值 */
+   } else if (PREFERRED > MAX) {
+     return MAX;  /* 首选值太大，使用最大值 */
+   } else {
+     return PREFERRED;  /* 首选值在范围内，使用首选值 */
+   }
+
+   图解：
+   MIN ──────────── PREFERRED ──────────── MAX
+   ↑                  ↑                   ↑
+   下限              理想值              上限
+
+   实际输出值始终在 [MIN, MAX] 区间内滑动
+   ```
+
+3. **典型应用场景**
+
+   ```css
+   /* ===== 场景1：流式字体（Fluid Typography）—— 最经典用法 ===== */
+   :root {
+     /* 定义排版系统 */
+     --fluid-min: 320px;   /* 最小视口宽度 */
+     --fluid-max: 1280px;  /* 最大视口宽度 */
+   }
+
+   html {
+     /* 主标题：在小屏幕 32px，在大屏幕 72px，中间平滑过渡 */
+     --fs-display: clamp(2rem, 5vw + 1rem, 4.5rem);
+
+     /* H1 标题 */
+     --fs-h1: clamp(1.8rem, 4vw + 0.8rem, 3rem);
+
+     /* H2 标题 */
+     --fs-h2: clamp(1.5rem, 3vw + 0.5rem, 2.25rem);
+
+     /* H3 标题 */
+     --fs-h3: clamp(1.25rem, 2vw + 0.5rem, 1.75rem);
+
+     /* 正文 */
+     --fs-body: clamp(1rem, 1vw + 0.8rem, 1.125rem);
+
+     /* 小字 */
+     --fs-small: clamp(0.875rem, 0.8vw + 0.75rem, 1rem);
+   }
+
+   h1 { font-size: var(--fs-h1); }
+   h2 { font-size: var(--fs-h2); }
+   h3 { font-size: var(--fs-h3); }
+   body { font-size: var(--fs-body); }
+   small, .text-small { font-size: var(--fs-small); }
+
+   /* ===== 场景2：流式间距 ===== */
+   .section {
+     /* 内边距：最小 1rem，最大 4rem，中间随视口变化 */
+     padding: clamp(1rem, 5vw, 4rem);
+
+     /* 外边距 */
+     margin-bottom: clamp(2rem, 8vw, 6rem);
+   }
+
+   .container {
+     /* 最大宽度：最小 90%，最大 1200px，中间流式变化 */
+     width: clamp(90%, 80vw, 1200px);
+     margin: 0 auto;
+   }
+
+   /* ===== 场景3：流式圆角和阴影 ===== */
+   .card {
+     /* 圆角：小屏幕 8px，大屏幕 24px */
+     border-radius: clamp(8px, 2vw, 24px);
+
+     /* 阴影扩散半径 */
+     box-shadow: 0 4px clamp(8px, 2vw, 24px) rgba(0, 0, 0, 0.1);
+   }
+
+   /* ===== 场景4：流式网格 ===== */
+   .grid {
+     display: grid;
+     /* 列间距：最小 12px，最大 48px */
+     gap: clamp(12px, 3vw, 48px);
+     grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+   }
+
+   /* ===== 场景5：流式图标和装饰元素 ===== */
+   .icon {
+     /* 图标尺寸：最小 16px，最大 64px */
+     width: clamp(16px, 4vw, 64px);
+     height: clamp(16px, 4vw, 64px);
+   }
+
+   .divider {
+     height: clamp(1px, 0.2vw, 3px);
+     background: currentColor;
+   }
+   ```
+
+4. **clamp() vs media-queries 对比**
+
+   ```css
+   /* ===== 传统 Media Queries 方案（阶梯式变化）===== */
+   .traditional {
+     font-size: 16px;  /* 默认 */
+   }
+
+   @media (min-width: 480px) {
+     .traditional { font-size: 18px; }
+   }
+
+   @media (min-width: 768px) {
+     .traditional { font-size: 20px; }
+   }
+
+   @media (min-width: 1024px) {
+     .traditional { font-size: 22px; }
+   }
+
+   @media (min-width: 1280px) {
+     .traditional { font-size: 24px; }
+   }
+   /*
+    * 问题：
+    * 1. 阶梯式跳跃，不平滑
+    * 2. 需要写很多断点
+    * 3. 维护成本高
+    */
+
+   /* ===== clamp() 方案（平滑连续变化）===== */
+   .modern {
+     font-size: clamp(16px, 2vw + 14px, 24px);
+   }
+   /*
+    * 优势：
+    * 1. 平滑过渡，任意视口都有合适的值
+    * 2. 一行代码搞定
+    * 3. 更符合"流式设计"理念
+    */
+   ```
+
+5. **高级技巧和最佳实践**
+
+   ```css
+   /* ===== 技巧1：使用 CSS 变量封装 clamp() 参数 ===== */
+   :root {
+     /* 排版缩放配置 */
+     --type-scale: 1.2;  /* 排版缩放因子 */
+
+     /* 斜率控制（控制变化的快慢）*/
+     --slope-xs: 0.5vw;
+     --slope-sm: 1vw;
+     --slope-md: 2vw;
+     --slope-lg: 3vw;
+     --slope-xl: 5vw;
+   }
+
+   /* ===== 技巧2：构建完整的流式设计系统 ===== */
+   :root {
+     /* 间距系统 */
+     --space-xs: clamp(0.25rem, 0.5vw, 0.5rem);
+     --space-sm: clamp(0.5rem, 1vw, 1rem);
+     --space-md: clamp(1rem, 2vw, 2rem);
+     --space-lg: clamp(2rem, 4vw, 4rem);
+     --space-xl: clamp(4rem, 8vw, 8rem);
+
+     /* 字体系统 */
+     --text-xs: clamp(0.75rem, 0.5vw + 0.65rem, 0.875rem);
+     --text-sm: clamp(0.875rem, 0.6vw + 0.75rem, 1rem);
+     --text-base: clamp(1rem, 0.8vw + 0.85rem, 1.125rem);
+     --text-lg: clamp(1.125rem, 1.2vw + 0.9rem, 1.5rem);
+     --text-xl: clamp(1.25rem, 1.8vw + 0.95rem, 1.875rem);
+     --text-2xl: clamp(1.5rem, 2.5vw + 1rem, 2.25rem);
+     --text-3xl: clamp(1.875rem, 3.5vw + 1.1rem, 3rem);
+     --text-4xl: clamp(2.25rem, 5vw + 1.2rem, 3.75rem);
+   }
+
+   /* ===== 技巧3：配合 min()/max() 使用 ===== */
+   .advanced {
+     /* min() 取最小值 */
+     width: min(100%, 500px);
+
+     /* max() 取最大值 */
+     width: max(50%, 300px);
+
+     /* clamp() = min(max(PREFERRED, MIN), MAX) */
+     /* 等价于：*/
+     width: max(min(80vw, 1200px), 320px);
+   }
+
+   /* ===== 技巧4：响应式的行高 ===== */
+   .prose {
+     font-size: var(--text-base);
+     /* 行高也跟随字体大小变化，但保持在合理范围 */
+     line-height: clamp(1.4, 1.5vw + 1.2, 1.8);
+   }
+
+   /* ===== 技巧5：动画和过渡中的 clamp() ===== */
+   .smooth-resize {
+     transition: font-size 0.3s ease;
+     font-size: clamp(1rem, 2.5vw + 0.5rem, 2rem);
+   }
+   /* 注意：resize 事件触发的变化不会有平滑过渡，
+      只有状态切换（如 hover）才会有 */
+   ```
+
+6. **注意事项和常见错误**
+
+   ```css
+   /* ===== 错误1：MIN > MAX（无效）===== */
+   .error-1 {
+     /* 这是不合法的！MIN 不能大于 MAX */
+     font-size: clamp(24px, 16px, 14px);  /* ❌ */
+   }
+
+   /* ===== 错误2：混合不兼容的单位 ===== */
+   .error-2 {
+     /* 三个参数应该是可比较的长度/百分比/计算值 */
+     width: clamp(100px, 50%, 50em);  /* ⚠️ 虽然合法，但不推荐 */
+     /* 推荐：统一使用相同类型的单位 */
+     width: clamp(320px, 80vw, 1200px);  /* ✅ */
+   }
+
+   /* ===== 注意3：在 calc() 中使用 ===== */
+   .in-calc {
+     /* clamp() 可以嵌套在 calc() 中 */
+     width: calc(clamp(200px, 50%, 400px) - 20px);
+
+     /* calc() 也可以在 clamp() 的参数中使用 */
+     font-size: clamp(14px, calc(1vw + 10px), 24px);
+   }
+
+   /* ===== 性能考虑 ===== */
+   /*
+    * clamp() 本身性能很好，浏览器原生支持
+    * 但要注意：
+    * 1. 不要过度嵌套（影响可读性）
+    * 2. 在动画相关的属性上谨慎使用（可能导致频繁重绘）
+    * 3. 大量使用时建议提取为 CSS 变量，便于统一管理
+    */
+   ```
+
+### 🔍 追问链
+1. **如何计算 clamp() 的首选值（PREFERRED）以确保在特定视口范围内达到理想的字体大小？**
+   → 方向：使用公式：PREFERRED = MIN + (MAX - MIN) × (viewport - min_viewport) / (max_viewport - min_viewport)；或者使用在线工具如 Utopia.fyi 自动生成
+2. **clamp() 和 container query units（cqw）能否结合使用？有什么优势？**
+   → 方向：可以结合；clamp() 使用 vw 基于视口，cqw 基于容器；结合使用可以实现既响应视口又响应容器的双重适应；适合复杂组件场景
+3. **在打印样式中，clamp() 应该如何处理？**
+   → 方向：打印时 vw/vh 通常为 0 或固定值；应该在 print media query 中为使用 clamp() 的属性提供固定值；或者确保 MIN 值适合打印输出
+
+---
+
+## Q33: object-fit 属性的作用
+- **难度**：★★☆
+- **知识点**：object-fit / 图片处理 / 替换元素
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **object-fit 的作用和背景**
+
+   `object-fit` 属性用于控制**替换元素**（replaced elements）的内容如何适应其容器。替换元素包括 `<img>`、`<video>`、`<iframe>`、`<embed>` 等。
+
+   **核心问题**：当图片/视频的原始尺寸与容器的尺寸不一致时，应该如何显示？
+
+   ```css
+   /* 基本语法 */
+   img, video {
+     object-fit: fill | contain | cover | none | scale-down;
+   }
+   ```
+
+2. **五种值的详细对比**
+
+   ```html
+   <style>
+     .demo-container {
+       width: 300px;
+       height: 200px;
+       border: 2px solid #333;
+       margin: 10px;
+       display: inline-block;
+     }
+
+     .demo-container img {
+       width: 100%;
+       height: 100%;
+       /* 测试不同的 object-fit 值 */
+     }
+   </style>
+
+   <!-- 假设原图是 800x600（横向）-->
+
+   <!-- ===== fill（默认值）===== -->
+   <div class="demo-container">
+     <img src="photo.jpg" style="object-fit: fill;">
+   </div>
+   <!--
+    * 效果：拉伸填满整个容器
+    * 特点：完全填充，但可能变形（失真）
+    * 适用：几乎不用（除非故意要变形）
+    *
+    * ┌─────────────────┐
+    * │  ╔═══════════╗  │
+    * │  ║  STRETCHED ║  │
+    * │  ╚═══════════╝  │
+    * └─────────────────┘
+    -->
+
+   <!-- ===== contain ===== -->
+   <div class="demo-container">
+     <img src="photo.jpg" style="object-fit: contain;">
+   </div>
+   <!--
+    * 效果：保持比例，完整显示在容器内
+    * 特点：不裁剪，不变形，但可能有留白
+    * 适用：需要完整显示内容的场景（产品图、截图）
+    *
+    * ┌─────────────────┐
+    * │                 │
+    * │   ┌───────────┐  │
+    * │   │  ORIGINAL  │  │
+    * │   └───────────┘  │
+    * │                 │
+    * └─────────────────┘
+    -->
+
+   <!-- ===== cover（最常用）===== -->
+   <div class="demo-container">
+     <img src="photo.jpg" style="object-fit: cover;">
+   </div>
+   <!--
+    * 效果：保持比例，填满容器（可能裁剪）
+    * 特点：无留白，不变形，但可能丢失边缘内容
+    * 适用：背景图、头像、封面、轮播图
+    *
+    * ┌─────────────────┐
+    * │╔═══════════════╗│
+    * │║  CROPPED       ║│
+    * │║  BUT FILLED    ║│
+    * │╚═══════════════╝│
+    * └─────────────────┘
+    -->
+
+   <!-- ===== none ===== -->
+   <div class="demo-container">
+     <img src="photo.jpg" style="object-fit: none;">
+   </div>
+   <!--
+    * 效果：保持原始尺寸，不缩放
+    * 特点：可能超出容器或显示不完全
+    * 适用：特殊艺术效果、像素画
+    *
+    * ┌─────────────────┐
+    * │┌───────────┐    │
+    * ││ ORIGINAL  │    │
+    * │└───────────┘    │
+    * │                 │
+    * └─────────────────┘
+    -->
+
+   <!-- ===== scale-down ===== -->
+   <div class="demo-container">
+     <img src="photo.jpg" style="object-fit: scale-down;">
+   </div>
+   <!--
+    * 效果：none 和 contain 的较小者
+    * 特点：图片比容器大时像 contain，小时像 none
+    * 适用：不确定图片大小时的保守方案
+    *
+    * （具体表现取决于图片和容器的相对大小）
+    -->
+   ```
+
+3. **object-position 配合使用**
+
+   ```css
+   /* object-position 控制内容在容器中的位置 */
+   .cover-image {
+     width: 300px;
+     height: 200px;
+     object-fit: cover;
+     /* 默认值是 50% 50%（居中）*/
+   }
+
+   /* 定位到不同位置 */
+   .position-center {
+     object-position: center center;  /* 默认，居中 */
+   }
+
+   .position-top {
+     object-position: center top;  /* 顶部对齐（显示图片上半部分）*/
+   }
+
+   .position-bottom {
+     object-position: center bottom;  /* 底部对齐 */
+   }
+
+   .position-left {
+     object-position: left center;  /* 左对齐 */
+   }
+
+   .position-custom {
+     object-position: 25% 75%;  /* 自定义位置（从左上角偏移）*/
+   }
+
+   /* 实际应用：人物照片通常希望脸部居中 */
+   .portrait-photo {
+     object-fit: cover;
+     object-position: center top;  /* 从顶部开始，显示人脸 */
+   }
+
+   /* 风景照片可能希望显示中心 */
+   .landscape-photo {
+     object-fit: cover;
+     object-position: center center;
+   }
+   ```
+
+4. **实际应用场景示例**
+
+   ```html
+   <style>
+     /* ===== 场景1：用户头像 ===== */
+     .avatar {
+       width: 80px;
+       height: 80px;
+       border-radius: 50%;
+       object-fit: cover;
+       object-position: center center;
+     }
+
+     /* ===== 场景2：卡片封面图 ===== */
+     .card-thumbnail {
+       width: 100%;
+       aspect-ratio: 16 / 9;
+       object-fit: cover;
+       object-position: center;
+       transition: transform 0.3s ease;
+     }
+
+     .card:hover .card-thumbnail {
+       transform: scale(1.05);  /* hover 放大效果 */
+     }
+
+     /* ===== 场景3：视频播放器 ===== */
+     .video-container {
+       width: 100%;
+       aspect-ratio: 16 / 9;
+       background: #000;
+     }
+
+     .video-container video {
+       width: 100%;
+       height: 100%;
+       object-fit: contain;  /* 视频通常要保持完整显示 */
+     }
+
+     /* ===== 场景4：图片画廊/灯箱 ===== */
+     .gallery-item {
+       width: 200px;
+       height: 200px;
+       overflow: hidden;
+       cursor: pointer;
+     }
+
+     .gallery-item img {
+       width: 100%;
+       height: 100%;
+       object-fit: cover;
+       object-position: center;
+       transition: object-position 0.3s;
+     }
+
+     .gallery-item:hover img {
+       /* hover 时微调位置，创造动感 */
+       object-position: 50% 45%;
+     }
+
+     /* ===== 场景5：响应式图片（配合 picture/srcset）===== */
+     .hero-image {
+       width: 100%;
+       height: 50vh;
+       min-height: 300px;
+       max-height: 600px;
+       object-fit: cover;
+       object-position: center 20%;  /* 稍微偏上，视觉效果好 */
+     }
+
+     /* ===== 场景6：产品展示图（需要完整显示）===== */
+     .product-image {
+       width: 100%;
+       aspect-ratio: 1 / 1;
+       object-fit: contain;  /* 产品图不能裁剪 */
+       background: #f5f5f5;  /* 留白处显示背景色 */
+     }
+   </style>
+   ```
+
+5. **兼容性和降级方案**
+
+   ```css
+   /* ===== 降级方案：针对不支持 object-fit 的浏览器（主要是 IE）===== */
+   .fallback-for-ie {
+     /* 方案1：使用背景图代替 */
+     background-image: url(image.jpg);
+     background-size: cover;  /* background-size 有更好的兼容性 */
+     background-position: center;
+     background-repeat: no-repeat;
+     /* img 标签隐藏 */
+   }
+
+   .fallback-for-ie img {
+     display: none;  /* IE 中隐藏 img，使用背景图 */
+   }
+
+   /* 现代浏览器使用 object-fit */
+   @supports (object-fit: cover) {
+   .fallback-for-ie {
+     background-image: none;
+   }
+   .fallback-for-ie img {
+     display: block;
+     object-fit: cover;
+     width: 100%;
+     height: 100%;
+   }
+   }
+
+   /* 或者使用 Modernizr/PostCSS 进行 polyfill */
+   ```
+
+6. **object-fit 相关属性**
+
+   ```css
+   /* ===== object-position（已介绍）===== */
+   img {
+     object-position: center center;
+   }
+
+   /* ===== 其他相关属性（了解）===== */
+   /* 这些属性目前浏览器支持有限 */
+
+   video {
+     /* 控制视频边框如何绘制 */
+     object-fit: contain;
+   }
+   ```
+
+7. **最佳实践清单**
+
+   ```
+   ✓ object-fit 使用 Checklist：
+
+   □ 总是为 img/video 设置明确的 width 和 height
+   □ 根据内容性质选择合适的 fit 值：
+     - 背景图/头像/封面 → cover
+     - 产品图/截图 → contain
+     - 一般情况避免 fill（会变形）
+   □ 使用 object-position 控制裁剪焦点
+   □ 配合 aspect-ratio 使用，实现完美的响应式容器
+   □ 为不支持的情况准备降级方案
+   □ 注意图片加载失败时的占位样式
+   ```
+
+### 🔍 追问链
+1. **object-fit: cover 裁剪了部分内容，如何确保重要的视觉信息不被裁剪掉？**
+   → 方向：使用 object-position 将焦点定位到重要区域；让设计师/UI标注出 focal point；使用 AI 服务自动识别图片主体位置；或者使用 art direction（picture + source）为不同尺寸提供不同的裁剪版本
+2. **object-fit 和 background-size: cover 的区别是什么？何时使用哪个？**
+   → 方向：功能类似但适用对象不同；object-fit 用于替换元素（img/video）；background-size 用于背景图；语义上 img 应该用 img 标签（SEO、可访问性），装饰性图片用背景图；object-fit 可以配合 object-position 更灵活
+3. **在高 DPI（Retina）屏幕下，object-fit 的表现是否有需要注意的地方？**
+   → 方向：object-fit 本身不受 DPI 影响；但要配合 srcset 提供 2x/3x 图片；否则即使显示正确，图片也会模糊；建议使用 imagesizes 属性帮助浏览器选择合适分辨率
+
+---
+
+## Q34: 如何实现暗黑模式（Dark Mode）
+- **难度**：★★☆
+- **知识点**：暗黑模式 / 主题切换 / prefers-color-scheme
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **暗黑模式的实现方式概览**
+
+   实现暗黑模式有多种方式，从简单到复杂依次为：
+
+   ```
+   方案1：prefers-color-scheme 媒体查询（自动跟随系统）
+   方案2：data-* 属性 + CSS 变量（手动切换，推荐）
+   方案3：class 切换（传统方案）
+   方案4：CSS 自定义属性 + JS 持久化（完整方案）
+   ```
+
+2. **方案1：prefers-color-scheme（自动跟随系统）**
+
+   ```css
+   /* ===== 基础样式（亮色主题）===== */
+   :root {
+     --bg-primary: #ffffff;
+     --bg-secondary: #f5f5f5;
+     --text-primary: #1a1a1a;
+     --text-secondary: #666666;
+     --border-color: #e0e0e0;
+     --shadow-color: rgba(0, 0, 0, 0.1);
+   }
+
+   body {
+     background-color: var(--bg-primary);
+     color: var(--text-primary);
+   }
+
+   /* ===== 暗黑模式（跟随系统偏好）===== */
+   @media (prefers-color-scheme: dark) {
+     :root {
+       --bg-primary: #1a1a1a;
+       --bg-secondary: #2d2d2d;
+       --text-primary: #e0e0e0;
+       --text-secondary: #a0a0a0;
+       --border-color: #404040;
+       --shadow-color: rgba(0, 0, 0, 0.4);
+     }
+
+     /* 暗黑模式下可能需要调整的其他样式 */
+     img {
+       opacity: 0.85;  /* 降低图片亮度，减少刺眼 */
+     }
+
+     a {
+       color: #60a5fa;  /* 链接颜色需要更亮 */
+     }
+   }
+
+   /* 优点：简单，无需 JS，自动跟随系统
+      缺点：用户无法手动切换 */
+   ```
+
+3. **方案2：data-theme 属性 + CSS 变量（推荐方案）**
+
+   ```css
+   /* ===== 定义主题变量 ===== */
+   :root,
+   [data-theme="light"] {
+     /* === 亮色主题 === */
+     --color-bg: #ffffff;
+     --color-bg-secondary: #f8f9fa;
+     --color-bg-tertiary: #e9ecef;
+     --color-text: #212529;
+     --color-text-secondary: #495057;
+     --color-text-muted: #868e96;
+     --color-border: #dee2e6;
+     --color-primary: #0d6efd;
+     --color-primary-hover: #0b5ed7;
+     --color-shadow: rgba(0, 0, 0, 0.1);
+     --color-overlay: rgba(255, 255, 255, 0.8);
+   }
+
+   [data-theme="dark"] {
+     /* === 暗色主题 === */
+     --color-bg: #121212;
+     --color-bg-secondary: #1e1e1e;
+     --color-bg-tertiary: #2c2c2c;
+     --color-text: #e4e4e7;
+     --color-text-secondary: #a1a1aa;
+     --color-text-muted: #71717a;
+     --color-border: #3f3f46;
+     --color-primary: #3b82f6;
+     --color-primary-hover: #2563eb;
+     --color-shadow: rgba(0, 0, 0, 0.4);
+     --color-overlay: rgba(0, 0, 0, 0.8);
+   }
+
+   /* ===== 使用变量的组件样式 ===== */
+   .card {
+     background-color: var(--color-bg-secondary);
+     border: 1px solid var(--color-border);
+     border-radius: 8px;
+     box-shadow: 0 2px 8px var(--color-shadow);
+     color: var(--color-text);
+     padding: 20px;
+   }
+
+   .btn-primary {
+     background-color: var(--color-primary);
+     color: #ffffff;
+     border: none;
+     padding: 10px 20px;
+     border-radius: 6px;
+     cursor: pointer;
+   }
+
+   .btn-primary:hover {
+     background-color: var(--color-primary-hover);
+   }
+
+   input, textarea {
+     background-color: var(--color-bg-secondary);
+     color: var(--color-text);
+     border: 1px solid var(--color-border);
+   }
+   ```
+
+4. **JavaScript 切换逻辑**
+
+   ```javascript
+   // ===== 主题管理器 =====
+   class ThemeManager {
+     constructor() {
+       this.STORAGE_KEY = 'theme-preference';
+       this.THEME_ATTRIBUTE = 'data-theme';
+       this.themeToggle = document.querySelector('[data-theme-toggle]');
+
+       this.init();
+     }
+
+     init() {
+       // 获取存储的主题或系统偏好
+       const storedTheme = localStorage.getItem(this.STORAGE_KEY);
+       const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+       // 决策优先级：用户手动选择 > 系统偏好 > 默认亮色
+       const initialTheme = storedTheme || (systemPrefersDark ? 'dark' : 'light');
+
+       this.applyTheme(initialTheme);
+       this.bindEvents();
+       this.watchSystemPreference();
+     }
+
+     applyTheme(theme) {
+       document.documentElement.setAttribute(this.THEME_ATTRIBUTE, theme);
+       localStorage.setItem(this.STORAGE_KEY, theme);
+
+       // 更新 toggle 按钮状态
+       if (this.themeToggle) {
+         const isDark = theme === 'dark';
+         this.themeToggle.setAttribute('aria-pressed', isDark);
+         this.themeToggle.innerHTML = isDark ? '☀️' : '🌙';
+       }
+     }
+
+     toggleTheme() {
+       const currentTheme = document.documentElement.getAttribute(this.THEME_ATTRIBUTE);
+       const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+       this.applyTheme(newTheme);
+     }
+
+     bindEvents() {
+       // 点击切换按钮
+       this.themeToggle?.addEventListener('click', () => this.toggleTheme());
+
+       // 监听键盘（可访问性）
+       this.themeToggle?.addEventListener('keydown', (e) => {
+         if (e.key === 'Enter' || e.key === ' ') {
+           e.preventDefault();
+           this.toggleTheme();
+         }
+       });
+     }
+
+     watchSystemPreference() {
+       // 监听系统主题变化（用户在系统设置中切换时）
+       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+       mediaQuery.addEventListener('change', (e) => {
+         // 只有当用户没有手动设置过时才跟随系统
+         const storedTheme = localStorage.getItem(this.STORAGE_KEY);
+         if (!storedTheme) {
+           this.applyTheme(e.matches ? 'dark' : 'light');
+         }
+       });
+     }
+   }
+
+   // 初始化
+   document.addEventListener('DOMContentLoaded', () => {
+     new ThemeManager();
+   });
+   ```
+
+5. **HTML 结构示例**
+
+   ```html
+   <!-- 主题切换按钮 -->
+   <button
+     data-theme-toggle
+     type="button"
+     aria-label="切换暗黑模式"
+     aria-pressed="false"
+     class="theme-toggle"
+   >
+     🌙
+   </button>
+
+   <!-- 使用语义化 HTML -->
+   <nav class="navbar" role="navigation">
+     <div class="navbar-content">
+       <a href="/" class="logo">MyApp</a>
+       <ul class="nav-links">
+         <li><a href="/about">关于</a></li>
+         <li><a href="/contact">联系</a></li>
+       </ul>
+       <button data-theme-toggle aria-label="切换主题">🌙</button>
+     </div>
+   </nav>
+
+   <main class="content">
+     <section class="card">
+       <h2>卡片标题</h2>
+       <p>卡片内容...</p>
+     </section>
+   </main>
+   ```
+
+6. **暗黑模式设计要点**
+
+   ```css
+   /* ===== 不要简单地反转颜色！===== */
+   /* ❌ 错误示范：纯黑背景 + 纯白文字 */
+   .bad-dark-mode {
+     background: #000000;  /* 太黑，刺眼 */
+     color: #ffffff;        /* 太亮，刺眼 */
+   }
+
+   /* ✅ 正确做法：使用柔和的颜色 */
+   [data-theme="dark"] {
+     /* 背景色：不是纯黑，而是深灰 */
+     --bg-base: #1a1a1a;     /* 或 #121212 (Material Design 推荐)*/
+
+     /* 文字色：不是纯白，而是柔和的灰白 */
+     --text-base: #e4e4e7;   /* 降低对比度，减少眼睛疲劳 */
+
+     /* 表面色：略浅于背景 */
+     --surface: #27272a;
+
+     /* 边框色：微妙的分隔 */
+     --border: #3f3f46;
+
+     /* 强调色：可能需要提高亮度 */
+     --accent: #60a5fa;
+   }
+
+   /* ===== 其他重要调整 ===== */
+   [data-theme="dark"] {
+     /* 1. 阴影：暗黑模式下阴影不明显，改用边框 */
+     .card {
+       box-shadow: none;
+       border: 1px solid var(--border);
+     }
+
+     /* 2. 图片：降低亮度 */
+     img, video {
+       filter: brightness(0.85) contrast(1.05);
+     }
+
+     /* 3. 代码块：调整语法高亮配色 */
+     code {
+       background-color: var(--surface);
+       color: #f472b6;  /* 亮粉色，在深色背景下清晰 */
+     }
+
+     /* 4. 分割线：降低对比度 */
+     hr {
+       border-color: var(--border);
+       opacity: 0.3;
+     }
+
+     /* 5. Focus 状态：确保可见 */
+     *:focus {
+       outline: 2px solid var(--accent);
+       outline-offset: 2px;
+     }
+
+     /* 6. 滚动条样式（可选）*/
+     ::-webkit-scrollbar {
+       width: 8px;
+       height: 8px;
+     }
+     ::-webkit-scrollbar-track {
+       background: var(--bg-base);
+     }
+     ::-webkit-scrollbar-thumb {
+       background: var(--surface);
+       border-radius: 4px;
+     }
+   }
+   ```
+
+7. **防止闪烁（FOUC）的技巧**
+
+   ```html
+   <!-- 在 <head> 中内联脚本，防止页面加载时的闪烁 -->
+   <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+     <!-- 关键：在渲染之前就设置主题 -->
+     <script>
+       (function() {
+         const stored = localStorage.getItem('theme-preference');
+         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+         const theme = stored || (prefersDark ? 'dark' : 'light');
+         document.documentElement.setAttribute('data-theme', theme);
+       })();
+     </script>
+
+     <!-- 然后再加载 CSS -->
+     <link rel="stylesheet" href="styles.css">
+   </head>
+   ```
+
+8. **多主题扩展**
+
+   ```css
+   /* 除了亮色/暗色，还可以支持更多主题 */
+   :root,
+   [data-theme="light"] {
+     --theme-name: "Light";
+     /* 亮色变量... */
+   }
+
+   [data-theme="dark"] {
+     --theme-name: "Dark";
+     /* 暗色变量... */
+   }
+
+   [data-theme="sepia"] {
+     /* 护眼模式（米黄色调）*/
+     --color-bg: #f4ecd8;
+     --color-text: #5b4636;
+     /* ... */
+   }
+
+   [data-theme="blue"] {
+     /* 蓝色主题 */
+     --color-bg: #e3f2fd;
+     --color-primary: #1565c0;
+     /* ... */
+   }
+   ```
+
+### 🔍 追问链
+1. **如何处理第三方组件库（如 Ant Design、Element UI）的暗黑模式适配？**
+   → 方向：大多数现代组件库已内置暗黑模式支持；检查文档看是否提供主题变量或 dark mode class；如果没有，可以用 CSS 覆盖或使用 CSS-in-JS 方案注入变量
+2. **暗黑模式下的图片如何处理？特别是那些在两种模式下都要清晰的图片？**
+   → 方向：使用 CSS filter（brightness/contrast）微调；为暗黑模式提供专门的图片版本（使用 picture + source + media）；使用 SVG 图片（可通过 CSS 变量变色）；对于 logo，提供两种颜色的版本
+3. **如何做暗黑模式的自动化测试？如何确保没有遗漏的硬编码颜色？**
+   → 方向：使用 Chrome DevTools 的 CSS Overview 检查未使用变量的颜色；使用 Stylelint 插件禁止硬编码颜色值；使用 Puppeteer 截图对比两种主题；建立 design token 审查流程
+
+---
+
+## Q35: Critical CSS（关键 CSS）提取和内联
+- **难度**：★★☆
+- **知识点**：Critical CSS / 性能优化 / 首屏渲染
+- **题型**：简答题
+
+### 参考答案要点：
+
+1. **什么是 Critical CSS**
+
+   Critical CSS（关键 CSS）指的是**首屏（Above the Fold）渲染所需的最低限度的 CSS**。将这些关键的 CSS 内联到 HTML 的 `<head>` 中，可以让浏览器**无需等待 CSS 文件下载完成就能渲染首屏内容**，从而显著提升首屏渲染速度（FCP/LCP）。
+
+   ```
+   传统加载流程：
+   HTML → 发现 <link css> → 下载 CSS（阻塞渲染）→ 渲染页面
+   ⏱️ 用户看到白屏时间较长
+
+   Critical CSS 优化后：
+   HTML（包含内联的关键 CSS）→ 立即渲染首屏 → 异步加载剩余 CSS
+   ⏱️ 用户快速看到内容，体验大幅提升
+   ```
+
+2. **为什么要内联 Critical CSS**
+
+   ```
+   问题分析：
+
+   1. 渲染阻塞：浏览器遇到 <link rel="stylesheet"> 会暂停渲染
+   2. 网络延迟：CSS 文件下载需要时间（特别是移动端 3G/4G）
+   3. 文件体积：生产环境的 CSS 往往很大（100KB-500KB+）
+
+   优化的收益：
+
+   ✅ 减少 FCP（First Contentful Paint）时间 0.5-2 秒
+   ✅ 提升 LCP（Largest Contentful Paint）指标
+   ✅ 改善用户体验（更快看到内容）
+   ✅ 有利于 SEO（Core Web Vitals）
+   ```
+
+3. **识别 Critical CSS 的原则**
+
+   ```css
+   /* ===== Critical CSS 包含的内容 ===== */
+
+   /* 1. 首屏可见元素的样式 */
+   /* - 导航栏（Navbar）*/
+   .navbar {
+     position: fixed;
+     top: 0;
+     left: 0;
+     right: 0     height: 64px;
+     background: white;
+     z-index: 1000;
+   }
+
+   /* - Hero 区域（首屏横幅）*/
+   .hero {
+     min-height: 100vh;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   }
+
+   .hero__title {
+     font-size: clamp(2rem, 5vw, 4rem);
+     color: white;
+     text-align: center;
+   }
+
+   /* 2. 基础 Reset / Normalize（精简版）*/
+   *, *::before, *::after {
+     box-sizing: border-box;
+     margin: 0;
+     padding: 0;
+   }
+
+   /* 3. 字体声明（避免 FOIT/FOUT）*/
+   @font-face {
+     font-family: 'CustomFont';
+     src: url('/fonts/custom.woff2') format('woff2');
+     font-display: swap;  /* 重要！允许先用系统字体 */
+   }
+
+   /* 4. 首屏用到的布局样式 */
+   .container {
+     max-width: 1200px;
+     margin: 0 auto;
+     padding: 0 20px;
+   }
+
+   /* ===== Non-Critical CSS（应该延后加载）===== */
+   /* - 下方不可见区域的样式（Footer、Modal 等）*/
+   /* - 交互状态的样式（hover、focus、active）*/
+   /* - 第三方组件库的完整样式 */
+   /* - 动画关键帧 */
+   /* - 打印样式 */
+   /* - 媒体查询中的大屏幕样式 */
+   ```
+
+4. **手动提取 Critical CSS 的步骤**
+
+   ```html
+   <!DOCTYPE html>
+   <html lang="zh-CN">
+   <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+     <!-- ===== Step 1: 内联 Critical CSS ===== -->
+     <style>
+       /* Critical CSS 开始 - 由开发者手动提取或工具生成 */
+       :root{--primary:#3b82f6;--bg:#fff;--text:#1f2937}
+       *{margin:0;padding:0;box-sizing:border-box}
+       body{font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:var(--text)}
+       .navbar{position:fixed;top:0;left:0;right:0;height:60px;background:var(--bg);border-bottom:1px solid #e5e7eb;z-index:1000}
+       .navbar__content{max-width:1200px;margin:0 auto;padding:0 20px;display:flex;align-items:center;height:100%}
+       .hero{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea,#764ba2);padding-top:60px}
+       .hero__title{font-size:clamp(2rem,5vw,3.5rem);color:#fff;text-align:center;margin-bottom:1.5rem}
+       .hero__subtitle{font-size:1.25rem;color:rgba(255,255,255,.9);text-align:center;max-width:600px}
+       .btn{display:inline-block;padding:12px 24px;border-radius:6px;font-weight:600;text-decoration:none;transition:all .2s}
+       .btn--primary{background:var(--primary);color:#fff}
+       .btn--primary:hover{background:#2563eb}
+       /* Critical CSS 结束 - 约 1-2KB */
+     </style>
+
+     <!-- ===== Step 2: 异步加载剩余 CSS ===== -->
+     <!-- 方式1：preload + onload（推荐）-->
+     <link rel="preload" href="/styles/main.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+     <noscript><link rel="stylesheet" href="/styles/main.css"></noscript>
+
+     <!-- 方式2：使用 JavaScript 动态加载 -->
+     <script>
+       function loadCSS(href) {
+         var link = document.createElement('link');
+         link.rel = 'stylesheet';
+         link.href = href;
+         document.head.appendChild(link);
+       }
+       // 页面加载完成后加载非关键 CSS
+       window.addEventListener('load', function() {
+         loadCSS('/styles/main.css');
+         loadCSS('/styles/components.css');
+       });
+     </script>
+   </head>
+   <body>
+     <nav class="navbar">
+       <div class="navbar__content">
+         <!-- 导航内容 -->
+       </div>
+     </nav>
+
+     <section class="hero">
+       <h1 class="hero__title">欢迎访问</h1>
+       <p class="hero__subtitle">这是首屏内容，可以立即渲染</p>
+       <a href="#" class="btn btn--primary">开始使用</a>
+     </section>
+
+     <!-- 下方是非首屏内容，依赖异步加载的 CSS -->
+     <section class="features">
+       <!-- ... -->
+     </section>
+   </body>
+   </html>
+   ```
+
+5. **自动化工具提取 Critical CSS**
+
+   ```bash
+   # ===== 工具1：critical（Node.js 库）=====
+   npm install critical --save-dev
+
+   # 在 package.json 中配置脚本
+   {
+     "scripts": {
+       "critical": "critical http://localhost:3000 --inline --minify --dest dist/index.html"
+     }
+   }
+
+   # 运行提取
+   npm run critical
+
+
+   # ===== 工具2：webpack 插件（html-critical-webpack-plugin）=====
+   npm install html-critical-webpack-plugin --save-dev
+
+   // webpack.config.js
+   const HtmlCriticalWebpackPlugin = require('html-critical-webpack-plugin');
+
+   module.exports = {
+     plugins: [
+       new HtmlCriticalWebpackPlugin({
+         base: './dist/',
+         src: 'index.html',
+         dest: 'index.html',
+         inline: true,
+         minify: true,
+         extract: false,
+         width: 1920,
+         height: 1080,
+         penthouse: {
+           blockJSRequests: false,
+         },
+       }),
+     ],
+   };
+
+
+   # ===== 工具3：Vite 插件（vite-plugin-critical）=====
+   npm install vite-plugin-critical -D
+
+   // vite.config.js
+   import critical from 'vite-plugin-critical';
+
+   export default {
+     plugins: [
+       critical({
+         criticalUrl: 'http://localhost:5173',
+         preview: true,
+       }),
+     ],
+   };
+   ```
+
+6. **Critical CSS 的最佳实践**
+
+   ```css
+   /* ===== 1. 保持 Critical CSS 精简 ===== */
+   /*
+    目标大小：< 14KB（压缩后）
+    - 只包含首屏必需的样式
+    - 移除注释和多余空格
+    - 使用短类名（构建时）
+    */
+
+   /* ===== 2. 组织 CSS 以便于提取 ===== */
+   /* 按照优先级组织 CSS 文件 */
+
+   /* critical.css - 首屏样式 */
+   /* base.css - 基础样式（Reset, Typography）*/
+   /* components.css - 组件样式 */
+   /* utilities.css - 工具类 */
+   /* vendor.css - 第三方库 */
+
+   /* ===== 3. 使用 preload 预加载剩余 CSS ===== */
+   <link rel="preload" href="non-critical.css" as="style"
+         onload="this.rel='stylesheet'">
+
+   /* ===== 4. 处理字体加载 ===== */
+   <link rel="preload" href="/fonts/main.woff2" as="font" type="font/woff2" crossorigin>
+
+   /* 在 Critical CSS 中声明字体 */
+   @font-face {
+     font-family: 'MainFont';
+     src: url('/fonts/main.woff2') format('woff2');
+     font-display: swap;  /* 避免白屏 */
+   }
+
+   /* ===== 5. 响应式 Critical CSS ===== */
+   /* 不同视口的 Critical CSS 可能不同 */
+   /* 工具通常会提取桌面端的，移动端可能需要单独处理 */
+   @media (max-width: 768px) {
+     .hero {
+       min-height: 100svh;  /* 移动端使用 small viewport height */
+       padding: 80px 20px 40px;
+     }
+     .hero__title {
+       font-size: 1.75rem;
+     }
+   }
+   ```
+
+7. **性能监控和验证**
+
+   ```javascript
+   // ===== 使用 Performance API 监控收益 =====
+   window.addEventListener('load', () => {
+     setTimeout(() => {
+       const perfData = performance.getEntriesByType('navigation')[0];
+
+       console.log('=== Critical CSS 性能指标 ===');
+       console.log(`FCP: ${perfData.responseStart}ms`);
+       console.log(`DOM Loaded: ${perfData.domContentLoadedEventEnd}ms`);
+       console.log(`Page Load: ${perfData.loadEventEnd}ms`);
+
+       // 使用 Web Vitals 库测量 Core Web Vitals
+     }, 0);
+   });
+
+   // ===== Lighthouse 审计 =====
+   // 运行 lighthouse --view https://your-site.com
+   // 关注指标：
+   // - FCP (First Contentful Paint) < 1.8s
+   // - LCP (Largest Contentful Paint) < 2.5s
+   // - CLS (Cumulative Layout Shift) < 0.1
+   // - TTI (Time to Interactive) < 3.8s
+   ```
+
+8. **常见问题和解决方案**
+
+   ```
+   问题1：Critical CSS 体积过大（> 20KB）
+   → 解决：审查是否包含了非首屏样式；拆分多个页面分别提取；
+          进一步精简首屏设计
+
+   问题2：每次改版都需要重新提取
+   → 解决：集成到 CI/CD 流程；每次部署自动执行提取脚本
+
+   问题3：SPA（单页应用）如何处理
+   → 解决：只为入口 HTML 提取 Critical CSS；
+          路由切换后的组件按需加载 CSS（Code Splitting）
+
+   问题4：动态内容的首屏样式
+   → 解决：为骨架屏/Skeleton 提供关键样式；
+          API 数据返回后的内容样式可以异步加载
+
+   问题5：缓存问题
+   → 解决：内联 CSS 不受缓存影响（本身就是优点）；
+          非 Critical CSS 文件加上 hash 版本号
+   ```
+
+### 🔍 追问链
+1. **Critical CSS 和 Tree Shaking CSS 有什么区别？能否结合使用？**
+   → 方向：Critical CSS 关注首屏渲染时机，Tree Shaking 关注移除未使用的 CSS；两者互补：Tree Shaking 先减小总体积，再从中提取 Critical 部分；工具链：PurgeCSS/UnCSS 做 Tree Shaking，Critical/Penthouse 做 Critical CSS 提取
+2. **在大型 SPA（如 React/Vue）中如何实施 Critical CSS？有哪些挑战？**
+   → 方向：挑战：路由懒加载导致首屏内容不固定；组件级 CSS 难以静态分析；解决方案：SSR/SSG 预渲染；分析真实用户路径确定核心组件；使用 loadable-components 预测关键路由
+3. **如何量化 Critical CSS 优化的效果？A/B Test 该怎么做？**
+   → 方向：使用 Real User Monitoring (RUM) 收集 FCP/LCP 数据；对比优化前后的 Core Web Vitals 分布；A/B Test 关注业务指标（跳出率、转化率、停留时长）；使用 Lighthouse CI 在 PR 级别做回归检测
 
 ---
 

@@ -7,7 +7,7 @@
     "parse-questions": "node scripts/parse-questions.mjs",
     "build:quiz": "cd quiz && npm run build",
     "dev": "vitepress dev docs",
-    "build": "npm run parse-questions && npm run build:quiz && vitepress build docs",
+    "build": "npm run parse-questions && vitepress build docs && npm run build:quiz",
     "preview": "vitepress preview docs"
   },
   "devDependencies": {

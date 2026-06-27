@@ -16,7 +16,7 @@ export default defineConfig({
   base,
   build: {
     outDir: '../docs/.vitepress/dist/quiz',
-    emptyOutDir: true
+    emptyOutDir: false
   },
   server: {
     port: 5174,

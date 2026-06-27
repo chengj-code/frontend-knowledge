@@ -4,8 +4,10 @@
   "description": "前端知识点体系化文档站点",
   "type": "module",
   "scripts": {
+    "parse-questions": "node scripts/parse-questions.mjs",
+    "build:quiz": "cd quiz && npm run build",
     "dev": "vitepress dev docs",
-    "build": "vitepress build docs",
+    "build": "npm run parse-questions && npm run build:quiz && vitepress build docs",
     "preview": "vitepress preview docs"
   },
   "devDependencies": {

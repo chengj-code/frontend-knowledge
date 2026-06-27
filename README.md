@@ -136,7 +136,7 @@ frontend-knowledge/
 
 ### 质量标准
 
-所有文档均按 [SOP.md](SOP.md) 标准流程生成和优化：
+所有文档均按标准化流程生成和优化：
 
 ```
 Phase 1: 文档生成 → Phase 2: 质量评审打分 → Phase 3: 优化提升 → Phase 4: 提交推送
@@ -151,19 +151,30 @@ Phase 1: 文档生成 → Phase 2: 质量评审打分 → Phase 3: 优化提升 
 
 ## 🚢 部署
 
+### GitHub Pages（推荐）
+
+项目已内置 GitHub Actions 自动部署配置，推送到 `main` 分支后会自动构建并部署到 GitHub Pages。
+
+**启用步骤：**
+
+1. 进入仓库 Settings → Pages
+2. Source 选择 **GitHub Actions**
+3. 推送代码到 `main` 分支，等待 Actions 执行完成
+
+工作流文件：[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
+
+### 其他平台
+
 构建产物位于 `docs/.vitepress/dist`，可部署到任意静态托管服务：
 
-- **GitHub Pages** — 配合 GitHub Actions 自动部署
 - **Vercel / Netlify** — 一键部署，自动构建
 - **Cloudflare Pages** — 全球 CDN 加速
 - **Nginx / 任意静态服务器**
 
 ## 🤝 贡献指南
 
-本仓库采用 [SOP.md](SOP.md) 定义的标准化流程维护。如需贡献：
-
 1. Fork 本仓库
-2. 按照 SOP 的文档规范编写内容
+2. 按照文档规范编写内容
 3. 提交 Pull Request
 
 ## 📄 License

@@ -1,8 +1,13 @@
 import { defineConfig } from 'vitepress'
 import { withMermaid } from 'vitepress-plugin-mermaid'
 
+const base = process.env.GITHUB_REPOSITORY
+  ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/`
+  : '/'
+
 export default withMermaid(
   defineConfig({
+    base,
     title: '前端知识库',
     description: '前端知识点体系化文档，涵盖前端各大核心模块的基础知识与面试题',
     lang: 'zh-CN',

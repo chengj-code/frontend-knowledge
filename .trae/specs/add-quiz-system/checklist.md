@@ -1,0 +1,10 @@
+- [x] 题库解析脚本能正确解析 13 个 interviews.md 文件，提取题目元数据和参考答案关键要点
+- [x] 生成的 JSON 文件格式正确，包含 id、category、categoryLabel、questionIndex、question、difficulty、type、keyPoints 字段
+- [x] 答题系统首页展示 13 个主题卡片，支持多选、题目数量配置、难度筛选
+- [x] 答题页面逐题展示，支持"看过答案/没看答案"标记、参考答案折叠展开、题号导航
+- [x] 答题结果页展示统计信息（总题数、已答/未答、按难度/主题统计）和学习建议
+- [x] Trae 设计风格正确实现：Intelligent Green 主色、暗色/亮色主题、圆角/间距/字体规范
+- [x] VitePress 导航栏和首页 hero 区域正确添加答题系统入口
+- [x] 完整构建流程正常：题库解析 → 答题系统构建 → VitePress 构建
+- [x] 答题系统在 /quiz/ 路径下可正常访问
+- [x] GitHub Actions 部署后答题系统功能完整可用

@@ -12,3 +12,6 @@ docs/.vitepress/dist
 .vscode/*
 !.vscode/extensions.json
 *.local
+quiz/dist
+quiz/node_modules
+quiz/public/data

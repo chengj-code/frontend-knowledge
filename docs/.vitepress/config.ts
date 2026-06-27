@@ -23,6 +23,7 @@ export default withMermaid(
 
       nav: [
         { text: '首页', link: '/' },
+        { text: '答题系统', link: '/quiz/' },
         {
           text: '基础篇',
           items: [

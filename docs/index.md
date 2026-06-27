@@ -9,6 +9,9 @@ hero:
     - theme: brand
       text: 开始学习
       link: /javascript/basics
+    - theme: brand
+      text: 开始答题
+      link: /quiz/
     - theme: alt
       text: GitHub
       link: https://github.com/chengj-code/frontend-knowledge

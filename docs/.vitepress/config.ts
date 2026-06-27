@@ -263,7 +263,23 @@ export default withMermaid(
 
     markdown: {
       lineNumbers: true,
-      html: false
+      html: false,
+      vPre: {
+        blockCode: true
+      },
+      config(md) {
+        const defaultRender = md.renderer.rules.code_inline || function(tokens, idx, options, env, slf) {
+          return slf.renderToken(tokens, idx, options)
+        }
+        md.renderer.rules.code_inline = function(tokens, idx, options, env, slf) {
+          const token = tokens[idx]
+          const content = token.content
+          if (content.includes('{{') || content.includes('}}') || content.includes('v-')) {
+            return `<code v-pre>${md.utils.escapeHtml(content)}</code>`
+          }
+          return defaultRender(tokens, idx, options, env, slf)
+        }
+      }
     },
 
     ignoreDeadLinks: true

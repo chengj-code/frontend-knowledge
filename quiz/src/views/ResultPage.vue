@@ -271,11 +271,10 @@ function restart() {
 
 function reviewWrong() {
   const seenQuestions = questions.value.filter(q => isSeen(q.id))
-  const categories = [...new Set(seenQuestions.map(q => q.category))]
   sessionStorage.setItem('quiz-config', JSON.stringify({
-    categories,
-    onlyWrong: true,
-    wrongIds: seenQuestions.map(q => q.id)
+    questions: seenQuestions,
+    totalQuestions: seenQuestions.length,
+    startTime: Date.now()
   }))
   router.push('/quiz')
 }

@@ -59,12 +59,7 @@
           <template v-else>
             <div class="answer-panel__content">
               <div class="answer-panel__title">参考答案</div>
-              <div class="answer-panel__list">
-                <div v-for="(point, i) in currentQuestion?.keyPoints" :key="i" class="answer-panel__item">
-                  <div class="answer-panel__item-title">{{ i + 1 }}. {{ point.title }}</div>
-                  <div v-if="point.content" class="answer-panel__item-content">{{ point.content }}</div>
-                </div>
-              </div>
+              <div class="answer-panel__md markdown-body" v-html="answerHtml" />
             </div>
           </template>
         </div>
@@ -85,14 +80,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { marked } from 'marked'
 import TButton from '@/components/TButton.vue'
 import TTag from '@/components/TTag.vue'
 import TProgressBar from '@/components/TProgressBar.vue'
-
-interface KeyPoint {
-  title: string
-  content: string
-}
 
 interface Question {
   id: string
@@ -102,7 +93,7 @@ interface Question {
   question: string
   difficulty: 1 | 2 | 3
   type: string
-  keyPoints: KeyPoint[]
+  answer: string
 }
 
 interface QuizConfig {
@@ -176,6 +167,11 @@ const formattedTime = computed(() => {
   const mins = Math.floor(elapsedSeconds.value / 60)
   const secs = elapsedSeconds.value % 60
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+})
+
+const answerHtml = computed(() => {
+  if (!currentQuestion.value?.answer) return ''
+  return marked.parse(currentQuestion.value.answer) as string
 })
 
 // Timer
@@ -527,32 +523,116 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 
-.answer-panel__list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.answer-panel__item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.answer-panel__item-title {
+.answer-panel__md {
   font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.6;
-}
-
-.answer-panel__item-content {
-  font-size: 13px;
   line-height: 1.7;
   color: var(--text-secondary);
-  padding-left: 16px;
-  border-left: 2px solid var(--border-color);
-  white-space: pre-wrap;
+}
+
+.markdown-body {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4) {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 16px 0 8px;
+  line-height: 1.4;
+}
+
+.markdown-body :deep(h1) { font-size: 20px; }
+.markdown-body :deep(h2) { font-size: 18px; }
+.markdown-body :deep(h3) { font-size: 16px; }
+.markdown-body :deep(h4) { font-size: 15px; }
+
+.markdown-body :deep(p) {
+  margin: 8px 0;
+}
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.markdown-body :deep(li) {
+  margin: 4px 0;
+}
+
+.markdown-body :deep(code) {
+  background: var(--bg-card);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  color: var(--color-primary);
+}
+
+.markdown-body :deep(pre) {
+  background: var(--bg-card);
+  padding: 12px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.markdown-body :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: var(--text-secondary);
+}
+
+.markdown-body :deep(blockquote) {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 12px;
+  margin: 10px 0;
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+.markdown-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.markdown-body :deep(th) {
+  background: var(--bg-card);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-body :deep(strong) {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.markdown-body :deep(a) {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.markdown-body :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown-body :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 16px 0;
 }
 
 /* Bottom Navigation */

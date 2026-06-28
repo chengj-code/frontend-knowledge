@@ -92,14 +92,9 @@
           </div>
           <div v-if="expandedId === q.id" class="review-item__detail">
               <p class="review-item__question">{{ q.question }}</p>
-              <div v-if="q.keyPoints?.length" class="review-item__keypoints">
-                <div class="review-item__keypoints-label">参考答案</div>
-                <div class="review-item__keypoints-list">
-                  <div v-for="(kp, i) in q.keyPoints" :key="i" class="review-item__keypoint-item">
-                    <div class="review-item__keypoint-title">{{ i + 1 }}. {{ kp.title }}</div>
-                    <div v-if="kp.content" class="review-item__keypoint-content">{{ kp.content }}</div>
-                  </div>
-                </div>
+              <div v-if="q.answer" class="review-item__answer">
+                <div class="review-item__answer-label">参考答案</div>
+                <div class="review-item__answer-md markdown-body" v-html="getAnswerHtml(q.answer)" />
               </div>
             </div>
         </div>
@@ -117,15 +112,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { marked } from 'marked'
 import TButton from '@/components/TButton.vue'
 import TTag from '@/components/TTag.vue'
 import TProgressBar from '@/components/TProgressBar.vue'
 import TThemeToggle from '@/components/TThemeToggle.vue'
-
-interface KeyPoint {
-  title: string
-  content: string
-}
 
 interface Question {
   id: string
@@ -135,7 +126,7 @@ interface Question {
   question: string
   difficulty: 1 | 2 | 3
   type: string
-  keyPoints: KeyPoint[]
+  answer: string
 }
 
 interface AnswerState {
@@ -262,6 +253,11 @@ function truncate(text: string, len: number) {
 
 function difficultyLabel(d: 1 | 2 | 3) {
   return d === 1 ? '基础' : d === 2 ? '进阶' : '专家'
+}
+
+function getAnswerHtml(answer: string) {
+  if (!answer) return ''
+  return marked.parse(answer) as string
 }
 
 function difficultyTagType(d: 1 | 2 | 3): 'success' | 'warning' | 'danger' {
@@ -561,44 +557,130 @@ function reviewWrong() {
   white-space: pre-wrap;
 }
 
-.review-item__keypoints {
+.review-item__answer {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-.review-item__keypoints-label {
+.review-item__answer-label {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.review-item__keypoints-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.review-item__keypoint-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.review-item__keypoint-title {
+.review-item__answer-md {
+  background: var(--bg-surface);
+  padding: 12px 16px;
+  border-radius: 8px;
   font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.7;
 }
 
-.review-item__keypoint-content {
-  font-size: 12px;
-  line-height: 1.6;
+.markdown-body {
   color: var(--text-secondary);
-  padding-left: 14px;
-  border-left: 2px solid var(--border-color);
-  white-space: pre-wrap;
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4) {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 14px 0 6px;
+  line-height: 1.4;
+}
+
+.markdown-body :deep(h1) { font-size: 18px; }
+.markdown-body :deep(h2) { font-size: 16px; }
+.markdown-body :deep(h3) { font-size: 15px; }
+.markdown-body :deep(h4) { font-size: 14px; }
+
+.markdown-body :deep(p) {
+  margin: 6px 0;
+}
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin: 6px 0;
+  padding-left: 22px;
+}
+
+.markdown-body :deep(li) {
+  margin: 3px 0;
+}
+
+.markdown-body :deep(code) {
+  background: var(--bg-card);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  color: var(--color-primary);
+}
+
+.markdown-body :deep(pre) {
+  background: var(--bg-card);
+  padding: 10px 14px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.markdown-body :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: var(--text-secondary);
+}
+
+.markdown-body :deep(blockquote) {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 10px;
+  margin: 8px 0;
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+.markdown-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  border: 1px solid var(--border-color);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.markdown-body :deep(th) {
+  background: var(--bg-card);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-body :deep(strong) {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.markdown-body :deep(a) {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.markdown-body :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown-body :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 12px 0;
 }
 
 /* Action Buttons */

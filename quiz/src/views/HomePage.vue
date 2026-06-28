@@ -110,11 +110,6 @@ interface Category {
   totalQuestions: number
 }
 
-interface KeyPoint {
-  title: string
-  content: string
-}
-
 interface Question {
   id: string
   category: string
@@ -123,7 +118,7 @@ interface Question {
   question: string
   difficulty: 1 | 2 | 3
   type: string
-  keyPoints: KeyPoint[]
+  answer: string
 }
 
 interface QuizConfig {

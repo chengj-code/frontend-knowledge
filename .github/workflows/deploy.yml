@@ -31,24 +31,43 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install root dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install quiz dependencies
-        run: cd quiz && npm ci
+        run: cd quiz && pnpm install --frozen-lockfile
 
       - name: Parse questions
-        run: npm run parse-questions
+        run: pnpm run parse-questions
 
       - name: Build VitePress
-        run: npx vitepress build docs
+        run: pnpm exec vitepress build docs
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build Quiz
-        run: cd quiz && npx vite build
+        run: cd quiz && pnpm exec vite build
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
 

@@ -59,9 +59,12 @@
           <template v-else>
             <div class="answer-panel__content">
               <div class="answer-panel__title">参考答案</div>
-              <ol class="answer-panel__list">
-                <li v-for="(point, i) in currentQuestion?.keyPoints" :key="i">{{ point }}</li>
-              </ol>
+              <div class="answer-panel__list">
+                <div v-for="(point, i) in currentQuestion?.keyPoints" :key="i" class="answer-panel__item">
+                  <div class="answer-panel__item-title">{{ i + 1 }}. {{ point.title }}</div>
+                  <div v-if="point.content" class="answer-panel__item-content">{{ point.content }}</div>
+                </div>
+              </div>
             </div>
           </template>
         </div>
@@ -86,6 +89,11 @@ import TButton from '@/components/TButton.vue'
 import TTag from '@/components/TTag.vue'
 import TProgressBar from '@/components/TProgressBar.vue'
 
+interface KeyPoint {
+  title: string
+  content: string
+}
+
 interface Question {
   id: string
   category: string
@@ -94,7 +102,7 @@ interface Question {
   question: string
   difficulty: 1 | 2 | 3
   type: string
-  keyPoints: string[]
+  keyPoints: KeyPoint[]
 }
 
 interface QuizConfig {
@@ -520,15 +528,31 @@ onUnmounted(() => {
 }
 
 .answer-panel__list {
-  margin: 0;
-  padding-left: 20px;
-  list-style: decimal;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.answer-panel__list li {
+.answer-panel__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.answer-panel__item-title {
   font-size: 14px;
-  line-height: 1.8;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.answer-panel__item-content {
+  font-size: 13px;
+  line-height: 1.7;
   color: var(--text-secondary);
+  padding-left: 16px;
+  border-left: 2px solid var(--border-color);
+  white-space: pre-wrap;
 }
 
 /* Bottom Navigation */

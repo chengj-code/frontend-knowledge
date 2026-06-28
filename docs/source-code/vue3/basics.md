@@ -8,25 +8,6 @@
 
 ---
 
-## 目录
-
-- [第1章：Monorepo 架构](#第1章monorepo-架构)
-- [第2章：Proxy 响应式系统](#第2章proxy-响应式系统)
-- [第3章：Composition API](#第3章composition-api)
-- [第4章：虚拟 DOM 重构](#第4章虚拟-dom-重构)
-- [第5章：编译器优化](#第5章编译器优化)
-- [第6章：组件调度](#第6章组件调度)
-- [第7章：Suspense 与异步组件](#第7章suspense-与异步组件)
-- [第8章：Teleport 与 Fragments](#第8章teleport-与-fragments)
-- [第9章：自定义渲染器](#第9章自定义渲染器)
-- [第10章：Pinia 源码](#第10章pinia-源码)
-- [第11章：Vue Router 4](#第11章-vue-router-4)
-- [第12章：Vue2↔Vue3 差异总结](#第12章vue2vue3-差异总结)
-- [附录A：调试指南](#附录a调试指南)
-- [附录B：mini-vue3 实战项目说明](#附录bmini-vue3-实战项目说明)
-
----
-
 ## 第1章：Monorepo 架构
 
 ### 1.1 为什么选择 Monorepo？

@@ -39,7 +39,7 @@ npm run preview
 
 ### 在线浏览
 
-直接访问文档站点（部署后）。
+👉 **[https://chengj-code.github.io/frontend-knowledge/](https://chengj-code.github.io/frontend-knowledge/)**
 
 ## 📊 模块进度总览
 
@@ -95,7 +95,6 @@ frontend-knowledge/
 │       ├── vue3/
 │       └── react/
 ├── README.md                  # 本文件
-├── SOP.md                     # 文档生成标准流程（SOP）
 ├── package.json               # 项目配置
 └── package-lock.json          # 依赖锁定
 ```

@@ -11,7 +11,7 @@ hero:
       link: /javascript/basics
     - theme: brand
       text: 开始答题
-      link: /quiz/
+      link: https://chengj-code.github.io/frontend-knowledge/quiz/
     - theme: alt
       text: GitHub
       link: https://github.com/chengj-code/frontend-knowledge

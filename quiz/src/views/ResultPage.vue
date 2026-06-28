@@ -91,12 +91,17 @@
             <span class="review-item__brief">{{ truncate(q.question, 60) }}</span>
           </div>
           <div v-if="expandedId === q.id" class="review-item__detail">
-            <p class="review-item__question">{{ q.question }}</p>
-            <div v-if="q.keyPoints?.length" class="review-item__keypoints">
-              <span class="review-item__keypoints-label">关键点：</span>
-              <TTag v-for="kp in q.keyPoints" :key="kp" type="info">{{ kp }}</TTag>
+              <p class="review-item__question">{{ q.question }}</p>
+              <div v-if="q.keyPoints?.length" class="review-item__keypoints">
+                <div class="review-item__keypoints-label">参考答案</div>
+                <div class="review-item__keypoints-list">
+                  <div v-for="(kp, i) in q.keyPoints" :key="i" class="review-item__keypoint-item">
+                    <div class="review-item__keypoint-title">{{ i + 1 }}. {{ kp.title }}</div>
+                    <div v-if="kp.content" class="review-item__keypoint-content">{{ kp.content }}</div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
         </div>
       </div>
     </section>
@@ -117,6 +122,11 @@ import TTag from '@/components/TTag.vue'
 import TProgressBar from '@/components/TProgressBar.vue'
 import TThemeToggle from '@/components/TThemeToggle.vue'
 
+interface KeyPoint {
+  title: string
+  content: string
+}
+
 interface Question {
   id: string
   category: string
@@ -125,7 +135,7 @@ interface Question {
   question: string
   difficulty: 1 | 2 | 3
   type: string
-  keyPoints: string[]
+  keyPoints: KeyPoint[]
 }
 
 interface AnswerState {
@@ -553,15 +563,42 @@ function reviewWrong() {
 
 .review-item__keypoints {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .review-item__keypoints-label {
   font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.review-item__keypoints-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.review-item__keypoint-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-item__keypoint-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.review-item__keypoint-content {
+  font-size: 12px;
+  line-height: 1.6;
   color: var(--text-secondary);
-  flex-shrink: 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--border-color);
+  white-space: pre-wrap;
 }
 
 /* Action Buttons */

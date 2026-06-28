@@ -62,73 +62,156 @@ function parseDifficulty(starStr) {
 
 /**
  * Extract key points from the answer section.
- * Looks for numbered items like:
- *   1. **Bold title** description...
- *   #### 1. **Bold title**
- *   #### 1. Title without bold
- * Takes the bold title + brief summary (first 80 chars max).
+ * Each key point includes: title + descriptive text
+ * Limits to first 3 main numbered points with meaningful content.
  */
 function extractKeyPoints(answerText) {
-  const keyPoints = [];
+  const allPoints = [];
   const lines = answerText.split('\n');
+  let currentPoint = null;
+  let inCodeBlock = false;
+  let inTable = false;
+  let stopCollecting = false;
 
-  for (const line of lines) {
-    if (keyPoints.length >= 3) break;
+  function isDescriptiveText(text) {
+    const t = text.trim();
+    if (!t) return false;
+    if (t.startsWith('```')) return false;
+    if (t.startsWith('<!--')) return false;
+    if (/^[-*+•]\s*$/.test(t)) return false;
+    if (t.length < 8) return false;
+    if (/^[.#\[\]@&>~+*:%][a-zA-Z0-9_.:#\[\]\-+~>* ()]+\{/.test(t)) return false;
+    if (/^\{?[a-z-]+\s*:\s*[^}]*;?\s*\}?\s*$/.test(t) && t.length < 120) return false;
+    if (/^\}\s*$/.test(t)) return false;
+    if (/^<[a-z/!?][a-z0-9\s"'=-]*\/?>?\s*$/i.test(t)) return false;
+    if (/^[a-z_][a-z0-9_-]*\s*\(.*\)\s*\{?\s*$/.test(t)) return false;
+    if (/^(\/\/|\/\*|\*\/)/.test(t)) return false;
+    if (/^(const|let|var|function|class|return|import|export|if|for|while|switch)\b/.test(t)) return false;
+    if (/^[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*[^=].*;\s*$/.test(t)) return false;
+    const chineseChars = (t.match(/[\u4e00-\u9fa5]/g) || []).length;
+    if (chineseChars < 3) return false;
+    if (t.startsWith('|') && t.endsWith('|')) return false;
+    if (/^[-:| ]+$/.test(t)) return false;
+    return true;
+  }
 
-    // Match patterns like:
-    //   1. **Bold title** rest of line
-    //   #### 1. **Bold title**
-    //   1. **Bold title**
-    //   #### 1. Title without bold
-    let match = line.match(/^(?:#{1,4}\s+)?(\d+)\.\s+\*\*(.+?)\*\*(.*)/);
+  function cleanLine(text) {
+    let t = text.trim();
+    t = t.replace(/^[-*+•]\s+/, '');
+    t = t.replace(/^[1-9]\d*[.)、]\s*/, '');
+    t = t.replace(/^✅/g, '').trim();
+    t = t.replace(/^❌/g, '').trim();
+    t = t.replace(/^\s*\/\*+\s*/, '').replace(/\s*\*+\/\s*$/g, '').trim();
+    t = t.replace(/^\*+\s*/, '').trim();
+    t = t.replace(/^=+\s*/, '').replace(/\s*=+$/, '').trim();
+    t = t.replace(/^⏱️\s*/, '').trim();
+    t = t.replace(/^→\s*方向：\s*/, '').trim();
+    t = t.replace(/^\|(.+)\|\s*$/, '$1').trim();
+    return stripMarkdown(t);
+  }
+
+  function isPointTitle(line) {
+    const trimmed = line.trim();
+    let match;
+
+    match = trimmed.match(/^(?:#{1,4}\s+)?(\d+)\.\s+\*\*(.+?)\*\*/);
+    if (match) return { num: parseInt(match[1], 10), title: match[2] };
+
+    match = trimmed.match(/^#{2,4}\s+方式[一二三四五六七八九十]+[：:]\s*(.+)/);
+    if (match) return { num: 99, title: match[1] };
+
+    match = trimmed.match(/^#{2,4}\s+(\d+)[.、]\s*(.+)/);
+    if (match) return { num: parseInt(match[1], 10), title: match[2] };
+
+    match = trimmed.match(/^(\d+)\.\s+(.+)/);
     if (match) {
-      const num = parseInt(match[1], 10);
-      if (num >= 1 && num <= 3) {
-        const boldTitle = match[2].trim();
-        const restText = stripMarkdown(match[3].trim());
-        let point;
-        if (restText) {
-          point = `${boldTitle}：${restText}`;
-        } else {
-          point = boldTitle;
-        }
-        if (point.length > 80) {
-          point = point.substring(0, 80) + '...';
-        }
-        keyPoints.push(point);
+      let title = match[2].replace(/^\*\*/, '').replace(/\*\*$/, '');
+      return { num: parseInt(match[1], 10), title };
+    }
+
+    return null;
+  }
+
+  function isSectionHeader(line) {
+    const trimmed = line.trim();
+    if (/^###?\s+/.test(trimmed)) return true;
+    if (/^🔍/.test(trimmed)) return true;
+    if (/追问链/.test(trimmed)) return true;
+    if (/^---+$/.test(trimmed)) return true;
+    return false;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      inTable = true;
+      continue;
+    }
+    if (inTable) {
+      if (/^[-:| ]+$/.test(trimmed)) continue;
+      if (!trimmed.startsWith('|')) {
+        inTable = false;
+      } else {
+        continue;
       }
+    }
+
+    if (isSectionHeader(trimmed)) {
+      stopCollecting = true;
+      break;
+    }
+
+    const pointInfo = isPointTitle(line);
+    if (pointInfo) {
+      if (currentPoint) {
+        allPoints.push(currentPoint);
+      }
+      currentPoint = { title: stripMarkdown(pointInfo.title.trim()), fragments: [] };
       continue;
     }
 
-    // Handle numbered items without bold: #### 1. Title without bold
-    match = line.match(/^#{1,4}\s+(\d+)\.\s+(.+)/);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (num >= 1 && num <= 3) {
-        let point = stripMarkdown(match[2].trim());
-        if (point.length > 80) {
-          point = point.substring(0, 80) + '...';
-        }
-        keyPoints.push(point);
-      }
-      continue;
-    }
-
-    // Handle plain numbered items without bold: 1. Title without bold
-    match = line.match(/^(\d+)\.\s+(.+)/);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (num >= 1 && num <= 3) {
-        let point = stripMarkdown(match[2].trim());
-        if (point.length > 80) {
-          point = point.substring(0, 80) + '...';
-        }
-        keyPoints.push(point);
+    if (currentPoint && !stopCollecting && isDescriptiveText(trimmed)) {
+      const cleaned = cleanLine(trimmed);
+      if (cleaned && cleaned.length > 6 && !/^[:：]/.test(cleaned)) {
+        currentPoint.fragments.push(cleaned);
       }
     }
   }
 
-  return keyPoints;
+  if (currentPoint) {
+    allPoints.push(currentPoint);
+  }
+
+  const scoredPoints = allPoints.map((p, idx) => ({
+    ...p,
+    score: p.fragments.length * 10 + (idx < 3 ? 5 : 0)
+  }));
+
+  scoredPoints.sort((a, b) => b.score - a.score);
+
+  const topPoints = scoredPoints.slice(0, 3);
+
+  topPoints.sort((a, b) => {
+    const idxA = allPoints.findIndex(p => p.title === a.title);
+    const idxB = allPoints.findIndex(p => p.title === b.title);
+    return idxA - idxB;
+  });
+
+  return topPoints.map(p => {
+    const desc = p.fragments.slice(0, 3).join(' ').trim();
+    return {
+      title: p.title,
+      content: desc
+    };
+  });
 }
 
 /**

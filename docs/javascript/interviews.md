@@ -389,8 +389,34 @@ getType(new Date()); // 'Date'
 getType(/reg/);    // 'RegExp'
 
 // ✅ 优点：万能方法，跨 realm 安全，可检测所有内置类型
-// ❌ 缺点：写法较长
+// ❌ 缺点：写法较长；ES6 后可被 Symbol.toStringTag 影响（见下文）
 ```
+
+##### ⚠️ 扩展：`Symbol.toStringTag` 的影响（ES6+）
+
+ES6 引入了 `Symbol.toStringTag`，它可以**自定义** `Object.prototype.toString.call()` 的返回值：
+
+```javascript
+// 普通对象无法修改内部 [[Class]]，但可以用 Symbol.toStringTag 影响 toString
+const obj = {
+  [Symbol.toStringTag]: 'Array'
+};
+Object.prototype.toString.call(obj); // '[object Array]' — 被骗了！
+
+// 自定义类也可以定义 toStringTag
+class MyArray {
+  get [Symbol.toStringTag]() {
+    return 'Array';
+  }
+}
+const myArr = new MyArray();
+Object.prototype.toString.call(myArr); // '[object Array]'
+Array.isArray(myArr);                  // false — isArray 不受影响，更可靠
+```
+
+> **注意**：这是**主动**定义的，正常代码不会故意把对象伪装成数组。但这也说明：
+> - `Array.isArray()` 比 `Object.prototype.toString.call()` **更可靠**（专门检测数组内部槽）
+> - 对于一般的类型检测场景，`Object.prototype.toString.call()` 仍然足够好用
 
 #### 方式四：Duck Typing（鸭子类型判断）
 
@@ -414,12 +440,12 @@ function isStrictArrayLike(obj) {
 
 #### 总结对比表
 
-| 方法 | 可靠性 | 跨 Realm | 兼容性 | 推荐度 |
-|:---|:---:|:---:|:---:|:---:|
-| `Array.isArray()` | ⭐⭐⭐ | ✅ 安全 | ES5+ | ⭐⭐⭐ **首选** |
-| `instanceof` | ⭐⭐ | ❌ 失效 | 全兼容 | ⭐ 仅限同环境 |
-| `Object.prototype.toString.call()` | ⭐⭐⭐ | ✅ 安全 | 全兼容 | ⭐⭐⭐ polyfill 首选 |
-| Duck Typing | ⭐ | ✅ 安全 | 全兼容 | ⭐ 类数组场景 |
+| 方法 | 可靠性 | 跨 Realm | 防 `__proto__` 篡改 | 防 `Symbol.toStringTag` | 兼容性 | 推荐度 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| `Array.isArray()` | ⭐⭐⭐ | ✅ 安全 | ✅ 安全 | ✅ 安全 | ES5+ | ⭐⭐⭐ **首选** |
+| `Object.prototype.toString.call()` | ⭐⭐ | ✅ 安全 | ✅ 安全 | ❌ 可被改写 | 全兼容 | ⭐⭐⭐ 通用类型检测 |
+| `instanceof` | ⭐ | ❌ 失效 | ❌ 失效 | ❌ 不相关 | 全兼容 | ⭐ 仅限同环境 |
+| Duck Typing | ⭐ | ✅ 安全 | ❌ 失效 | ❌ 不相关 | 全兼容 | ⭐ 类数组场景 |
 
 ---
 

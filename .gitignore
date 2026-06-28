@@ -15,4 +15,5 @@ docs/.vitepress/dist
 quiz/dist
 quiz/node_modules
 quiz/public/data
-quiz/tsconfig.tsbuildinfo
+.pnpm-store
+*.tsbuildinfo

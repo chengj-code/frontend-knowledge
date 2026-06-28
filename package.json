@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "前端知识点体系化文档站点",
   "type": "module",
+  "packageManager": "pnpm@10.0.0",
   "scripts": {
     "parse-questions": "node scripts/parse-questions.mjs",
-    "build:quiz": "cd quiz && npm run build",
+    "build:quiz": "cd quiz && pnpm run build",
     "dev": "vitepress dev docs",
-    "build": "npm run parse-questions && vitepress build docs && npm run build:quiz",
+    "build": "pnpm run parse-questions && pnpm run build:quiz && vitepress build docs",
     "preview": "vitepress preview docs"
   },
   "devDependencies": {

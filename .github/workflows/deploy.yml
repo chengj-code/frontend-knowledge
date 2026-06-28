@@ -39,10 +39,18 @@ jobs:
       - name: Install quiz dependencies
         run: cd quiz && npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Parse questions
+        run: npm run parse-questions
+
+      - name: Build VitePress
+        run: npx vitepress build docs
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Build Quiz
+        run: cd quiz && npx vite build
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4

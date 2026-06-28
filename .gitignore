@@ -15,3 +15,5 @@ docs/.vitepress/dist
 quiz/dist
 quiz/node_modules
 quiz/public/data
+.pnpm-store
+*.tsbuildinfo

@@ -2,10 +2,10 @@
 ---
 # 前端 AI 面试题库（2025-2026 企业实战版）
 
-> **版本**: v2.0 | **最后更新**: 2026-06-29 | **适用人群**: 前端开发者 / AI 应用开发者
+> **版本**: v2.2 | **最后更新**: 2026-10-27 | **适用人群**: 前端开发者 / AI 应用开发者
 >
 > 本题库基于全网最新面试趋势整理，涵盖基础、进阶、专家三个难度层级，重点考察前端开发者的 AI 应用能力。
-> 题目形式包含：选择题、简答题、代码分析题、场景设计题，共 **30 道**核心题 + N 道追问题。
+> 题目形式包含：选择题、简答题、代码分析题、场景设计题、手写实现题，共 **37 道**核心题 + N 道追问题。
 
 ---
 
@@ -13,9 +13,9 @@
 
 | 层级 | 题号范围 | 数量 | 占比 | 难度特征 |
 |------|----------|------|------|----------|
-| 基础层 ★☆☆ | Q01 - Q10 | 10 道 | 33% | 概念记忆、基础原理，答案直接明确 |
-| 进阶层 ★★☆ | Q11 - Q22 | 12 道 | 40% | 多点综合、需理解原理，需要分析推理 |
-| 专家层 ★★★ | Q23 - Q30 | 8 道 | 27% | 架构设计、方案选型，手写实现/系统设计 |
+| 基础层 ★☆☆ | Q01 - Q10 | 10 道 | 27% | 概念记忆、基础原理，答案直接明确 |
+| 进阶层 ★★☆ | Q11 - Q22 | 12 道 | 32% | 多点综合、需理解原理，需要分析推理 |
+| 专家层 ★★★ | Q23 - Q37 | 15 道 | 41% | 架构设计、方案选型，手写实现/系统设计 |
 
 ---
 
@@ -2396,9 +2396,2075 @@ AI 应用的 Bug 往往很难复现（模型输出有随机性），所以日志
 
 ---
 
-## 📝 附录：面试实战指南
+## Q31: 用 Vue 3 + TypeScript 封装一个可复用的 AI 对话组件，需要考虑哪些设计要点？
 
-### 一、常见面试流程
+- **难度**：★★★
+- **知识点**：Vue3 / 组件设计 / AI 对话
+- **题型**：代码设计题
+
+### 参考答案要点：
+
+#### 1. 组件设计思路
+
+一个好的 AI 对话组件应该是**高内聚、低耦合、可定制**的，既可以开箱即用，又能深度定制。
+
+#### 2. Props 设计（输入）
+
+```typescript
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  timestamp?: number;
+  status?: 'sending' | 'streaming' | 'done' | 'error';
+  tool_calls?: any[];
+}
+
+interface AIChatProps {
+  // 数据源
+  messages: ChatMessage[];           // 消息列表（v-model 双向绑定）
+  apiUrl?: string;                   // 后端 API 地址
+  model?: string;                    // 使用的模型
+  systemPrompt?: string;             // 系统提示词
+  
+  // 功能开关
+  showAvatar?: boolean;              // 是否显示头像
+  showTimestamp?: boolean;           // 是否显示时间
+  allowResend?: boolean;             // 允许重发
+  allowStop?: boolean;               // 允许停止生成
+  allowDelete?: boolean;             // 允许删除消息
+  
+  // 自定义渲染
+  avatarMap?: Record<string, string>;  // 角色头像映射
+  renderMessage?: (msg: ChatMessage) => any;  // 自定义消息渲染
+  
+  // 事件回调
+  onSend?: (content: string) => void;
+  onComplete?: (message: ChatMessage) => void;
+  onError?: (error: Error) => void;
+}
+```
+
+#### 3. 核心功能实现
+
+**① 流式输出的响应式处理**
+
+```typescript
+// composables/useAIChat.ts
+import { ref, computed } from 'vue';
+
+export function useAIChat(props: AIChatProps, emit: any) {
+  const isGenerating = ref(false);
+  const inputValue = ref('');
+  const abortController = ref<AbortController | null>(null);
+
+  const canSend = computed(() => 
+    inputValue.value.trim().length > 0 && !isGenerating.value
+  );
+
+  async function sendMessage() {
+    if (!canSend.value) return;
+    
+    const content = inputValue.value.trim();
+    inputValue.value = '';
+    isGenerating.value = true;
+    abortController.value = new AbortController();
+
+    // 先添加用户消息
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content,
+      timestamp: Date.now(),
+      status: 'done'
+    };
+    emit('update:messages', [...props.messages, userMsg]);
+
+    // 添加 AI 消息占位
+    const aiMsgId = (Date.now() + 1).toString();
+    let aiMsg: ChatMessage = {
+      id: aiMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      status: 'streaming'
+    };
+    emit('update:messages', [...props.messages, aiMsg]);
+
+    try {
+      const response = await fetch(props.apiUrl || '/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: props.model,
+          messages: [...props.messages, userMsg].map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          stream: true
+        }),
+        signal: abortController.value.signal
+      });
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            aiMsg.status = 'done';
+            emit('update:messages', [...props.messages]);
+            emit('complete', aiMsg);
+            return;
+          }
+          try {
+            const json = JSON.parse(data);
+            const chunk = json.choices[0]?.delta?.content;
+            if (chunk) {
+              aiMsg.content += chunk;
+              emit('update:messages', [...props.messages]);
+            }
+          } catch (e) { /* skip */ }
+        }
+      }
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') {
+        aiMsg.status = 'error';
+        emit('error', error);
+      }
+    } finally {
+      isGenerating.value = false;
+    }
+  }
+
+  function stopGenerating() {
+    abortController.value?.abort();
+    isGenerating.value = false;
+  }
+
+  function resendMessage(messageId: string) {
+    const idx = props.messages.findIndex(m => m.id === messageId);
+    if (idx < 0) return;
+    // 删除这条及之后的消息，重新发送用户消息
+    const userMsg = props.messages[idx - 1];
+    const newMessages = props.messages.slice(0, idx - 1);
+    emit('update:messages', newMessages);
+    if (userMsg?.role === 'user') {
+      inputValue.value = userMsg.content;
+      sendMessage();
+    }
+  }
+
+  return {
+    isGenerating,
+    inputValue,
+    canSend,
+    sendMessage,
+    stopGenerating,
+    resendMessage
+  };
+}
+```
+
+**② 组件模板结构**
+
+```vue
+<template>
+  <div class="ai-chat-container">
+    <!-- 消息列表 -->
+    <div class="chat-messages" ref="messagesRef">
+      <div
+        v-for="msg in messages"
+        :key="msg.id"
+        :class="['message', `message-${msg.role}`]"
+      >
+        <img v-if="showAvatar" :src="getAvatar(msg.role)" class="avatar" />
+        <div class="message-content">
+          <MarkdownRenderer :content="msg.content" />
+          <div v-if="msg.status === 'streaming'" class="typing-cursor">▊</div>
+        </div>
+        <div v-if="showTimestamp" class="timestamp">
+          {{ formatTime(msg.timestamp) }}
+        </div>
+        <!-- 操作按钮 -->
+        <div v-if="msg.role === 'assistant' && msg.status === 'done'" class="message-actions">
+          <button v-if="allowResend" @click="resendMessage(msg.id)" title="重新生成">
+            🔄
+          </button>
+          <button @click="copyMessage(msg.content)" title="复制">📋</button>
+          <button v-if="allowDelete" @click="deleteMessage(msg.id)" title="删除">🗑️</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 输入区域 -->
+    <div class="chat-input-area">
+      <textarea
+        v-model="inputValue"
+        @keydown.enter.exact.prevent="sendMessage"
+        placeholder="输入消息，Enter 发送，Shift+Enter 换行"
+        :disabled="isGenerating"
+      />
+      <div class="input-actions">
+        <button v-if="isGenerating && allowStop" @click="stopGenerating" class="btn-stop">
+          停止生成
+        </button>
+        <button v-else @click="sendMessage" :disabled="!canSend" class="btn-send">
+          发送
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+```
+
+#### 4. 关键设计考量
+
+| 考量点 | 解决方案 |
+|--------|---------|
+| **状态共享** | 用 composables 抽离逻辑，组件只管渲染 |
+| **流式渲染** | 用响应式数组，每收到一个 chunk 就触发更新 |
+| **性能优化** | 虚拟列表（长对话）、requestAnimationFrame 合并更新 |
+| **可扩展性** | 支持自定义消息渲染、自定义头像、自定义输入区 |
+| **错误处理** | 网络错误、流式中断、超时等都要有兜底 |
+| **无障碍** | 键盘操作、ARIA 标签、屏幕阅读器支持 |
+
+---
+
+### 🎯 得分点
+| 得分点 | 分值 | 说明 |
+|--------|------|------|
+| 有清晰的组件分层设计（UI + 逻辑分离） | 20% | 知道用 composables 抽离逻辑 |
+| Props 设计合理，考虑了可定制性 | 20% | 不是写死的，有各种开关和插槽 |
+| 流式输出的响应式处理正确 | 25% | 理解 Vue 响应式和 SSE 怎么结合 |
+| 考虑了错误处理和边界情况 | 15% | 停止生成、重发、错误状态等 |
+| 性能优化和可扩展性思考 | 10% | 虚拟列表、自定义渲染等 |
+| TypeScript 类型定义 | 10% | 类型清晰，不是 any 一把梭 |
+
+### 🔗 追问链
+1. **追问1**：长对话很卡怎么办？怎么实现虚拟列表？
+2. **追问2**：消息内容里有代码块怎么处理？怎么实现代码高亮和复制？
+3. **追问3**：如何实现消息的本地持久化？刷新页面不丢失？
+4. **追问4**：Vue 3 的响应式在高频更新（流式输出）时有什么性能问题？怎么优化？
+5. **追问5**：如果要支持 Markdown + 数学公式 + 代码高亮，怎么设计渲染层？
+
+### ⚠️ 易错点
+- ❌ 所有逻辑都写在组件里，几千行代码，无法复用和测试
+- ❌ 流式更新直接 push 数组，不考虑 Vue 的更新性能
+- ❌ 没有错误处理和加载状态，用户体验差
+- ❌ 没有考虑可定制性，换个项目就得重写一套
+
+---
+
+## Q32: 设计一个 AI 对话应用的 Pinia 状态管理方案，需要管理哪些状态？怎么设计比较合理？
+
+- **难度**：★★★
+- **知识点**：Pinia / 状态管理 / AI 应用架构
+- **题型**：架构设计题
+
+### 参考答案要点：
+
+#### 1. 为什么 AI 应用的状态管理更复杂
+
+AI 对话应用的状态比传统前端应用更复杂：
+- **流式更新**：消息内容是逐字增长的，高频更新
+- **多维度状态**：对话、生成、工具调用、配置...同时存在
+- **持久化要求高**：对话历史要存，刷新不丢
+- **状态不确定性**：模型输出有随机性，Bug 难复现
+
+#### 2. Store 拆分方案
+
+按**功能领域**拆分，不要把所有东西塞一个 store 里：
+
+```
+stores/
+  ├── chat.ts          # 对话状态（消息列表、当前会话）
+  ├── ui.ts            # UI 状态（侧边栏、主题、设置面板）
+  ├── config.ts        # 配置状态（模型选择、参数设置）
+  ├── conversation.ts  # 会话管理（多会话列表、切换）
+  └── tools.ts         # 工具调用状态（Function Calling）
+```
+
+#### 3. 核心 Store 实现
+
+**① 对话状态 Store（chat.ts）**
+
+```typescript
+// stores/chat.ts
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  timestamp: number;
+  status: 'sending' | 'streaming' | 'done' | 'error';
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+export const useChatStore = defineStore('chat', () => {
+  // ========== 状态 ==========
+  const messages = ref<ChatMessage[]>([]);
+  const isGenerating = ref(false);
+  const currentConversationId = ref<string | null>(null);
+  
+  // 流式输出相关
+  const streamingMessageId = ref<string | null>(null);
+  const abortController = ref<AbortController | null>(null);
+
+  // ========== 计算属性 ==========
+  const userMessages = computed(() => 
+    messages.value.filter(m => m.role === 'user')
+  );
+  
+  const hasMessages = computed(() => messages.value.length > 0);
+  
+  const canSend = computed(() => !isGenerating.value);
+
+  // ========== 操作方法 ==========
+  
+  // 添加消息
+  function addMessage(message: Omit<ChatMessage, 'id' | 'timestamp'>) {
+    const newMsg: ChatMessage = {
+      ...message,
+      id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+      timestamp: Date.now()
+    };
+    messages.value.push(newMsg);
+    return newMsg;
+  }
+
+  // 更新流式消息内容
+  function appendStreamingContent(chunk: string) {
+    if (!streamingMessageId.value) return;
+    const msg = messages.value.find(m => m.id === streamingMessageId.value);
+    if (msg) {
+      msg.content += chunk;
+    }
+  }
+
+  // 开始流式输出
+  function startStreaming() {
+    const msg = addMessage({
+      role: 'assistant',
+      content: '',
+      status: 'streaming'
+    });
+    streamingMessageId.value = msg.id;
+    isGenerating.value = true;
+    abortController.value = new AbortController();
+    return msg;
+  }
+
+  // 结束流式输出
+  function finishStreaming(success = true) {
+    const msg = messages.value.find(m => m.id === streamingMessageId.value);
+    if (msg) {
+      msg.status = success ? 'done' : 'error';
+    }
+    isGenerating.value = false;
+    streamingMessageId.value = null;
+    abortController.value = null;
+  }
+
+  // 停止生成
+  function stopGenerating() {
+    abortController.value?.abort();
+    finishStreaming(false);
+  }
+
+  // 删除某条及之后的消息（用于重发）
+  function deleteFromMessage(messageId: string) {
+    const idx = messages.value.findIndex(m => m.id === messageId);
+    if (idx >= 0) {
+      messages.value.splice(idx);
+    }
+  }
+
+  // 清空对话
+  function clearMessages() {
+    messages.value = [];
+    isGenerating.value = false;
+    streamingMessageId.value = null;
+  }
+
+  // 发送消息（核心流程）
+  async function sendMessage(content: string, apiUrl: string, model: string) {
+    if (!content.trim() || !canSend.value) return;
+
+    // 1. 添加用户消息
+    addMessage({
+      role: 'user',
+      content: content.trim(),
+      status: 'done'
+    });
+
+    // 2. 开始 AI 回复
+    const aiMsg = startStreaming();
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: messages.value
+            .filter(m => m.status !== 'error')
+            .map(m => ({ role: m.role, content: m.content })),
+          stream: true
+        }),
+        signal: abortController.value!.signal
+      });
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            finishStreaming(true);
+            return;
+          }
+          try {
+            const json = JSON.parse(data);
+            const chunk = json.choices[0]?.delta?.content;
+            if (chunk) {
+              appendStreamingContent(chunk);
+            }
+          } catch (e) { /* skip */ }
+        }
+      }
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') {
+        console.error('Chat error:', error);
+        finishStreaming(false);
+      }
+    }
+  }
+
+  return {
+    // 状态
+    messages,
+    isGenerating,
+    currentConversationId,
+    streamingMessageId,
+    // 计算属性
+    userMessages,
+    hasMessages,
+    canSend,
+    // 方法
+    addMessage,
+    appendStreamingContent,
+    startStreaming,
+    finishStreaming,
+    stopGenerating,
+    deleteFromMessage,
+    clearMessages,
+    sendMessage
+  };
+});
+```
+
+**② 配置状态 Store（config.ts）**
+
+```typescript
+// stores/config.ts
+import { defineStore } from 'pinia';
+import { ref, watch } from 'vue';
+
+export const useConfigStore = defineStore('config', () => {
+  const model = ref(localStorage.getItem('ai_model') || 'gpt-4');
+  const temperature = ref(Number(localStorage.getItem('ai_temperature')) || 0.7);
+  const maxTokens = ref(Number(localStorage.getItem('ai_max_tokens')) || 2048);
+  const theme = ref(localStorage.getItem('ai_theme') || 'auto');
+  const apiBaseUrl = ref(localStorage.getItem('ai_api_base') || '');
+
+  // 持久化：变化时存 localStorage
+  watch(model, (v) => localStorage.setItem('ai_model', v));
+  watch(temperature, (v) => localStorage.setItem('ai_temperature', String(v)));
+  // ... 其他同理
+
+  function resetToDefault() {
+    model.value = 'gpt-4';
+    temperature.value = 0.7;
+    maxTokens.value = 2048;
+  }
+
+  return {
+    model,
+    temperature,
+    maxTokens,
+    theme,
+    apiBaseUrl,
+    resetToDefault
+  };
+});
+```
+
+**③ 会话管理 Store（conversation.ts）**
+
+```typescript
+// stores/conversation.ts
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import { useChatStore } from './chat';
+
+interface Conversation {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+}
+
+export const useConversationStore = defineStore('conversations', () => {
+  const conversations = ref<Conversation[]>([]);
+  const activeId = ref<string | null>(null);
+
+  const activeConversation = computed(() =>
+    conversations.value.find(c => c.id === activeId.value)
+  );
+
+  // 从 IndexedDB 加载（示例用 localStorage 简化）
+  function loadConversations() {
+    const saved = localStorage.getItem('ai_conversations');
+    if (saved) {
+      conversations.value = JSON.parse(saved);
+    }
+  }
+
+  function createConversation() {
+    const newConv: Conversation = {
+      id: Date.now().toString(),
+      title: '新对话',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messageCount: 0
+    };
+    conversations.value.unshift(newConv);
+    activeId.value = newConv.id;
+    
+    const chatStore = useChatStore();
+    chatStore.clearMessages();
+    
+    return newConv;
+  }
+
+  function switchConversation(id: string) {
+    // 先保存当前对话
+    saveCurrentConversation();
+    // 加载新对话
+    activeId.value = id;
+    // ... 从存储加载对应消息
+  }
+
+  function saveCurrentConversation() {
+    const chatStore = useChatStore();
+    const conv = activeConversation.value;
+    if (conv) {
+      conv.messageCount = chatStore.messages.length;
+      conv.updatedAt = Date.now();
+      if (chatStore.messages[0]?.content) {
+        conv.title = chatStore.messages[0].content.slice(0, 30);
+      }
+    }
+    localStorage.setItem('ai_conversations', JSON.stringify(conversations.value));
+  }
+
+  function deleteConversation(id: string) {
+    const idx = conversations.value.findIndex(c => c.id === id);
+    if (idx >= 0) {
+      conversations.value.splice(idx, 1);
+      if (activeId.value === id) {
+        activeId.value = conversations.value[0]?.id || null;
+      }
+    }
+  }
+
+  return {
+    conversations,
+    activeId,
+    activeConversation,
+    loadConversations,
+    createConversation,
+    switchConversation,
+    saveCurrentConversation,
+    deleteConversation
+  };
+});
+```
+
+#### 4. 状态分层原则
+
+```
+┌─────────────────────────────────────────┐
+│           组件层（Components）            │  只负责渲染和交互
+│  对话列表 │ 输入框 │ 侧边栏 │ 设置面板     │
+└───────────────┬─────────────────────────┘
+                │ 调用
+                ▼
+┌─────────────────────────────────────────┐
+│            Store 层（Pinia）             │  状态和业务逻辑
+│  chat │ config │ conversation │ tools    │
+└───────────────┬─────────────────────────┘
+                │ 调用
+                ▼
+┌─────────────────────────────────────────┐
+│            服务层（Service）             │  API 调用和外部依赖
+│  API 封装 │ IndexedDB │ 模型抽象层        │
+└─────────────────────────────────────────┘
+```
+
+#### 5. 最佳实践
+
+| 原则 | 说明 |
+|------|------|
+| **状态最小化** | 能计算的就用 computed，不要存冗余数据 |
+| **关注点分离** | 按领域拆分 store，不要一个大 store 包打天下 |
+| **逻辑复用** | 复杂逻辑抽 composables，store 只管状态 |
+| **持久化分层** | 配置存 localStorage，对话存 IndexedDB |
+| **可追溯** | 用 Pinia DevTools 调试，状态变化可回溯 |
+| **乐观更新** | 先发 UI 再等接口，体验更好，失败了再回滚 |
+
+---
+
+### 🎯 得分点
+| 得分点 | 分值 | 说明 |
+|--------|------|------|
+| 理解 AI 应用状态管理的特殊性 | 15% | 知道为什么和传统前端不一样 |
+| 能合理拆分 Store（按领域拆分） | 25% | 不是一个大 store 全塞进去 |
+| 对话状态的设计合理（流式更新等） | 25% | 考虑了流式输出、状态流转、错误处理 |
+| 考虑了持久化方案 | 15% | 知道什么数据存哪里 |
+| 有分层思想（组件/Store/服务） | 10% | 关注点分离，架构清晰 |
+| 考虑了性能和调试 | 10% | 知道 Pinia DevTools、性能优化 |
+
+### 🔗 追问链
+1. **追问1**：消息列表的数据量很大怎么办？性能怎么优化？
+2. **追问2**：为什么不用 Vuex 了？Pinia 比 Vuex 好在哪里？
+3. **追问3**：对话历史存在 IndexedDB 里，怎么设计数据结构？
+4. **追问4**：如何实现状态的时间旅行调试？怎么记录状态变化？
+5. **追问5**：多标签页同步怎么办？一个标签页发消息，另一个怎么同步？
+
+### ⚠️ 易错点
+- ❌ 一个 store 塞所有状态，最后变成垃圾场
+- ❌ 把 API 调用逻辑全写在 store 里，和业务逻辑耦合
+- ❌ 状态存得太冗余，改一个地方要同步改好几个地方
+- ❌ 不考虑持久化，一刷新全没了
+
+---
+
+## Q33: 手写一个向量检索函数，实现基于余弦相似度的前端向量搜索
+
+- **难度**：★★★
+- **知识点**：算法 / 向量检索 / 余弦相似度
+- **题型**：手写代码题
+
+### 参考答案要点：
+
+#### 1. 题目描述
+
+给定一个文档数组（每个文档有 id、内容、向量）和一个查询向量，实现一个函数，找出与查询向量最相似的 Top-K 个文档。
+
+**要求**：
+- 用余弦相似度计算
+- 返回前 K 个最相似的文档
+- 包含相似度得分
+- 考虑性能优化
+
+#### 2. 余弦相似度原理
+
+余弦相似度衡量两个向量在方向上的相似程度，取值范围 [-1, 1]，值越大越相似。
+
+```
+cos(θ) = (A · B) / (||A|| × ||B||)
+
+其中：
+A · B 是点积（对应维度相乘再相加）
+||A|| 是 A 的 L2 范数（向量长度）
+```
+
+**用前端的话理解**：就像两个箭头指向同一个方向（同向）相似度为1，垂直为0，反向为-1。
+
+#### 3. 基础实现
+
+```typescript
+interface Document {
+  id: string;
+  content: string;
+  embedding: number[];  // 向量
+  metadata?: Record<string, any>;
+}
+
+interface SearchResult {
+  document: Document;
+  score: number;  // 相似度得分，越大越相似
+}
+
+/**
+ * 计算两个向量的余弦相似度
+ * @param a 向量A
+ * @param b 向量B
+ * @returns 相似度，范围 [-1, 1]
+ */
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) {
+    throw new Error('向量维度不一致');
+  }
+
+  let dotProduct = 0;   // 点积
+  let normA = 0;        // A 的模长平方
+  let normB = 0;        // B 的模长平方
+
+  for (let i = 0; i < a.length; i++) {
+    const ai = a[i];
+    const bi = b[i];
+    dotProduct += ai * bi;
+    normA += ai * ai;
+    normB += bi * bi;
+  }
+
+  // 防止除零
+  if (normA === 0 || normB === 0) return 0;
+
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+/**
+ * 向量检索：找出与查询向量最相似的 Top-K 文档
+ * @param queryVector 查询向量
+ * @param documents 文档数组
+ * @param topK 返回前 K 个
+ * @returns 按相似度降序排列的结果
+ */
+function vectorSearch(
+  queryVector: number[],
+  documents: Document[],
+  topK: number = 5
+): SearchResult[] {
+  // 1. 计算所有文档的相似度
+  const results: SearchResult[] = documents.map(doc => ({
+    document: doc,
+    score: cosineSimilarity(queryVector, doc.embedding)
+  }));
+
+  // 2. 按相似度降序排序
+  results.sort((a, b) => b.score - a.score);
+
+  // 3. 返回前 K 个
+  return results.slice(0, topK);
+}
+```
+
+#### 4. 优化版本
+
+**优化点1：预计算文档向量的模长**
+
+如果多次查询，每次都重新计算文档向量的模长是浪费。可以预计算缓存起来。
+
+```typescript
+interface CachedDocument extends Document {
+  norm: number;  // 预计算的模长
+}
+
+function cacheDocumentNorms(documents: Document[]): CachedDocument[] {
+  return documents.map(doc => {
+    let norm = 0;
+    for (let i = 0; i < doc.embedding.length; i++) {
+      norm += doc.embedding[i] * doc.embedding[i];
+    }
+    return {
+      ...doc,
+      norm: Math.sqrt(norm)
+    };
+  });
+}
+
+// 优化后的相似度计算（不用每次算文档的模长）
+function cosineSimilarityCached(
+  queryVector: number[],
+  doc: CachedDocument,
+  queryNorm: number
+): number {
+  let dotProduct = 0;
+  let queryNormSquared = 0;
+
+  for (let i = 0; i < queryVector.length; i++) {
+    const qi = queryVector[i];
+    dotProduct += qi * doc.embedding[i];
+    queryNormSquared += qi * qi;
+  }
+
+  if (queryNormSquared === 0 || doc.norm === 0) return 0;
+
+  // queryNorm 可以传进来，不用每次算
+  const qNorm = queryNorm || Math.sqrt(queryNormSquared);
+  return dotProduct / (qNorm * doc.norm);
+}
+```
+
+**优化点2：用 Top-K 堆排序，不用全排序**
+
+如果文档量很大（几万以上），全排序 O(n log n) 比较慢。用大小为 K 的小顶堆，只需要 O(n log K)。
+
+```typescript
+// 小顶堆实现 Top-K
+class MinHeap<T> {
+  private heap: { item: T; priority: number }[] = [];
+
+  size() { return this.heap.length; }
+
+  push(item: T, priority: number) {
+    this.heap.push({ item, priority });
+    this.bubbleUp();
+  }
+
+  pop(): T | null {
+    if (this.heap.length === 0) return null;
+    const top = this.heap[0];
+    const last = this.heap.pop()!;
+    if (this.heap.length > 0) {
+      this.heap[0] = last;
+      this.bubbleDown();
+    }
+    return top.item;
+  }
+
+  peek(): number | null {
+    return this.heap[0]?.priority ?? null;
+  }
+
+  private bubbleUp() {
+    let idx = this.heap.length - 1;
+    while (idx > 0) {
+      const parentIdx = Math.floor((idx - 1) / 2);
+      if (this.heap[idx].priority >= this.heap[parentIdx].priority) break;
+      [this.heap[idx], this.heap[parentIdx]] = [this.heap[parentIdx], this.heap[idx]];
+      idx = parentIdx;
+    }
+  }
+
+  private bubbleDown() {
+    let idx = 0;
+    const length = this.heap.length;
+    while (true) {
+      let smallest = idx;
+      const left = 2 * idx + 1;
+      const right = 2 * idx + 2;
+      if (left < length && this.heap[left].priority < this.heap[smallest].priority) {
+        smallest = left;
+      }
+      if (right < length && this.heap[right].priority < this.heap[smallest].priority) {
+        smallest = right;
+      }
+      if (smallest === idx) break;
+      [this.heap[idx], this.heap[smallest]] = [this.heap[smallest], this.heap[idx]];
+      idx = smallest;
+    }
+  }
+}
+
+// 堆优化的 Top-K 检索
+function vectorSearchOptimized(
+  queryVector: number[],
+  documents: Document[],
+  topK: number = 5
+): SearchResult[] {
+  const heap = new MinHeap<Document>();
+
+  for (const doc of documents) {
+    const score = cosineSimilarity(queryVector, doc.embedding);
+    
+    if (heap.size() < topK) {
+      heap.push(doc, score);
+    } else if (score > (heap.peek() ?? -Infinity)) {
+      heap.pop();
+      heap.push(doc, score);
+    }
+  }
+
+  // 从堆里取出来是从小到大，要反转一下
+  const result: SearchResult[] = [];
+  while (heap.size() > 0) {
+    const doc = heap.pop()!;
+    const score = cosineSimilarity(queryVector, doc.embedding); // 可以存下来不用重算
+    result.unshift({ document: doc, score });
+  }
+
+  return result;
+}
+```
+
+**优化点3：用 Float32Array + Web Worker**
+
+```typescript
+// 用 Float32Array 代替 number[]，更省内存更快
+function cosineSimilarityFloat32(a: Float32Array, b: Float32Array): number {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    const ai = a[i];
+    const bi = b[i];
+    dot += ai * bi;
+    normA += ai * ai;
+    normB += bi * bi;
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+```
+
+#### 5. 复杂度分析
+
+| 方法 | 时间复杂度 | 空间复杂度 | 适用场景 |
+|------|-----------|-----------|---------|
+| 朴素法（全排序） | O(n × d + n log n) | O(n) | n < 1000，实现简单 |
+| 小顶堆 Top-K | O(n × d + n log k) | O(k) | n 很大，k 很小 |
+| 预计算缓存 | 首次 O(n×d)，查询 O(n×d) | O(n) | 多次查询的场景 |
+
+> d 是向量维度，n 是文档数，k 是返回数量
+
+#### 6. 前端向量检索的适用场景
+
+什么时候可以考虑在前端做向量检索？
+- ✅ 知识库很小（几千条以内）
+- ✅ 隐私敏感，数据不能上传
+- ✅ 离线场景，没有网络
+- ✅ 快速原型验证，不想搞后端
+
+什么时候必须用后端向量数据库？
+- ❌ 数据量大（上万条以上）
+- ❌ 需要复杂检索（混合检索、过滤、聚合）
+- ❌ 需要实时更新索引
+- ❌ 多用户共享数据
+
+---
+
+### 🎯 得分点
+| 得分点 | 分值 | 说明 |
+|--------|------|------|
+| 理解余弦相似度的原理和公式 | 20% | 能讲清点积、模长、几何意义 |
+| 能手写基础的余弦相似度函数 | 25% | 代码正确，考虑边界情况（除零等） |
+| 能实现完整的向量检索函数 | 25% | 计算相似度、排序、返回Top-K |
+| 有性能优化意识 | 20% | 预计算、堆排序、Float32Array等 |
+| 知道适用场景和局限性 | 10% | 明白什么时候用前端检索，什么时候不行 |
+
+### 🔗 追问链
+1. **追问1**：余弦相似度和欧氏距离有什么区别？各自适用什么场景？
+2. **追问2**：向量维度很高（比如1536维）会有什么问题？有什么降维方法？
+3. **追问3**：如果有10万条文档，在前端检索会卡吗？怎么优化？
+4. **追问4**：什么是向量数据库？和前端自己算有什么区别？
+5. **追问5**：除了余弦相似度，还有哪些相似度计算方法？
+
+### ⚠️ 易错点
+- ❌ 点积就是余弦相似度——不对，点积还要除以两个模长
+- ❌ 不做除零保护——零向量会导致 NaN
+- ❌ 以为向量检索只能后端做——小数据量完全可以前端算
+- ❌ 忽略了性能——几万条数据用朴素法可能会卡
+
+---
+
+## Q34: 手写一个简易版的 ReAct Agent，实现思考-行动-观察的循环
+
+- **难度**：★★★
+- **知识点**：Agent / ReAct / 工具调用
+- **题型**：手写代码题
+
+### 参考答案要点：
+
+#### 1. 题目描述
+
+实现一个简易的 ReAct Agent，它可以：
+- 接收用户的问题
+- 自主决定是否调用工具
+- 按照「思考 → 行动 → 观察 → 再思考...」的循环执行
+- 最后给出最终答案
+
+**简化要求**：
+- 支持定义工具（函数 + 描述）
+- 支持最多 N 轮循环，防止死循环
+- 用大模型 API 做决策
+- 能输出思考过程和工具调用过程
+
+#### 2. ReAct 原理回顾
+
+ReAct = Reasoning + Acting = 推理 + 行动
+
+```
+用户问题
+   ↓
+Thought（思考）：我需要什么信息？应该调用什么工具？
+   ↓
+Action（行动）：调用工具，传什么参数
+   ↓
+Observation（观察）：工具返回了什么结果
+   ↓
+Thought（再思考）：信息够了吗？还需要做什么？
+   ↓
+  ... 循环 ...
+   ↓
+Final Answer（最终答案）：信息足够，给出答案
+```
+
+#### 3. 完整实现代码
+
+```typescript
+// ========== 类型定义 ==========
+
+interface Tool {
+  name: string;
+  description: string;             // 工具描述，告诉模型这个工具是干嘛的
+  parameters: Record<string, any>; // 参数的 JSON Schema
+  execute: (args: any) => Promise<string>;  // 实际执行函数
+}
+
+interface AgentOptions {
+  model: string;
+  maxIterations: number;  // 最大循环次数，防止死循环
+  tools: Tool[];
+  apiCaller: (messages: any[]) => Promise<string>;  // 大模型调用封装
+}
+
+interface AgentStep {
+  type: 'thought' | 'action' | 'observation' | 'final';
+  content: string;
+  toolName?: string;
+  toolArgs?: any;
+}
+```
+
+```typescript
+// ========== 核心 Agent 实现 ==========
+
+class SimpleReActAgent {
+  private tools: Tool[];
+  private maxIterations: number;
+  private model: string;
+  private apiCaller: (messages: any[]) => Promise<string>;
+
+  constructor(options: AgentOptions) {
+    this.tools = options.tools;
+    this.maxIterations = options.maxIterations;
+    this.model = options.model;
+    this.apiCaller = options.apiCaller;
+  }
+
+  /**
+   * 运行 Agent
+   * @param question 用户问题
+   * @returns 最终答案 + 中间步骤
+   */
+  async run(question: string): Promise<{
+    answer: string;
+    steps: AgentStep[];
+  }> {
+    const steps: AgentStep[] = [];
+
+    // 1. 构建系统提示词，告诉模型怎么工作
+    const systemPrompt = this.buildSystemPrompt();
+
+    // 2. 初始化消息列表
+    const messages: any[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: question }
+    ];
+
+    // 3. ReAct 循环
+    for (let i = 0; i < this.maxIterations; i++) {
+      // 3.1 调用大模型，让它思考下一步做什么
+      const response = await this.apiCaller(messages);
+
+      // 3.2 解析模型输出，看它是要调用工具还是给出最终答案
+      const parsed = this.parseResponse(response);
+
+      if (parsed.type === 'final') {
+        // 模型说我有答案了
+        steps.push({ type: 'final', content: parsed.content });
+        return { answer: parsed.content, steps };
+      }
+
+      if (parsed.type === 'action') {
+        // 模型要调用工具
+        const { toolName, toolArgs, thought } = parsed;
+
+        // 记录思考过程
+        steps.push({ type: 'thought', content: thought });
+        steps.push({ type: 'action', content: `调用 ${toolName}`, toolName, toolArgs });
+
+        // 3.3 执行工具，拿到结果
+        const tool = this.tools.find(t => t.name === toolName);
+        if (!tool) {
+          throw new Error(`工具不存在: ${toolName}`);
+        }
+
+        const observation = await tool.execute(toolArgs);
+        steps.push({ type: 'observation', content: observation });
+
+        // 3.4 把思考、行动、观察都加入消息历史，让模型继续思考
+        messages.push(
+          { role: 'assistant', content: response },
+          { role: 'user', content: `Observation: ${observation}` }
+        );
+      }
+    }
+
+    // 4. 超过最大轮次还没出答案，强制结束
+    throw new Error(`超过最大迭代次数 ${this.maxIterations}，Agent 未能完成任务`);
+  }
+
+  /**
+   * 构建系统提示词，告诉模型 ReAct 的工作方式
+   */
+  private buildSystemPrompt(): string {
+    const toolDescriptions = this.tools
+      .map(t => `- ${t.name}: ${t.description}\n  参数: ${JSON.stringify(t.parameters)}`)
+      .join('\n\n');
+
+    return `你是一个可以使用工具的 AI 助手。请按照以下格式工作：
+
+## 工作流程
+
+1. 先思考（Thought）：分析问题，决定下一步做什么
+2. 再行动（Action）：如果需要工具，就调用工具
+3. 观察结果（Observation）：工具返回结果后，基于结果继续思考
+4. 重复以上步骤，直到你觉得信息足够回答问题
+5. 给出最终答案（Final Answer）
+
+## 可用工具
+
+${toolDescriptions}
+
+## 输出格式要求
+
+**如果要调用工具**，请严格按照以下格式输出：
+\`\`\`
+Thought: （你的思考过程，为什么要调用这个工具）
+Action: （工具名称）
+Action Input: （工具参数，JSON 格式）
+\`\`\`
+
+**如果信息足够，可以给出答案**，请严格按照以下格式输出：
+\`\`\`
+Thought: （你已经收集到足够信息，可以回答了）
+Final Answer: （你的最终答案）
+\`\`\`
+
+注意：
+- 每次只做一个 Action，不要同时调用多个工具
+- 必须先有 Thought，再有 Action
+- 确定答案后一定要用 Final Answer 结尾
+`;
+  }
+
+  /**
+   * 解析模型输出，判断是要调用工具还是给最终答案
+   */
+  private parseResponse(response: string): {
+    type: 'action' | 'final';
+    content: string;
+    thought: string;
+    toolName?: string;
+    toolArgs?: any;
+  } {
+    // 提取 Thought
+    const thoughtMatch = response.match(/Thought:\s*([\s\S]*?)(?=\nAction:|\nFinal Answer:|$)/);
+    const thought = thoughtMatch ? thoughtMatch[1].trim() : '';
+
+    // 检查是不是 Final Answer
+    const finalMatch = response.match(/Final Answer:\s*([\s\S]*)$/);
+    if (finalMatch) {
+      return {
+        type: 'final',
+        content: finalMatch[1].trim(),
+        thought
+      };
+    }
+
+    // 检查是不是 Action
+    const actionMatch = response.match(/Action:\s*(\w+)/);
+    const inputMatch = response.match(/Action Input:\s*(\{[\s\S]*?\})/);
+
+    if (actionMatch) {
+      const toolName = actionMatch[1].trim();
+      let toolArgs = {};
+      if (inputMatch) {
+        try {
+          toolArgs = JSON.parse(inputMatch[1].trim());
+        } catch (e) {
+          console.warn('解析工具参数失败:', inputMatch[1]);
+        }
+      }
+      return {
+        type: 'action',
+        content: response,
+        thought,
+        toolName,
+        toolArgs
+      };
+    }
+
+    // 都没匹配到，就当最终答案处理（兜底）
+    return {
+      type: 'final',
+      content: response,
+      thought
+    };
+  }
+}
+```
+
+#### 4. 使用示例
+
+```typescript
+// ========== 示例：定义工具并运行 ==========
+
+// 1. 定义一个搜索工具（示例，实际可以接真实搜索 API）
+const searchTool: Tool = {
+  name: 'search',
+  description: '搜索互联网获取实时信息，用于回答需要最新数据的问题',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: '搜索关键词' }
+    },
+    required: ['query']
+  },
+  execute: async (args: { query: string }) => {
+    // 这里可以接真实的搜索 API，比如 Bing Search、Google Search 等
+    // 模拟返回结果
+    return `搜索结果：2024年前端工程师平均薪资 30K/月，资深可达 50K+`;
+  }
+};
+
+// 2. 定义一个计算器工具
+const calculatorTool: Tool = {
+  name: 'calculator',
+  description: '执行数学计算，支持加减乘除',
+  parameters: {
+    type: 'object',
+    properties: {
+      expression: { type: 'string', description: '数学表达式，如 "30000 * 12"' }
+    },
+    required: ['expression']
+  },
+  execute: async (args: { expression: string }) => {
+    try {
+      // 注意：真实环境不要用 eval，有安全风险
+      // 这里仅作示例
+      const result = eval(args.expression);
+      return String(result);
+    } catch (e) {
+      return '计算错误';
+    }
+  }
+};
+
+// 3. 创建 Agent 实例
+const agent = new SimpleReActAgent({
+  model: 'gpt-4',
+  maxIterations: 10,
+  tools: [searchTool, calculatorTool],
+  apiCaller: async (messages) => {
+    // 这里调用真实的大模型 API
+    // const response = await openai.chat.completions.create({
+    //   model: 'gpt-4',
+    //   messages
+    // });
+    // return response.choices[0].message.content!;
+    return '模拟响应'; // 占位
+  }
+});
+
+// 4. 运行
+const result = await agent.run('2024年前端工程师年薪大概是多少？');
+console.log('最终答案:', result.answer);
+console.log('执行步骤:', result.steps);
+```
+
+#### 5. 这个简化版的不足
+
+| 方面 | 简化版 | 生产级 |
+|------|--------|--------|
+| 工具调用 | 用 Prompt + 正则解析 | 用 Function Calling 原生能力 |
+| 记忆 | 只有对话历史 | 短期+工作+长期三层记忆 |
+| 规划 | 走一步看一步 | Plan-and-Execute，先计划再执行 |
+| 错误处理 | 简单抛错 | 自动重试、错误恢复、降级策略 |
+| 并发 | 单线程 | 支持并行工具调用 |
+| 可观测性 | 简单步骤记录 | 完整链路追踪、可视化调试 |
+
+> 这个手写版主要用来理解原理，生产环境建议用 LangChain、LangGraph 等成熟框架。
+
+---
+
+### 🎯 得分点
+| 得分点 | 分值 | 说明 |
+|--------|------|------|
+| 理解 ReAct 的核心思想和循环流程 | 20% | 能讲清思考→行动→观察的循环 |
+| 能设计 Agent 的整体结构（类/函数） | 20% | 有清晰的结构，不是一坨代码 |
+| 能实现系统提示词构建 | 15% | 知道怎么用 Prompt 引导模型按格式输出 |
+| 能实现输出解析（Action vs Final Answer） | 20% | 能从模型输出里提取工具调用信息 |
+| 能实现工具执行和循环逻辑 | 15% | 循环调用、最大次数限制 |
+| 知道简化版和生产级的差距 | 10% | 明白什么场景自己写，什么场景用框架 |
+
+### 🔗 追问链
+1. **追问1**：为什么要用 Function Calling 而不是自己解析文本？
+2. **追问2**：Agent 陷入死循环怎么办？除了最大次数还有什么办法？
+3. **追问3**：怎么让 Agent 支持并行调用多个工具？
+4. **追问4**：ReAct 和 Plan-and-Execute 有什么区别？
+5. **追问5**：Agent 的记忆系统怎么设计？为什么需要分层记忆？
+
+### ⚠️ 易错点
+- ❌ 把 Agent 想得太神——它本质还是大模型，只是多了工具调用循环
+- ❌ 没有停止条件——会死循环，必须有最大迭代次数
+- ❌ 用 eval 执行用户输入的表达式——有注入风险，生产环境不能用
+- ❌ 以为自己写的比框架好——生产环境直接用 LangChain/LangGraph，别重复造轮子
+
+---
+
+## Q35: AI 对话功能上线后用户反馈效果不好，怎么排查和优化？
+
+- **难度**：★★★
+- **知识点**：排查方法论 / 性能优化 / 效果优化
+- **题型**：场景分析题
+
+### 参考答案要点：
+
+#### 1. 排查思路：先定位问题类型，再对症下药
+
+用户说「效果不好」是很模糊的，第一步是**明确到底是哪方面不好**。
+
+```
+用户反馈「效果不好」
+   ↓
+先分类：是慢？是不准？是经常出错？还是体验不好？
+   ↓
+再量化：慢的话慢多少？不准的话比例是多少？
+   ↓
+找根因：是模型问题？Prompt问题？网络问题？还是前端问题？
+   ↓
+做优化：针对性优化，上线后看数据有没有变好
+```
+
+#### 2. 常见问题类型及排查路径
+
+**类型一：「太慢了，等很久才出结果」—— 性能问题**
+
+排查维度：
+```
+首 token 时间长吗？
+   ├─ 是 → 后端/模型侧问题：模型推理慢、网络延迟、排队
+   └─ 否 → 生成速度慢？
+            ├─ 是 → 模型本身慢、流式输出渲染慢
+            └─ 否 → 用户感知慢？其实不慢，但界面没反馈
+```
+
+前端侧排查清单：
+- [ ] **首帧时间**：从点击发送到看到第一个字，花了多久？（正常 < 2s 良好，< 5s 可接受）
+- [ ] **生成速度**：每秒生成多少 token？（> 30 token/s 流畅，> 10 token/s 可用）
+- [ ] **是流式输出吗**：还是等全部生成完才显示？（流式感知速度快 3-5 倍）
+- [ ] **前端渲染卡吗**：长对话时，逐字更新会不会导致页面卡顿？
+- [ ] **网络耗时多少**：TTFB（首字节时间）是多少？是网络慢还是后端慢？
+- [ ] **有没有 loading 状态**：用户点了发送，有没有立即看到自己的消息和 loading？
+
+优化手段：
+- ✅ 必须用流式输出，不要等完整结果
+- ✅ 优化前端渲染：虚拟列表、防抖、requestAnimationFrame 合并更新
+- ✅ 骨架屏/加载动画，减少等待焦虑
+- ✅ 前端预填 + 后端首字优化双管齐下
+- ✅ 简单任务用更快更便宜的模型
+
+---
+
+**类型二：「答非所问，经常胡说八道」—— 质量问题**
+
+排查维度：
+```
+是所有问题都不行吗？
+   ├─ 是 → 系统提示词可能有问题，或者模型选得不对
+   └─ 否 → 是哪类问题不行？
+            ├─ 知识类问题 → 可能是 RAG 没做好，或者模型知识截止
+            ├─ 推理类问题 → 可能需要 Chain of Thought
+            └─ 特定领域 → 可能需要领域微调或更好的 RAG
+```
+
+前端能排查/优化的：
+- [ ] **系统提示词写得好吗**：角色、约束、输出格式都明确吗？
+- [ ] **有没有用 CoT**：复杂问题有没有让模型一步步思考？
+- [ ] **RAG 检索准吗**：检索出来的内容和问题相关吗？数量够吗？
+- [ ] **上下文有没有传对**：对话历史、检索内容是不是正确组装了？
+- [ ] **是不是幻觉**：模型在编造事实？需要加引用溯源和事实校验？
+
+优化手段：
+- ✅ 优化 Prompt：角色更明确、任务更具体、加 Few-shot 示例
+- ✅ 复杂问题用 CoT，让模型先思考再回答
+- ✅ 加 RAG：让模型基于事实回答，减少胡说
+- ✅ 加引用溯源：用户可以自己验证，建立信任
+- ✅ 优化 RAG 检索：调切片大小、数量、加重排序
+
+---
+
+**类型三：「经常报错，用不了」—— 稳定性问题**
+
+排查维度：
+```
+报什么错？
+   ├─ 网络错误 → 是用户网络差？还是接口挂了？
+   ├─ 429 限流 → 调用太频繁？限流阈值太低？
+   ├─ 上下文超长 → token 超限了？
+   └─ 解析错误 → 模型输出格式不对，前端解析失败？
+```
+
+前端侧排查清单：
+- [ ] **错误率多少**：1% 还是 20%？是偶尔还是必现？
+- [ ] **错误有分类吗**：网络错、参数错、模型错...各占多少？
+- [ ] **有重试机制吗**：网络错误有没有自动重试？指数退避？
+- [ ] **上下文超限了吗**：对话太长，token 超了？
+- [ ] **错误提示友好吗**：用户看得懂吗？知道怎么办吗？
+
+优化手段：
+- ✅ 指数退避重试 + 最大重试次数
+- ✅ 上下文管理：滑动窗口、摘要压缩，别超限制
+- ✅ 友好的错误提示 + 解决建议 + 手动重试按钮
+- ✅ 降级方案：大模型挂了能不能用小模型/纯前端功能兜底？
+- ✅ 完善的错误监控和告警
+
+---
+
+**类型四：「用起来很别扭」—— 体验问题**
+
+常见体验问题：
+- 长对话往上滑很卡
+- 复制代码不方便
+- 不能中途停止
+- 对话历史找不到了
+- 手机上不好用
+- Markdown 渲染有问题
+
+优化手段：
+- ✅ 虚拟列表，长对话不卡
+- ✅ 代码块一键复制、一键运行
+- ✅ 停止生成按钮，不想看了随时停
+- ✅ 对话搜索、收藏、重命名，方便管理
+- ✅ 移动端适配、深色模式、字体大小调节
+- ✅ 快捷键支持（Enter 发送、Ctrl+K 新建等）
+
+#### 3. 数据驱动的优化闭环
+
+**不要靠感觉优化，要靠数据！**
+
+```
+┌─────────────────────────────────────────┐
+│  1. 埋点采集                              │
+│     性能数据、错误数据、用户行为数据         │
+└──────────────┬──────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  2. 指标监控                              │
+│     大盘指标 + 细分维度，发现异常            │
+└──────────────┬──────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  3. 问题定位                              │
+│     下钻分析，找到根因                     │
+└──────────────┬──────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  4. 实验优化                              │
+│     A/B 测试，验证效果                     │
+└──────────────┬──────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  5. 效果验证                              │
+│     数据有没有变好？用户反馈有没有改善？      │
+└─────────────────────────────────────────┘
+```
+
+#### 4. 关键监控指标
+
+**性能指标**：
+- 首 Token 时间（TTFT）：< 2s 良好
+- 生成速度：> 30 token/s 流畅
+- 接口成功率：> 99% 良好
+
+**质量指标**：
+- 用户好评率 / 点赞率
+- 重新生成率（越高说明越不满意）
+- 采纳率（复制/使用答案的比例）
+
+**业务指标**：
+- 功能使用率、留存率
+- 会话深度（平均多少轮）
+- 用户反馈（差评、投诉）
+
+---
+
+### 🎯 得分点
+| 得分点 | 分值 | 说明 |
+|--------|------|------|
+| 有系统化的排查思路，不是瞎猜 | 20% | 先分类再定位，思路清晰 |
+| 能区分不同类型的问题（性能/质量/稳定性/体验） | 25% | 知道「效果不好」有很多种，对应不同解法 |
+| 前端侧的排查清单完整 | 25% | 知道前端能做什么、该查什么 |
+| 有数据驱动的意识 | 15% | 靠数据说话，不是拍脑袋 |
+| 有优化闭环的思维 | 15% | 优化后怎么验证效果，知道看什么指标 |
+
+### 🔗 追问链
+1. **追问1**：如果用户说「AI 回答得不好」，你怎么量化这个「不好」？
+2. **追问2**：前端怎么监控首 token 时间和生成速度？
+3. **追问3**：RAG 检索效果不好，怎么判断是切片问题还是检索问题还是模型问题？
+4. **追问4**：怎么用 A/B 测试验证优化效果？
+5. **追问5**：如果让你搭建一个 AI 对话功能的监控看板，你会放哪些指标？
+
+### ⚠️ 易错点
+- ❌ 上来就说「换个更大的模型」——很多时候不是模型的问题
+- ❌ 只看技术指标，不看用户反馈——技术好不代表用户觉得好
+- ❌ 优化了不验证——怎么知道改了之后是变好还是变坏？
+- ❌ 全靠后端优化，前端什么都不做——前端体验优化空间很大
+
+---
+
+## Q36: 实现一个 Token 计数器工具，支持中文和英文的 token 估算
+
+- **难度**：★★☆
+- **知识点**：算法 / Token / 前端工具
+- **题型**：手写代码题
+
+### 参考答案要点：
+
+#### 1. 题目背景
+
+大模型按 token 计费，但浏览器里不能直接用 tiktoken 准确计算（需要加载分词器模型）。实际项目中经常需要一个**近似估算**的工具，让用户能大概知道一段文字有多少 token。
+
+**要求**：
+- 支持中英文混合文本
+- 不需要 100% 准确，但要接近（误差 < 20%）
+- 性能要好，大文本不能卡
+- 纯前端实现，不依赖后端
+
+#### 2. Token 估算规则
+
+根据经验：
+- **英文**：约 1 个单词 = 1.3 个 token，或 4 个字符 ≈ 3 个 token
+- **中文**：约 1 个汉字 ≈ 1-2 个 token，经验值 1 字 ≈ 1.5 token
+- **标点符号和空格**：也要算 token
+
+**OpenAI 官方经验公式**：
+```
+1 token ≈ 4 个英文字符 ≈ 0.75 个英文单词
+中文：1 个汉字 ≈ 1-2 token（不同模型分词策略不同）
+```
+
+#### 3. 简易实现
+
+```typescript
+interface TokenCountResult {
+  total: number;           // 总 token 估算值
+  chineseChars: number;    // 中文字符数
+  englishWords: number;    // 英文单词数
+  otherChars: number;      // 其他字符数
+  confidence: 'low' | 'medium' | 'high';  // 估算可信度
+}
+
+/**
+ * 估算文本的 token 数量
+ * 注意：这是近似估算，不是精确值
+ * 精确计算请用 tiktoken 库
+ */
+function estimateTokenCount(text: string): TokenCountResult {
+  if (!text) {
+    return {
+      total: 0,
+      chineseChars: 0,
+      englishWords: 0,
+      otherChars: 0,
+      confidence: 'high'
+    };
+  }
+
+  // 1. 统计中文字符（CJK 统一表意文字）
+  const chineseRegex = /[\u4e00-\u9fa5]/g;
+  const chineseChars = (text.match(chineseRegex) || []).length;
+
+  // 2. 统计英文单词（连续的英文字母）
+  const englishWordRegex = /[a-zA-Z]+/g;
+  const englishMatches = text.match(englishWordRegex) || [];
+  const englishWords = englishMatches.length;
+
+  // 3. 统计其他字符（数字、标点、空格等）
+  // 先去掉中文和英文，剩下的就是其他字符
+  const remainingText = text
+    .replace(chineseRegex, '')
+    .replace(englishWordRegex, '');
+  const otherChars = remainingText.length;
+
+  // 4. 估算 token 数
+  // 中文：1 字 ≈ 1.5 token
+  // 英文：1 词 ≈ 1.3 token
+  // 其他字符：4 个字符 ≈ 1 token
+  const chineseTokens = chineseChars * 1.5;
+  const englishTokens = englishWords * 1.3;
+  const otherTokens = Math.ceil(otherChars / 4);
+
+  const total = Math.round(chineseTokens + englishTokens + otherTokens);
+
+  // 5. 估算可信度
+  let confidence: 'low' | 'medium' | 'high' = 'medium';
+  if (chineseChars === 0 && englishWords > 0) {
+    confidence = 'high';  // 纯英文估算较准
+  } else if (chineseChars > 0 && englishWords > 0) {
+    confidence = 'medium'; // 中英文混合中等
+  } else {
+    confidence = 'medium'; // 纯中文也中等
+  }
+
+  return {
+    total,
+    chineseChars,
+    englishWords,
+    otherChars,
+    confidence
+  };
+}
+```
+
+#### 4. 更精确的方案：字符级估算
+
+```typescript
+// 另一种思路：按字符类型分别估算
+function estimateTokenCountV2(text: string): number {
+  if (!text) return 0;
+
+  let tokens = 0;
+  let i = 0;
+
+  while (i < text.length) {
+    const char = text[i];
+    const code = char.charCodeAt(0);
+
+    if (code >= 0x4e00 && code <= 0x9fa5) {
+      // 中文字符：约 1.5 token/字
+      tokens += 1.5;
+      i++;
+    } else if (/[a-zA-Z]/.test(char)) {
+      // 英文单词：找到这个单词的结束位置
+      let wordLen = 0;
+      while (i + wordLen < text.length && /[a-zA-Z]/.test(text[i + wordLen])) {
+        wordLen++;
+      }
+      // 1 个单词 ≈ 0.75 + 单词长度 / 4 个 token
+      // 简化：1 词 ≈ 1.3 token
+      tokens += 1.3;
+      i += wordLen;
+    } else if (/\d/.test(char)) {
+      // 数字：4 个数字 ≈ 1 token
+      let numLen = 0;
+      while (i + numLen < text.length && /\d/.test(text[i + numLen])) {
+        numLen++;
+      }
+      tokens += Math.ceil(numLen / 4);
+      i += numLen;
+    } else {
+      // 其他字符（标点、空格等）：4 个 ≈ 1 token
+      tokens += 0.25;
+      i++;
+    }
+  }
+
+  return Math.ceil(tokens);
+}
+```
+
+#### 5. 精确方案：用 tiktoken 库（浏览器端）
+
+如果需要精确计算，可以用 `tiktoken` 的 JS 版本，但要注意：
+- 需要加载分词器文件（几百 KB 到几 MB）
+- 不同模型的分词器不一样
+- 首次加载有开销
+
+```typescript
+import { get_encoding, encoding_for_model } from 'tiktoken';
+
+// 异步加载编码器（第一次比较慢）
+async function countTokensExact(text: string, modelName = 'gpt-4'): Promise<number> {
+  const enc = encoding_for_model(modelName);
+  const tokens = enc.encode(text);
+  const count = tokens.length;
+  enc.free(); // 释放内存
+  return count;
+}
+```
+
+#### 6. 实际项目中的建议
+
+| 场景 | 推荐方案 | 原因 |
+|------|---------|------|
+| 实时字数统计 | 估算法 V2 | 快，不需要加载模型，够用 |
+| 费用预估 | 估算法 + 20% 缓冲 | 给用户报多一点，别少了 |
+| 精确计费 | 后端用 tiktoken 算 | 后端用 Python/Go 的官方库最准 |
+| 前端调试 | tiktoken.js + 缓存 | 开发工具里可以用，用户侧别用 |
+
+---
+
+### 🎯 得分点
+| 得分点 | 分值 | 说明 |
+|--------|------|------|
+| 知道 token 估算的基本规则 | 25% | 知道中英文的大致换算比例 |
+| 能手写一个可用的估算函数 | 30% | 代码正确，思路清晰 |
+| 能区分估算和精确计算的使用场景 | 20% | 知道什么时候用估算，什么时候要精确 |
+| 考虑了边界情况 | 15% | 空字符串、纯中文、纯英文、混合等 |
+| 知道更精确的方案（tiktoken） | 10% | 了解有官方库，知道其优缺点 |
+
+### 🔗 追问链
+1. **追问1**：为什么中文和英文的 token 换算比例不一样？
+2. **追问2**：为什么不同模型的 token 计算结果可能不一样？
+3. **追问3**：tiktoken 在浏览器端用有什么问题？怎么解决？
+4. **追问4**：估算的误差怎么控制？怎么让用户知道这是估算值？
+5. **追问5**：如果要实现一个「字数统计」的编辑器功能，你会怎么设计？
+
+### ⚠️ 易错点
+- ❌ 以为 1 个汉字 = 1 个 token——通常是 1-2 个，不同模型不一样
+- ❌ 估算值说成精确值——一定要告诉用户这是估算
+- ❌ 不考虑标点和空格——这些也要占 token
+- ❌ 上来就用 tiktoken——小场景估算就够了，没必要加载大文件
+
+---
+
+## Q37: 实现一个 LRU 缓存，用于缓存 AI 对话结果，避免重复请求
+
+- **难度**：★★☆
+- **知识点**：算法 / LRU / 前端缓存
+- **题型**：手写代码题
+
+### 参考答案要点：
+
+#### 1. 应用场景
+
+AI 对话应用中，很多用户问的问题是重复的（比如「你好」「帮我写个 React 组件」）。如果每次都调用大模型 API，既浪费钱又慢。
+
+用缓存的话：
+- 相同的问题直接返回缓存结果，快
+- 省 API 费用，降低成本
+- 减轻后端压力
+
+但缓存不能无限大，会占内存，所以需要 **LRU（最近最少使用）** 策略——内存满了就把最久没用的删掉。
+
+#### 2. LRU 原理
+
+LRU = Least Recently Used = 最近最少使用
+
+核心思想：**如果数据最近被访问过，那么将来被访问的概率也更高。** 当缓存满了，先删最久没被用的。
+
+```
+缓存大小 = 3
+
+存入 A → [A]
+存入 B → [B, A]  (B 是最新的)
+存入 C → [C, B, A]  (满了)
+读取 B → [B, C, A]  (B 被用了，移到最前面)
+存入 D → [D, B, C]  (满了，删掉最久没用的 A)
+```
+
+#### 3. 方案一：Map 实现（最简洁）
+
+JavaScript 的 Map 有个特性：**迭代顺序是插入顺序**。利用这个特性可以很方便地实现 LRU。
+
+```typescript
+class LRUCache<K, V> {
+  private cache: Map<K, V>;
+  private maxSize: number;
+
+  constructor(maxSize: number) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+  }
+
+  /**
+   * 获取缓存
+   * - 命中：把数据移到最前面（标记为最近使用），返回值
+   * - 未命中：返回 undefined
+   */
+  get(key: K): V | undefined {
+    if (!this.cache.has(key)) return undefined;
+
+    // 先删再加，就变成最新的了
+    const value = this.cache.get(key)!;
+    this.cache.delete(key);
+    this.cache.set(key, value);
+    return value;
+  }
+
+  /**
+   * 设置缓存
+   * - 已存在：更新值，并移到最前面
+   * - 不存在：添加到最前面，如果超了就删最久的
+   */
+  set(key: K, value: V): void {
+    // 如果已经存在，先删掉（等下重新插就是最新的了）
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+
+    // 添加新值
+    this.cache.set(key, value);
+
+    // 超过最大容量，删掉最旧的（Map 的第一个元素）
+    if (this.cache.size > this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+  }
+
+  /**
+   * 判断是否有某个 key
+   */
+  has(key: K): boolean {
+    return this.cache.has(key);
+  }
+
+  /**
+   * 删除某个缓存
+   */
+  delete(key: K): boolean {
+    return this.cache.delete(key);
+  }
+
+  /**
+   * 清空缓存
+   */
+  clear(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * 当前缓存数量
+   */
+  get size(): number {
+    return this.cache.size;
+  }
+
+  /**
+   * 获取所有值（调试用）
+   */
+  values(): V[] {
+    return Array.from(this.cache.values());
+  }
+}
+```
+
+**时间复杂度**：get 和 set 都是 O(1) —— Map 的增删查都是 O(1)
+
+#### 4. 方案二：哈希表 + 双向链表（经典算法实现）
+
+面试常考手写版，不用 Map 的特性，自己实现链表。
+
+```typescript
+// 双向链表节点
+class ListNode<K, V> {
+  key: K;
+  value: V;
+  prev: ListNode<K, V> | null = null;
+  next: ListNode<K, V> | null = null;
+
+  constructor(key: K, value: V) {
+    this.key = key;
+    this.value = value;
+  }
+}
+
+class LRUCacheClassic<K, V> {
+  private capacity: number;
+  private cache: Map<K, ListNode<K, V>>;  // 哈希表：key -> 节点
+  private head: ListNode<K, V>;  // 虚拟头节点
+  private tail: ListNode<K, V>;  // 虚拟尾节点
+
+  constructor(capacity: number) {
+    this.capacity = capacity;
+    this.cache = new Map();
+    
+    // 用虚拟头尾节点，方便边界处理
+    this.head = new ListNode<K, V>(null as any, null as any);
+    this.tail = new ListNode<K, V>(null as any, null as any);
+    this.head.next = this.tail;
+    this.tail.prev = this.head;
+  }
+
+  get(key: K): V | undefined {
+    const node = this.cache.get(key);
+    if (!node) return undefined;
+
+    // 被访问了，移到最前面
+    this.moveToHead(node);
+    return node.value;
+  }
+
+  set(key: K, value: V): void {
+    const node = this.cache.get(key);
+    
+    if (node) {
+      // 已存在，更新值，移到前面
+      node.value = value;
+      this.moveToHead(node);
+    } else {
+      // 不存在，新建节点
+      const newNode = new ListNode(key, value);
+      this.cache.set(key, newNode);
+      this.addToHead(newNode);
+
+      // 超过容量，删除尾节点
+      if (this.cache.size > this.capacity) {
+        const tailNode = this.removeTail();
+        this.cache.delete(tailNode.key);
+      }
+    }
+  }
+
+  // ========== 链表操作辅助方法 ==========
+
+  // 节点加到头部
+  private addToHead(node: ListNode<K, V>) {
+    node.prev = this.head;
+    node.next = this.head.next;
+    this.head.next!.prev = node;
+    this.head.next = node;
+  }
+
+  // 删除某个节点
+  private removeNode(node: ListNode<K, V>) {
+    node.prev!.next = node.next;
+    node.next!.prev = node.prev;
+  }
+
+  // 移到头部 = 先删再加
+  private moveToHead(node: ListNode<K, V>) {
+    this.removeNode(node);
+    this.addToHead(node);
+  }
+
+  // 删除尾节点（最久没用的）
+  private removeTail(): ListNode<K, V> {
+    const node = this.tail.prev!;
+    this.removeNode(node);
+    return node;
+  }
+}
+```
+
+#### 5. 应用到 AI 对话缓存
+
+```typescript
+interface CacheEntry {
+  answer: string;
+  timestamp: number;  // 缓存时间
+  model: string;      // 哪个模型生成的
+  tokenUsed: number;  // 用了多少 token
+}
+
+class AICacheManager {
+  private cache: LRUCache<string, CacheEntry>;
+  private ttl: number;  // 缓存过期时间（毫秒）
+
+  constructor(maxSize = 100, ttl = 1000 * 60 * 60) { // 默认 1 小时过期
+    this.cache = new LRUCache(maxSize);
+    this.ttl = ttl;
+  }
+
+  // 生成缓存 key：对问题做归一化（去空格、转小写等）
+  private makeKey(question: string, model: string): string {
+    // 简单的归一化：去前后空格、转小写、去多余空格
+    const normalized = question.trim().toLowerCase().replace(/\s+/g, ' ');
+    return `${model}:${normalized}`;
+  }
+
+  get(question: string, model: string): string | null {
+    const key = this.makeKey(question, model);
+    const entry = this.cache.get(key);
+
+    if (!entry) return null;
+
+    // 检查是否过期
+    if (Date.now() - entry.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.answer;
+  }
+
+  set(question: string, model: string, answer: string, tokenUsed: number) {
+    const key = this.makeKey(question, model);
+    this.cache.set(key, {
+      answer,
+      model,
+      tokenUsed,
+      timestamp: Date.now()
+    });
+  }
+
+  // 统计：省了多少钱
+  getStats() {
+    // 可以加命中率统计
+    // 实际项目中可以加 hit/miss 计数器
+  }
+}
+```
+
+#### 6. 前端缓存的注意事项
+
+| 注意点 | 说明 |
+|--------|------|
+| **缓存一致性** | 模型升级了，旧缓存可能不对，记得清 |
+| **隐私问题** | 用户的问题不要存在 localStorage，刷新就没了也行 |
+| **缓存粒度** | 是整句匹配还是语义匹配？整句简单但命中率低 |
+| **内存占用** | 别存太多，大文本占内存 |
+| **不要过度缓存** | AI 的价值是生成，全是缓存就没意思了 |
+
+---
+
+### 🎯 得分点
+| 得分点 | 分值 | 说明 |
+|--------|------|------|
+| 理解 LRU 的原理和应用场景 | 20% | 知道是什么、为什么需要 |
+| 能用 Map 实现 LRU | 25% | 代码简洁正确，理解 Map 的有序性 |
+| 知道经典实现（哈希表+双向链表） | 25% | 能讲清思路，最好能手写 |
+| 能应用到实际业务场景（AI缓存） | 20% | 不是只会算法，知道怎么用 |
+| 考虑了过期、隐私等实际问题 | 10% | 有工程思维，不是纯算法 |
+
+### 🔗 追问链
+1. **追问1**：LRU 和 LFU 有什么区别？各自适用什么场景？
+2. **追问2**：Map 的迭代顺序为什么是插入顺序？和 Object 有什么区别？
+3. **追问3**：如果缓存的数据很大，前端存不下怎么办？
+4. **追问4**：除了 LRU，还知道哪些缓存淘汰策略？
+5. **追问5**：语义缓存怎么做？就是问题不一样但意思相近也能命中？
+
+### ⚠️ 易错点
+- ❌ 时间复杂度说成 O(n)——Map 实现的 get 和 set 都是 O(1)
+- ❌ 链表操作不熟练，prev/next 指针容易搞反——画图辅助
+- ❌ 只考虑算法，不考虑实际应用——缓存过期、隐私、一致性都很重要
+- ❌ 不知道 JS 的 Map 是有序的——这是实现 LRU 最简洁的方式
+
+---
+
+## 📝 附录：面试实战指南
 
 | 轮次 | 考察重点 | 常见形式 |
 |------|---------|---------|

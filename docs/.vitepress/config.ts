@@ -46,7 +46,8 @@ export default withMermaid(
           text: '工程化',
           items: [
             { text: '工程化', link: '/engineering/basics' },
-            { text: '性能优化', link: '/performance/basics' }
+            { text: '性能优化', link: '/performance/basics' },
+            { text: '前端 AI', link: '/ai/basics' }
           ]
         },
         {
@@ -69,7 +70,8 @@ export default withMermaid(
             { text: '工程化', link: '/engineering/interviews' },
             { text: '性能优化', link: '/performance/interviews' },
             { text: '浏览器', link: '/browser/interviews' },
-            { text: '网络', link: '/network/interviews' }
+            { text: '网络', link: '/network/interviews' },
+            { text: '前端 AI', link: '/ai/interviews' }
           ]
         }
       ],
@@ -162,6 +164,15 @@ export default withMermaid(
             items: [
               { text: '基础知识', link: '/network/basics' },
               { text: '面试题库', link: '/network/interviews' }
+            ]
+          }
+        ],
+        '/ai/': [
+          {
+            text: '前端 AI',
+            items: [
+              { text: '基础知识', link: '/ai/basics' },
+              { text: '面试题库', link: '/ai/interviews' }
             ]
           }
         ],

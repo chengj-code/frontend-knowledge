@@ -39,6 +39,7 @@ export default withMermaid(
           items: [
             { text: 'Vue', link: '/vue/basics' },
             { text: 'React', link: '/react/basics' },
+            { text: 'VueUse', link: '/vueuse/' },
             { text: 'Node.js', link: '/nodejs/basics' }
           ]
         },
@@ -200,6 +201,95 @@ export default withMermaid(
             items: [
               { text: '基础知识', link: '/source-code/react/basics' },
               { text: '面试题库', link: '/source-code/react/interviews' }
+            ]
+          }
+        ],
+        '/vueuse/': [
+          {
+            text: 'VueUse 学习指南',
+            items: [
+              { text: '总览说明', link: '/vueuse/' },
+              { text: '编写规范', link: '/vueuse/STANDARDS' },
+              { text: '学习进度', link: '/vueuse/PROGRESS' }
+            ]
+          },
+          {
+            text: '阶段 1：基础工具函数',
+            items: [
+              { text: '阶段总览', link: '/vueuse/stage-1/' },
+              { text: '详细指南', link: '/vueuse/stage-1/detailed-guide' }
+            ]
+          },
+          {
+            text: '阶段 2：状态管理 Composable',
+            items: [
+              { text: '阶段总览', link: '/vueuse/stage-2/' },
+              { text: 'useCounter', link: '/vueuse/stage-2/useCounter' },
+              { text: 'useToggle', link: '/vueuse/stage-2/useToggle' }
+            ]
+          },
+          {
+            text: '阶段 3：定时器与生命周期管理',
+            items: [
+              { text: '阶段总览', link: '/vueuse/stage-3/' },
+              { text: 'is.ts', link: '/vueuse/stage-3/is.ts' },
+              { text: 'tryOnMounted', link: '/vueuse/stage-3/tryOnMounted' },
+              { text: 'tryOnScopeDispose', link: '/vueuse/stage-3/tryOnScopeDispose' },
+              { text: 'useInterval', link: '/vueuse/stage-3/useInterval' },
+              { text: 'useIntervalFn', link: '/vueuse/stage-3/useIntervalFn' },
+              { text: 'useTimeout', link: '/vueuse/stage-3/useTimeout' },
+              { text: 'useTimeoutFn', link: '/vueuse/stage-3/useTimeoutFn' }
+            ]
+          },
+          {
+            text: '阶段 4：事件过滤器与函数增强',
+            items: [
+              { text: '阶段总览', link: '/vueuse/stage-4/' },
+              { text: 'filters.ts', link: '/vueuse/stage-4/filters.ts' },
+              { text: 'refDebounced', link: '/vueuse/stage-4/refDebounced' },
+              { text: 'refThrottled', link: '/vueuse/stage-4/refThrottled' },
+              { text: 'useDebounceFn', link: '/vueuse/stage-4/useDebounceFn' },
+              { text: 'useThrottleFn', link: '/vueuse/stage-4/useThrottleFn' },
+              { text: 'watchDebounced', link: '/vueuse/stage-4/watchDebounced' },
+              { text: 'watchPausable', link: '/vueuse/stage-4/watchPausable' },
+              { text: 'watchWithFilter', link: '/vueuse/stage-4/watchWithFilter' }
+            ]
+          },
+          {
+            text: '阶段 5：DOM 事件与浏览器 API',
+            items: [
+              { text: '阶段总览', link: '/vueuse/stage-5/' },
+              { text: '可配置项约定', link: '/vueuse/stage-5/_configurable' },
+              { text: 'useClipboard', link: '/vueuse/stage-5/useClipboard' },
+              { text: 'useEventListener', link: '/vueuse/stage-5/useEventListener' },
+              { text: 'useFullscreen', link: '/vueuse/stage-5/useFullscreen' },
+              { text: 'useIdle', link: '/vueuse/stage-5/useIdle' },
+              { text: 'useMounted', link: '/vueuse/stage-5/useMounted' },
+              { text: 'useMouse', link: '/vueuse/stage-5/useMouse' },
+              { text: 'useNetwork', link: '/vueuse/stage-5/useNetwork' },
+              { text: 'useSupported', link: '/vueuse/stage-5/useSupported' },
+              { text: 'useWindowSize', link: '/vueuse/stage-5/useWindowSize' }
+            ]
+          },
+          {
+            text: '阶段 6：高级 Composable',
+            items: [
+              { text: '阶段总览', link: '/vueuse/stage-6/' },
+              { text: 'onClickOutside', link: '/vueuse/stage-6/onClickOutside' },
+              { text: 'useDraggable', link: '/vueuse/stage-6/useDraggable' },
+              { text: 'useStorage', link: '/vueuse/stage-6/useStorage' },
+              { text: 'useVirtualList', link: '/vueuse/stage-6/useVirtualList' },
+              { text: 'useWebSocket', link: '/vueuse/stage-6/useWebSocket' }
+            ]
+          },
+          {
+            text: '阶段 7：专家级抽象',
+            items: [
+              { text: '阶段总览', link: '/vueuse/stage-7/' },
+              { text: 'until', link: '/vueuse/stage-7/until' },
+              { text: 'useAnimate', link: '/vueuse/stage-7/useAnimate' },
+              { text: 'useFetch', link: '/vueuse/stage-7/useFetch' },
+              { text: 'useMagicKeys', link: '/vueuse/stage-7/useMagicKeys' }
             ]
           }
         ]

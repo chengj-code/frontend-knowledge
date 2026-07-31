@@ -81,6 +81,8 @@ frontend-knowledge/
 
 > **注意**：不要直接向 main 推送，应在 dev 分支开发，测试无误后合并到 main。
 
+> **合并后回切**：每次推送到远端并合并到目标分支（dev/main）后，必须切换回之前的开发分支（如 `trae/agent-xxx`），不要停留在 dev 或 main 上。
+
 ## 常用命令
 
 ```bash
